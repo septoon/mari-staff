@@ -1,0 +1,3247 @@
+import { Dispatch, ReactNode, SetStateAction, useCallback, useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
+import {
+  ArrowLeft,
+  BadgeDollarSign,
+  Bell,
+  CalendarDays,
+  CalendarRange,
+  ChartPie,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDown,
+  Clock3,
+  Cog,
+  History,
+  Loader2,
+  LogOut,
+  Menu,
+  MessageCircle,
+  MessageCircleMore,
+  MessageSquare,
+  MoreVertical,
+  Phone,
+  PhoneCall,
+  Plus,
+  RefreshCcw,
+  Save,
+  Search,
+  Settings2,
+  Sparkles,
+  Trash2,
+  UserRound,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react';
+import { ApiError, api, StaffRole, StaffSession } from './api';
+
+type TabKey = 'journal' | 'schedule' | 'clients' | 'notifications' | 'more';
+type AppPage = 'tabs' | 'staff' | 'owner' | 'staffEditor' | 'clientHistory';
+
+type TabItem = {
+  key: TabKey;
+  title: string;
+  icon: typeof CalendarDays;
+};
+
+type StaffItem = {
+  id: string;
+  name: string;
+  role: StaffRole;
+  phoneE164: string;
+  email: string | null;
+  isActive: boolean;
+  positionName: string | null;
+};
+
+type StaffCreateRole = 'ADMIN' | 'MASTER';
+
+type StaffDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  positionName: string;
+  role: StaffCreateRole;
+};
+
+type StaffFilter = {
+  withServices: boolean;
+  withAccess: boolean;
+};
+
+type OwnerDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  positionName: string;
+};
+
+type ClientItem = {
+  id: string;
+  name: string;
+  phone: string;
+};
+
+type ServiceItem = {
+  id: string;
+  name: string;
+  durationSec: number;
+  priceMin: number;
+  priceMax: number;
+};
+
+type AppointmentItem = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  clientId: string;
+  startAt: Date;
+  endAt: Date;
+  status: string;
+  clientName: string;
+  clientPhone: string;
+  serviceName: string;
+  amountBeforeDiscount: number | null;
+  discountPercent: number | null;
+  amountAfterDiscount: number | null;
+  createdAt: Date;
+};
+
+type NotificationItem = {
+  id: string;
+  label: string;
+  time: string;
+  mode: 'new' | 'delete';
+};
+
+type WorkingHoursMap = Record<string, Record<number, string[]>>;
+
+type InfoPanelState = {
+  title: string;
+  lines: string[];
+} | null;
+
+type LoadingState = {
+  boot: boolean;
+  auth: boolean;
+  staff: boolean;
+  clients: boolean;
+  services: boolean;
+  appointments: boolean;
+  schedule: boolean;
+  reports: boolean;
+  settings: boolean;
+  action: boolean;
+};
+
+type MoreActionItem = {
+  title: string;
+  icon: typeof UserRound;
+};
+
+const SESSION_STORAGE_KEY = 'mari.staff.session.v1';
+const HOUR_HEIGHT = 76;
+const JOURNAL_START_HOUR = 10;
+const JOURNAL_END_HOUR = 18;
+const DAY_NAMES = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const ISO_DAY_LABELS: Record<number, string> = {
+  1: 'Пн',
+  2: 'Вт',
+  3: 'Ср',
+  4: 'Чт',
+  5: 'Пт',
+  6: 'Сб',
+  7: 'Вс',
+};
+
+const TAB_ITEMS: TabItem[] = [
+  { key: 'journal', title: 'Журнал', icon: CalendarDays },
+  { key: 'schedule', title: 'График', icon: CalendarRange },
+  { key: 'clients', title: 'Клиенты', icon: Users },
+  { key: 'notifications', title: 'Уведомл...', icon: Bell },
+  { key: 'more', title: 'Еще', icon: Menu },
+];
+
+const MORE_MENU: MoreActionItem[] = [
+  { title: 'Сотрудники', icon: UserRound },
+  { title: 'Услуги', icon: Sparkles },
+  { title: 'Аналитика', icon: ChartPie },
+  { title: 'Расчет зарплат', icon: BadgeDollarSign },
+  { title: 'Онлайн-запись', icon: Clock3 },
+  { title: 'Настройки', icon: Cog },
+  { title: 'Поддержка', icon: MessageCircleMore },
+];
+
+const MONTHS_RU = [
+  'январь',
+  'февраль',
+  'март',
+  'апрель',
+  'май',
+  'июнь',
+  'июль',
+  'август',
+  'сентябрь',
+  'октябрь',
+  'ноябрь',
+  'декабрь',
+];
+
+const ROLE_LABELS: Record<StaffRole, string> = {
+  MASTER: 'Мастер',
+  OWNER: 'Владелец',
+  ADMIN: 'Администратор',
+};
+
+const EMPTY_STAFF_DRAFT: StaffDraft = {
+  name: '',
+  phone: '',
+  email: '',
+  positionName: '',
+  role: 'MASTER',
+};
+
+const EMPTY_OWNER_DRAFT: OwnerDraft = {
+  name: '',
+  phone: '',
+  email: '',
+  positionName: '',
+};
+
+function App() {
+  const [page, setPage] = useState<AppPage>('tabs');
+  const [tab, setTab] = useState<TabKey>('journal');
+  const [session, setSession] = useState<StaffSession | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [clientsQuery, setClientsQuery] = useState('');
+  const [debouncedClientsQuery, setDebouncedClientsQuery] = useState('');
+  const [staff, setStaff] = useState<StaffItem[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [clientActionsFor, setClientActionsFor] = useState<ClientItem | null>(null);
+  const [clientHistoryTarget, setClientHistoryTarget] = useState<ClientItem | null>(null);
+  const [clientHistoryAppointments, setClientHistoryAppointments] = useState<AppointmentItem[]>([]);
+  const [clientHistoryLoading, setClientHistoryLoading] = useState(false);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [workingHoursByStaff, setWorkingHoursByStaff] = useState<WorkingHoursMap>({});
+  const [panel, setPanel] = useState<InfoPanelState>(null);
+  const [toast, setToast] = useState('');
+  const [appError, setAppError] = useState('');
+  const [authPhone, setAuthPhone] = useState('');
+  const [authPin, setAuthPin] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffFilter, setStaffFilter] = useState<StaffFilter>({
+    withServices: false,
+    withAccess: false,
+  });
+  const [staffFormMode, setStaffFormMode] = useState<'create' | 'edit' | null>(null);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [staffDraft, setStaffDraft] = useState<StaffDraft>(EMPTY_STAFF_DRAFT);
+  const [editorAccessEnabled, setEditorAccessEnabled] = useState(true);
+  const [staffServiceCounts, setStaffServiceCounts] = useState<Record<string, number>>({});
+  const [editorServiceCount, setEditorServiceCount] = useState<number>(0);
+  const [editorServiceNames, setEditorServiceNames] = useState<string[]>([]);
+  const [originalEditRole, setOriginalEditRole] = useState<StaffCreateRole>('MASTER');
+  const [ownerEditId, setOwnerEditId] = useState<string | null>(null);
+  const [ownerDraft, setOwnerDraft] = useState<OwnerDraft>(EMPTY_OWNER_DRAFT);
+  const [loading, setLoading] = useState<LoadingState>({
+    boot: true,
+    auth: false,
+    staff: false,
+    clients: false,
+    services: false,
+    appointments: false,
+    schedule: false,
+    reports: false,
+    settings: false,
+    action: false,
+  });
+
+  const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
+  const isAuthorized = Boolean(session);
+  const visibleStaff = staff.slice(0, 4);
+  const journalHours = useMemo(() => {
+    const hours: string[] = [];
+    for (let hour = JOURNAL_START_HOUR; hour <= JOURNAL_END_HOUR; hour += 1) {
+      hours.push(`${String(hour).padStart(2, '0')}:00`);
+    }
+    return hours;
+  }, []);
+
+  const notifications = useMemo<NotificationItem[]>(() => {
+    return [...appointments]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 10)
+      .map((item) => {
+        const cancelled = item.status === 'CANCELLED' || item.status === 'NO_SHOW';
+        return {
+          id: item.id,
+          label: cancelled ? 'Запись отменена' : 'Новая онлайн-запись',
+          mode: cancelled ? 'delete' : 'new',
+          time: formatTime(item.createdAt),
+        };
+      });
+  }, [appointments]);
+
+  const filteredStaff = useMemo(() => {
+    const withoutOwner = staff.filter((item) => item.role !== 'OWNER');
+    const filteredByFlags = withoutOwner.filter((item) => {
+      if (staffFilter.withAccess && !item.isActive) {
+        return false;
+      }
+      if (staffFilter.withServices && (staffServiceCounts[item.id] ?? 0) <= 0) {
+        return false;
+      }
+      return true;
+    });
+    const query = staffSearch.trim().toLowerCase();
+    if (!query) {
+      return filteredByFlags;
+    }
+    return filteredByFlags.filter((item) => {
+      const haystack = `${item.name} ${item.phoneE164} ${item.role} ${
+        item.positionName || ''
+      } ${roleLabel(item.role)}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [staff, staffFilter.withAccess, staffFilter.withServices, staffSearch, staffServiceCounts]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedClientsQuery(clientsQuery), 350);
+    return () => clearTimeout(timeout);
+  }, [clientsQuery]);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timeout = setTimeout(() => setToast(''), 2400);
+    return () => clearTimeout(timeout);
+  }, [toast]);
+
+  useEffect(() => {
+    const restore = async () => {
+      const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) {
+        setLoadingKey(setLoading, 'boot', false);
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as StaffSession;
+        api.setSession(parsed);
+        const refreshed = await api.refresh();
+        setSession(refreshed);
+      } catch {
+        api.clearSession();
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      } finally {
+        setLoadingKey(setLoading, 'boot', false);
+      }
+    };
+
+    void restore();
+  }, []);
+
+  useEffect(() => {
+    api.setSession(session);
+    if (session) {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, [session]);
+
+  const loadStaff = useCallback(async () => {
+    if (!isAuthorized) {
+      return [];
+    }
+    setLoadingKey(setLoading, 'staff', true);
+    try {
+      const data = await api.get<unknown>('/staff?page=1&limit=100');
+      const parsed = extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[];
+      setStaff(parsed);
+      return parsed;
+    } catch (error) {
+      setAppError(toErrorMessage(error));
+      return [];
+    } finally {
+      setLoadingKey(setLoading, 'staff', false);
+    }
+  }, [isAuthorized]);
+
+  const loadServices = useCallback(async () => {
+    if (!isAuthorized) {
+      return [];
+    }
+    setLoadingKey(setLoading, 'services', true);
+    try {
+      const data = await api.get<unknown>('/services');
+      const parsed = extractItems(data).map(parseService).filter(Boolean) as ServiceItem[];
+      setServices(parsed);
+      return parsed;
+    } catch (error) {
+      setAppError(toErrorMessage(error));
+      return [];
+    } finally {
+      setLoadingKey(setLoading, 'services', false);
+    }
+  }, [isAuthorized]);
+
+  const loadStaffServiceMeta = useCallback(
+    async (rows: StaffItem[]) => {
+      if (!isAuthorized || rows.length === 0) {
+        setStaffServiceCounts({});
+        return;
+      }
+      try {
+        const pairs = await Promise.all(
+          rows.map(async (item) => {
+            try {
+              const data = await api.get<unknown>(`/staff/${item.id}/services`);
+              const record = toRecord(data);
+              const count =
+                toNumber(record?.servicesCount) ?? extractItems(data).length ?? 0;
+              return [item.id, count] as const;
+            } catch {
+              return [item.id, 0] as const;
+            }
+          }),
+        );
+        const next: Record<string, number> = {};
+        pairs.forEach(([id, count]) => {
+          next[id] = count;
+        });
+        setStaffServiceCounts(next);
+      } catch {
+        setStaffServiceCounts({});
+      }
+    },
+    [isAuthorized],
+  );
+
+  const loadStaffServicesForEditor = useCallback(
+    async (staffId: string) => {
+      try {
+        const data = await api.get<unknown>(`/staff/${staffId}/services`);
+        const record = toRecord(data);
+        const items = extractItems(data).map(parseService).filter(Boolean) as ServiceItem[];
+        setEditorServiceCount(toNumber(record?.servicesCount) ?? items.length);
+        setEditorServiceNames(items.map((item) => item.name));
+      } catch (error) {
+        setEditorServiceCount(0);
+        setEditorServiceNames([]);
+        setToast(toErrorMessage(error));
+      }
+    },
+    [],
+  );
+
+  const loadClients = useCallback(
+    async (search = '') => {
+      if (!isAuthorized) {
+        return;
+      }
+      setLoadingKey(setLoading, 'clients', true);
+      try {
+        const params = new URLSearchParams({
+          page: '1',
+          limit: '50',
+        });
+        const normalizedSearch = search.trim();
+        if (normalizedSearch.length > 0) {
+          params.set('search', normalizedSearch);
+        }
+        const data = await api.get<unknown>(`/clients?${params.toString()}`);
+        const parsed = extractItems(data).map(parseClient).filter(Boolean) as ClientItem[];
+        setClients(parsed);
+      } catch (error) {
+        setAppError(toErrorMessage(error));
+      } finally {
+        setLoadingKey(setLoading, 'clients', false);
+      }
+    },
+    [isAuthorized],
+  );
+
+  const loadAppointments = useCallback(
+    async (date: Date) => {
+      if (!isAuthorized) {
+        return;
+      }
+      setLoadingKey(setLoading, 'appointments', true);
+      try {
+        const day = toISODate(date);
+        const data = await api.get<unknown>(
+          `/appointments?page=1&limit=100&from=${day}&to=${day}`,
+        );
+        const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
+        setAppointments(parsed);
+      } catch (error) {
+        setAppError(toErrorMessage(error));
+      } finally {
+        setLoadingKey(setLoading, 'appointments', false);
+      }
+    },
+    [isAuthorized],
+  );
+
+  const loadSettings = useCallback(async () => {
+    if (!isAuthorized) {
+      return null;
+    }
+    setLoadingKey(setLoading, 'settings', true);
+    try {
+      const data = await api.get<unknown>('/settings/staff');
+      const asRecord = toRecord(data);
+      const policyRecord = toRecord(asRecord?.clientCancelPolicy) ?? toRecord(asRecord?.cancelPolicy);
+      const minNotice = toNumber(policyRecord?.minNoticeMinutes);
+      return minNotice ?? null;
+    } catch (error) {
+      setAppError(toErrorMessage(error));
+      return null;
+    } finally {
+      setLoadingKey(setLoading, 'settings', false);
+    }
+  }, [isAuthorized]);
+
+  const loadReports = useCallback(async () => {
+    if (!isAuthorized) {
+      return null;
+    }
+    setLoadingKey(setLoading, 'reports', true);
+    try {
+      const [from, to] = monthRange(selectedDate);
+      const data = await api.get<unknown>(`/reports/overview?from=${from}&to=${to}`);
+      return toRecord(data);
+    } catch (error) {
+      setAppError(toErrorMessage(error));
+      return null;
+    } finally {
+      setLoadingKey(setLoading, 'reports', false);
+    }
+  }, [isAuthorized, selectedDate]);
+
+  const loadWorkingHours = useCallback(
+    async (staffRows: StaffItem[]) => {
+      if (!isAuthorized || staffRows.length === 0) {
+        setWorkingHoursByStaff({});
+        return;
+      }
+      setLoadingKey(setLoading, 'schedule', true);
+      try {
+        const responses = await Promise.all(
+          staffRows.map(async (item) => {
+            try {
+              const data = await api.get<unknown>(`/schedule/staff/${item.id}/working-hours`);
+              return [item.id, parseWorkingHours(data)] as const;
+            } catch {
+              return [item.id, {} as Record<number, string[]>] as const;
+            }
+          }),
+        );
+        const merged: WorkingHoursMap = {};
+        responses.forEach(([staffId, value]) => {
+          merged[staffId] = value;
+        });
+        setWorkingHoursByStaff(merged);
+      } finally {
+        setLoadingKey(setLoading, 'schedule', false);
+      }
+    },
+    [isAuthorized],
+  );
+
+  const refreshAll = useCallback(async () => {
+    if (!isAuthorized) {
+      return;
+    }
+    setAppError('');
+    const rows = await loadStaff();
+    await loadStaffServiceMeta(rows);
+    await Promise.all([
+      loadClients(debouncedClientsQuery),
+      loadServices(),
+      loadAppointments(selectedDate),
+      loadSettings(),
+      loadReports(),
+    ]);
+    await loadWorkingHours(rows);
+  }, [
+    debouncedClientsQuery,
+    isAuthorized,
+    loadAppointments,
+    loadClients,
+    loadReports,
+    loadServices,
+    loadStaffServiceMeta,
+    loadSettings,
+    loadStaff,
+    loadWorkingHours,
+    selectedDate,
+  ]);
+
+  useEffect(() => {
+    if (!isAuthorized) {
+      return;
+    }
+    void refreshAll();
+  }, [isAuthorized, refreshAll]);
+
+  useEffect(() => {
+    if (!isAuthorized) {
+      return;
+    }
+    void loadClients(debouncedClientsQuery);
+  }, [debouncedClientsQuery, isAuthorized, loadClients]);
+
+  useEffect(() => {
+    if (!isAuthorized) {
+      return;
+    }
+    void loadAppointments(selectedDate);
+    void loadReports();
+  }, [isAuthorized, loadAppointments, loadReports, selectedDate]);
+
+  useEffect(() => {
+    if (!isAuthorized || staff.length === 0) {
+      return;
+    }
+    void loadWorkingHours(staff);
+  }, [isAuthorized, loadWorkingHours, staff]);
+
+  const handleLogin = async () => {
+    setAuthError('');
+    setLoadingKey(setLoading, 'auth', true);
+    try {
+      const data = await api.login(authPhone.trim(), authPin.trim());
+      setSession(data);
+      setToast('Вы вошли в систему');
+    } catch (error) {
+      setAuthError(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'auth', false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.logout();
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+      setSession(null);
+      setStaff([]);
+      setClients([]);
+      setClientActionsFor(null);
+      setClientHistoryTarget(null);
+      setClientHistoryAppointments([]);
+      setServices([]);
+      setAppointments([]);
+      setWorkingHoursByStaff({});
+      setPanel(null);
+      setPage('tabs');
+      setTab('journal');
+      setStaffFormMode(null);
+      setEditingStaffId(null);
+      setStaffDraft(EMPTY_STAFF_DRAFT);
+      setEditorAccessEnabled(true);
+      setOriginalEditRole('MASTER');
+      setEditorServiceCount(0);
+      setEditorServiceNames([]);
+      setStaffServiceCounts({});
+      setStaffFilter({ withServices: false, withAccess: false });
+      setOwnerEditId(null);
+      setOwnerDraft(EMPTY_OWNER_DRAFT);
+      setToast('Сессия завершена');
+    }
+  };
+
+  const openStaffCreate = () => {
+    setEditingStaffId(null);
+    setStaffDraft(EMPTY_STAFF_DRAFT);
+    setEditorAccessEnabled(true);
+    setOriginalEditRole('MASTER');
+    setEditorServiceCount(0);
+    setEditorServiceNames([]);
+    setStaffFormMode('create');
+    setPage('staffEditor');
+  };
+
+  const openStaffEdit = async (item: StaffItem) => {
+    setEditingStaffId(item.id);
+    setStaffDraft({
+      name: item.name,
+      phone: item.phoneE164 || '',
+      email: item.email || '',
+      positionName: item.positionName || '',
+      role: item.role === 'ADMIN' ? 'ADMIN' : 'MASTER',
+    });
+    setOriginalEditRole(item.role === 'ADMIN' ? 'ADMIN' : 'MASTER');
+    setEditorAccessEnabled(item.isActive);
+    setStaffFormMode('edit');
+    setPage('staffEditor');
+    await loadStaffServicesForEditor(item.id);
+  };
+
+  const closeStaffForm = () => {
+    setStaffFormMode(null);
+    setEditingStaffId(null);
+    setStaffDraft(EMPTY_STAFF_DRAFT);
+    setEditorAccessEnabled(true);
+    setOriginalEditRole('MASTER');
+    setEditorServiceCount(0);
+    setEditorServiceNames([]);
+  };
+
+  const backFromStaffEditor = () => {
+    closeStaffForm();
+    setPage('staff');
+  };
+
+  const backFromStaffList = () => {
+    closeStaffForm();
+    setPage('tabs');
+    setTab('more');
+  };
+
+  const closeOwnerPage = () => {
+    setPage('tabs');
+    setTab('more');
+  };
+
+  const handleOpenOwnerEditor = async () => {
+    if (!session) {
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      let rows = staff;
+      if (rows.length === 0) {
+        rows = await loadStaff();
+      }
+      const owner = rows.find((item) => item.role === 'OWNER');
+      const fallback = session.staff.role === 'OWNER'
+        ? {
+            id: session.staff.id,
+            name: session.staff.name,
+            role: session.staff.role,
+            phoneE164: session.staff.phoneE164,
+            email: session.staff.email,
+            isActive: true,
+            positionName: null,
+          }
+        : null;
+      const target = owner || fallback;
+      if (!target) {
+        setToast('Владелец не найден');
+        return;
+      }
+      setOwnerEditId(target.id);
+      setOwnerDraft({
+        name: target.name,
+        phone: target.phoneE164 || '',
+        email: target.email || '',
+        positionName: target.positionName || '',
+      });
+      setPage('owner');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleSaveOwner = async () => {
+    if (!ownerEditId) {
+      setToast('ID владельца не найден');
+      return;
+    }
+    const name = ownerDraft.name.trim();
+    const phone = ownerDraft.phone.trim();
+    if (!name || !phone) {
+      setToast('Имя и телефон обязательны');
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.patch<unknown>(`/staff/${ownerEditId}/contact`, {
+        name,
+        phone,
+        email: ownerDraft.email.trim() ? ownerDraft.email.trim() : null,
+        positionName: ownerDraft.positionName.trim() || undefined,
+      });
+      await loadStaff();
+      setSession((prev) => {
+        if (!prev || prev.staff.id !== ownerEditId) {
+          return prev;
+        }
+        return {
+          ...prev,
+          staff: {
+            ...prev.staff,
+            name,
+            phoneE164: phone,
+            email: ownerDraft.email.trim() ? ownerDraft.email.trim() : null,
+          },
+        };
+      });
+      setToast('Данные владельца обновлены');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleCreateStaff = async () => {
+    const name = staffDraft.name.trim();
+    const phone = staffDraft.phone.trim();
+    if (!name || !phone) {
+      setToast('Имя и телефон обязательны');
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.post<unknown>('/staff/invite', {
+        phone,
+        name,
+        role: staffDraft.role,
+        email: staffDraft.email.trim() || undefined,
+        positionName: staffDraft.positionName.trim() || undefined,
+      });
+      const rows = await loadStaff();
+      await loadStaffServiceMeta(rows);
+      closeStaffForm();
+      setPage('staff');
+      setToast('Сотрудник создан');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleUpdateStaff = async () => {
+    const id = editingStaffId;
+    if (!id) {
+      return;
+    }
+    const name = staffDraft.name.trim();
+    const phone = staffDraft.phone.trim();
+    if (!name || !phone) {
+      setToast('Имя и телефон обязательны');
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.patch<unknown>(`/staff/${id}/contact`, {
+        name,
+        phone,
+        email: staffDraft.email.trim() ? staffDraft.email.trim() : null,
+        positionName: staffDraft.positionName.trim() || undefined,
+      });
+      if (
+        session?.staff.role === 'OWNER' &&
+        staffDraft.role !== originalEditRole
+      ) {
+        await api.patch<unknown>(`/staff/${id}/role`, { role: staffDraft.role });
+      }
+
+      if (!editorAccessEnabled) {
+        await api.post<unknown>(`/staff/${id}/fire`, {
+          firedAt: toISODate(new Date()),
+        });
+      }
+
+      const rows = await loadStaff();
+      await loadStaffServiceMeta(rows);
+      closeStaffForm();
+      setPage('staff');
+      setToast('Сотрудник обновлен');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleFireStaff = async () => {
+    if (!editingStaffId) {
+      return;
+    }
+    const confirmed = window.confirm('Уволить сотрудника?');
+    if (!confirmed) {
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.post<unknown>(`/staff/${editingStaffId}/fire`, {
+        firedAt: toISODate(new Date()),
+      });
+      const rows = await loadStaff();
+      await loadStaffServiceMeta(rows);
+      closeStaffForm();
+      setPage('staff');
+      setToast('Сотрудник уволен');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleClientDetails = async (client: ClientItem) => {
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const data = await api.get<unknown>(`/clients/${client.id}`);
+      const record = toRecord(data);
+      const discount = toRecord(record?.discount);
+      setPanel({
+        title: `Клиент: ${client.name}`,
+        lines: [
+          `Телефон: ${client.phone || '—'}`,
+          `ID: ${client.id}`,
+          `Скидка: ${discount ? JSON.stringify(discount) : 'нет'}`,
+        ],
+      });
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleOpenClientActions = (client: ClientItem) => {
+    setClientActionsFor(client);
+  };
+
+  const handleCloseClientActions = () => {
+    setClientActionsFor(null);
+  };
+
+  const handleOpenClientLoyalty = async () => {
+    if (!clientActionsFor) {
+      return;
+    }
+    await handleClientDetails(clientActionsFor);
+    setClientActionsFor(null);
+  };
+
+  const handleOpenClientHistory = async () => {
+    const client = clientActionsFor;
+    if (!client) {
+      return;
+    }
+    setClientHistoryTarget(client);
+    setClientHistoryLoading(true);
+    setClientActionsFor(null);
+    try {
+      const now = new Date();
+      const from = new Date(now);
+      from.setFullYear(now.getFullYear() - 2);
+      const data = await api.get<unknown>(
+        `/appointments?page=1&limit=500&from=${toISODate(from)}&to=${toISODate(now)}`,
+      );
+      const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
+      const filtered = parsed
+        .filter((item) => {
+          if (item.clientId) {
+            return item.clientId === client.id;
+          }
+          const samePhone =
+            normalizePhoneForWhatsApp(item.clientPhone) ===
+            normalizePhoneForWhatsApp(client.phone);
+          const sameName =
+            item.clientName.trim().toLowerCase() === client.name.trim().toLowerCase();
+          return samePhone || sameName;
+        })
+        .sort((a, b) => b.startAt.getTime() - a.startAt.getTime());
+      setClientHistoryAppointments(filtered);
+      setPage('clientHistory');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setClientHistoryLoading(false);
+    }
+  };
+
+  const handleCloseClientHistory = () => {
+    setPage('tabs');
+    setTab('clients');
+  };
+
+  const handleCallClient = () => {
+    if (!clientActionsFor?.phone) {
+      setToast('Телефон клиента не найден');
+      return;
+    }
+    window.location.href = `tel:${normalizePhoneForLink(clientActionsFor.phone)}`;
+  };
+
+  const handleSmsClient = () => {
+    if (!clientActionsFor?.phone) {
+      setToast('Телефон клиента не найден');
+      return;
+    }
+    window.location.href = `sms:${normalizePhoneForLink(clientActionsFor.phone)}`;
+  };
+
+  const handleWhatsAppClient = () => {
+    if (!clientActionsFor?.phone) {
+      setToast('Телефон клиента не найден');
+      return;
+    }
+    const digits = normalizePhoneForWhatsApp(clientActionsFor.phone);
+    window.open(`https://wa.me/${digits}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDeleteClient = () => {
+    setClientActionsFor(null);
+    setToast('Удаление клиента недоступно в текущем API');
+  };
+
+  const handleSetDate = () => {
+    const iso = prompt('Дата в формате YYYY-MM-DD', toISODate(selectedDate));
+    if (!iso) {
+      return;
+    }
+    const parsed = new Date(`${iso}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      setToast('Неверная дата');
+      return;
+    }
+    setSelectedDate(parsed);
+  };
+
+  const handleCreateAppointment = async () => {
+    if (staff.length === 0 || services.length === 0) {
+      setToast('Нет данных staff/services для создания записи');
+      return;
+    }
+
+    const clientName = prompt('Имя клиента');
+    if (!clientName) {
+      return;
+    }
+    const phone = prompt('Телефон клиента в формате +7...');
+    if (!phone) {
+      return;
+    }
+    const time = prompt('Время начала HH:mm', '10:00');
+    if (!time) {
+      return;
+    }
+    const durationMin = Number(prompt('Длительность (мин)', '60') || '60');
+    const duration = Number.isFinite(durationMin) && durationMin > 0 ? durationMin : 60;
+
+    const [hh, mm] = time.split(':').map(Number);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
+      setToast('Неверное время');
+      return;
+    }
+
+    const start = new Date(selectedDate);
+    start.setHours(hh, mm, 0, 0);
+    const end = new Date(start.getTime() + duration * 60_000);
+
+    const staffId = staff[0].id;
+    const serviceId = services[0].id;
+    const payloadCandidates: Record<string, unknown>[] = [
+      {
+        startAt: start.toISOString(),
+        staffId,
+        anyStaff: false,
+        serviceIds: [serviceId],
+        clientName,
+        phone,
+      },
+      {
+        startAt: start.toISOString(),
+        endAt: end.toISOString(),
+        staffId,
+        anyStaff: false,
+        serviceId,
+        client: {
+          name: clientName,
+          phone,
+        },
+      },
+    ];
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      let lastError: unknown = null;
+      for (const payload of payloadCandidates) {
+        try {
+          await api.post<unknown>('/appointments', payload);
+          setToast('Запись создана');
+          await loadAppointments(selectedDate);
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError;
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleScheduleEdit = async () => {
+    if (staff.length === 0) {
+      setToast('Нет сотрудников');
+      return;
+    }
+    const day = Number(prompt('День недели (1-7)', '1') || '1');
+    const start = prompt('Начало (HH:mm)', '10:00');
+    const end = prompt('Конец (HH:mm)', '18:00');
+    if (!start || !end || !Number.isFinite(day)) {
+      return;
+    }
+    const targetStaff = staff[0];
+    const payloads: unknown[] = [
+      {
+        items: [{ dayOfWeek: day, startTime: start, endTime: end }],
+      },
+      [{ dayOfWeek: day, startTime: start, endTime: end }],
+      {
+        workingHours: [{ dayOfWeek: day, startTime: start, endTime: end }],
+      },
+    ];
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      let updated = false;
+      let lastError: unknown = null;
+      for (const payload of payloads) {
+        try {
+          await api.put<unknown>(`/schedule/staff/${targetStaff.id}/working-hours`, payload);
+          updated = true;
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!updated && lastError) {
+        throw lastError;
+      }
+      setToast(`График обновлен для ${targetStaff.name}`);
+      await loadWorkingHours(staff);
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleMoreAction = async (title: string) => {
+    if (!session) {
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      switch (title) {
+        case 'Сотрудники': {
+          const rows = await loadStaff();
+          await loadStaffServiceMeta(rows);
+          setPanel(null);
+          setStaffSearch('');
+          closeStaffForm();
+          setPage('staff');
+          return;
+        }
+        case 'Услуги': {
+          const loadedServices = await loadServices();
+          setPanel({
+            title: 'Услуги',
+            lines: loadedServices.map((item) => `${item.name} • от ${item.priceMin} до ${item.priceMax}`),
+          });
+          return;
+        }
+        case 'Аналитика': {
+          const overview = await loadReports();
+          if (!overview) {
+            setPanel({ title: 'Аналитика', lines: ['Нет данных'] });
+            return;
+          }
+          setPanel({
+            title: 'Аналитика',
+            lines: [
+              `Записей: ${toNumber(overview.appointmentsCount) ?? 0}`,
+              `Пришли: ${toNumber(overview.arrivedCount) ?? 0}`,
+              `No-show: ${toNumber(overview.noShowCount) ?? 0}`,
+              `Отменено: ${toNumber(overview.cancelledCount) ?? 0}`,
+            ],
+          });
+          return;
+        }
+        case 'Расчет зарплат': {
+          const overview = await loadReports();
+          const byStaffRaw = asArray(toRecord(overview)?.byStaff);
+          const lines = byStaffRaw.map((item) => {
+            const record = toRecord(item);
+            return `${toString(record?.name) || 'Сотрудник'}: ${
+              toNumber(record?.arrivedCount) ?? 0
+            } визитов`;
+          });
+          setPanel({
+            title: 'Расчет зарплат',
+            lines: lines.length > 0 ? lines : ['Нет данных по сотрудникам'],
+          });
+          return;
+        }
+        case 'Онлайн-запись': {
+          setTab('journal');
+          setToast('Открыт журнал записей');
+          return;
+        }
+        case 'Настройки': {
+          const currentNotice = await loadSettings();
+          if (session.staff.role !== 'OWNER') {
+            setPanel({
+              title: 'Настройки',
+              lines: [
+                `minNoticeMinutes: ${
+                  currentNotice !== null ? currentNotice : 'нет данных'
+                }`,
+                'Изменение доступно только Владелец',
+              ],
+            });
+            return;
+          }
+          const next = prompt(
+            'Новый minNoticeMinutes',
+            String(currentNotice ?? 120),
+          );
+          if (!next) {
+            return;
+          }
+          const value = Number(next);
+          if (!Number.isFinite(value) || value < 0) {
+            setToast('Неверное значение');
+            return;
+          }
+          await api.patch<unknown>('/settings/client-cancel-policy', {
+            minNoticeMinutes: value,
+          });
+          setToast('Настройки обновлены');
+          return;
+        }
+        case 'Поддержка': {
+          window.location.href = 'mailto:support@mari-beauty.local?subject=Mari%20Staff%20Support';
+          setToast('Открываю почтовый клиент');
+          return;
+        }
+        default:
+          return;
+      }
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const journalCards = useMemo(() => {
+    const staffById = new Map(visibleStaff.map((item, index) => [item.id, index]));
+    return appointments
+      .filter((item) => staffById.has(item.staffId))
+      .map((item) => {
+        const column = staffById.get(item.staffId);
+        if (column === undefined) {
+          return null;
+        }
+        const left = 76 + column * 166;
+        const startDecimal = item.startAt.getHours() + item.startAt.getMinutes() / 60;
+        const endDecimal = item.endAt.getHours() + item.endAt.getMinutes() / 60;
+        const clampedStart = Math.max(startDecimal, JOURNAL_START_HOUR);
+        const clampedEnd = Math.min(endDecimal, JOURNAL_END_HOUR + 1);
+        const top = (clampedStart - JOURNAL_START_HOUR) * HOUR_HEIGHT + 8;
+        const height = Math.max((clampedEnd - clampedStart) * HOUR_HEIGHT, 62);
+        return {
+          ...item,
+          left,
+          top,
+          height,
+          timeLabel: `${formatTime(item.startAt)}-${formatTime(item.endAt)}`,
+          topTone: item.status === 'CONFIRMED' || item.status === 'ARRIVED' ? 'green' : 'violet',
+        };
+      })
+      .filter(Boolean) as Array<
+      AppointmentItem & {
+        left: number;
+        top: number;
+        height: number;
+        timeLabel: string;
+        topTone: 'green' | 'violet';
+      }
+    >;
+  }, [appointments, visibleStaff]);
+
+  if (loading.boot) {
+    return (
+      <Shell>
+        <LoaderScreen label="Восстанавливаю сессию..." />
+      </Shell>
+    );
+  }
+
+  if (!session) {
+    return (
+      <Shell>
+        <LoginScreen
+          loading={loading.auth}
+          phone={authPhone}
+          pin={authPin}
+          error={authError}
+          onPhoneChange={setAuthPhone}
+          onPinChange={setAuthPin}
+          onLogin={handleLogin}
+        />
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+
+      {toast ? (
+        <div className="mx-4 mt-1 rounded-xl bg-[#1f56dd] px-4 py-2 text-sm font-semibold text-white">
+          {toast}
+        </div>
+      ) : null}
+      {appError ? (
+        <div className="mx-4 mt-1 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
+          {appError}
+        </div>
+      ) : null}
+
+      <main className="scrollbar-hidden flex-1 overflow-y-auto px-4 pb-4">
+        {page === 'staff' ? (
+          <StaffManagementScreen
+            staff={filteredStaff}
+            loading={loading.staff || loading.action}
+            search={staffSearch}
+            onBack={backFromStaffList}
+            onSearchChange={setStaffSearch}
+            filters={staffFilter}
+            serviceCounts={staffServiceCounts}
+            onFilterChange={setStaffFilter}
+            onRefresh={() => {
+              void (async () => {
+                const rows = await loadStaff();
+                await loadStaffServiceMeta(rows);
+              })();
+            }}
+            onCreate={openStaffCreate}
+            onEdit={openStaffEdit}
+          />
+        ) : null}
+        {page === 'staffEditor' && staffFormMode ? (
+          <StaffEditorScreen
+            mode={staffFormMode}
+            draft={staffDraft}
+            loading={loading.action}
+            serviceCount={editorServiceCount}
+            hasAccess={editorAccessEnabled}
+            canDelete={staffFormMode === 'edit'}
+            onBack={backFromStaffEditor}
+            onDraftChange={setStaffDraft}
+            onAccessChange={setEditorAccessEnabled}
+            onSave={staffFormMode === 'create' ? handleCreateStaff : handleUpdateStaff}
+            onDelete={handleFireStaff}
+            onOpenServices={() => {
+              setPanel({
+                title: 'Оказываемые услуги',
+                lines:
+                  editorServiceNames.length > 0
+                    ? editorServiceNames
+                    : ['Услуги не назначены'],
+              });
+            }}
+            onOpenPermissions={() => {
+              setPanel({
+                title: 'Права доступа',
+                lines: ['Журнал записи'],
+              });
+            }}
+          />
+        ) : null}
+        {page === 'owner' ? (
+          <OwnerEditScreen
+            draft={ownerDraft}
+            loading={loading.action}
+            onBack={closeOwnerPage}
+            onDraftChange={setOwnerDraft}
+            onSave={handleSaveOwner}
+          />
+        ) : null}
+        {page === 'tabs' && tab === 'journal' ? (
+          <JournalScreen
+            selectedDate={selectedDate}
+            weekDates={weekDates}
+            staff={visibleStaff}
+            journalHours={journalHours}
+            cards={journalCards}
+            loading={loading.appointments || loading.action}
+            onSetDate={handleSetDate}
+            onDaySelect={setSelectedDate}
+            onCreate={handleCreateAppointment}
+            onReload={() => void loadAppointments(selectedDate)}
+            onSettings={refreshAll}
+          />
+        ) : null}
+        {page === 'tabs' && tab === 'schedule' ? (
+          <ScheduleScreen
+            weekDates={weekDates}
+            staff={staff}
+            hoursByStaff={workingHoursByStaff}
+            loading={loading.schedule || loading.staff || loading.action}
+            onReload={refreshAll}
+            onEdit={handleScheduleEdit}
+          />
+        ) : null}
+        {page === 'tabs' && tab === 'clients' ? (
+          <ClientsScreen
+            clients={clients}
+            query={clientsQuery}
+            loading={loading.clients || loading.action}
+            onQueryChange={setClientsQuery}
+            onReload={() => void loadClients(debouncedClientsQuery)}
+            onAdd={() => {
+              setClientsQuery('');
+              void loadClients('');
+            }}
+            onOpenClientActions={handleOpenClientActions}
+          />
+        ) : null}
+        {page === 'clientHistory' ? (
+          <ClientHistoryScreen
+            client={clientHistoryTarget}
+            appointments={clientHistoryAppointments}
+            loading={clientHistoryLoading}
+            onBack={handleCloseClientHistory}
+          />
+        ) : null}
+        {page === 'tabs' && tab === 'notifications' ? (
+          <NotificationsScreen
+            notifications={notifications}
+            loading={loading.appointments}
+            onReload={() => void loadAppointments(selectedDate)}
+            onOpenAll={() => setTab('journal')}
+          />
+        ) : null}
+        {page === 'tabs' && tab === 'more' ? (
+          <MoreScreen
+            session={session}
+            loading={loading.action}
+            menu={MORE_MENU}
+            onProfileClick={handleOpenOwnerEditor}
+            onAction={handleMoreAction}
+            onLogout={handleLogout}
+          />
+        ) : null}
+      </main>
+
+      <BottomNav
+        active={tab}
+        onChange={(next) => {
+          closeStaffForm();
+          setClientActionsFor(null);
+          if (next !== 'clients') {
+            setClientHistoryTarget(null);
+            setClientHistoryAppointments([]);
+          }
+          setPage('tabs');
+          setTab(next);
+        }}
+      />
+      <ClientActionsSheet
+        client={clientActionsFor}
+        onClose={handleCloseClientActions}
+        onOpenHistory={handleOpenClientHistory}
+        onOpenLoyalty={handleOpenClientLoyalty}
+        onCall={handleCallClient}
+        onSms={handleSmsClient}
+        onWhatsApp={handleWhatsAppClient}
+        onDelete={handleDeleteClient}
+      />
+      <InfoPanel panel={panel} onClose={() => setPanel(null)} />
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-shell px-0 py-0 md:p-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-screen md:min-h-[860px] md:overflow-hidden md:rounded-[34px] md:shadow-shell">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LoaderScreen({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-6 text-center">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-ink" />
+        <p className="text-sm font-semibold text-muted">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function LoginScreen({
+  phone,
+  pin,
+  error,
+  loading,
+  onPhoneChange,
+  onPinChange,
+  onLogin,
+}: {
+  phone: string;
+  pin: string;
+  error: string;
+  loading: boolean;
+  onPhoneChange: (value: string) => void;
+  onPinChange: (value: string) => void;
+  onLogin: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col justify-center px-6 pb-16 pt-8">
+      <h1 className="text-3xl font-extrabold text-ink">Mari Staff</h1>
+      <p className="mt-2 text-sm font-semibold text-muted">Вход по телефону и PIN</p>
+
+      <div className="mt-6 space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-muted">Телефон</span>
+          <input
+            value={phone}
+            onChange={(event) => onPhoneChange(event.target.value)}
+            placeholder="+7 978 000-00-00"
+            className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-muted">PIN</span>
+          <input
+            value={pin}
+            onChange={(event) => onPinChange(event.target.value)}
+            placeholder="1234"
+            type="password"
+            className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none"
+          />
+        </label>
+      </div>
+
+      {error ? (
+        <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
+          {error}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onLogin}
+        disabled={loading || phone.trim().length === 0 || pin.trim().length === 0}
+        className="mt-5 inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-extrabold text-[#222b33] disabled:opacity-50"
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        Войти
+      </button>
+    </div>
+  );
+}
+
+function BottomNav({
+  active,
+  onChange,
+}: {
+  active: TabKey;
+  onChange: (next: TabKey) => void;
+}) {
+  return (
+    <nav className="sticky bottom-0 z-40 shrink-0 border-t border-line bg-screen px-3 pb-2 pt-2">
+      <ul className="grid grid-cols-5 gap-1">
+        {TAB_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive = active === item.key;
+          return (
+            <li key={item.key}>
+              <button
+                type="button"
+                onClick={() => onChange(item.key)}
+                className="flex w-full flex-col items-center justify-center gap-1 py-1 text-center"
+              >
+                <Icon
+                  className={clsx('h-7 w-7 transition-colors', isActive ? 'text-ink' : 'text-muted')}
+                  strokeWidth={2.1}
+                />
+                <span
+                  className={clsx(
+                    'text-[14px] leading-none',
+                    isActive ? 'font-semibold text-ink' : 'font-medium text-muted',
+                  )}
+                >
+                  {item.title}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+function JournalScreen({
+  selectedDate,
+  weekDates,
+  staff,
+  journalHours,
+  cards,
+  loading,
+  onSetDate,
+  onDaySelect,
+  onCreate,
+  onReload,
+  onSettings,
+}: {
+  selectedDate: Date;
+  weekDates: Date[];
+  staff: StaffItem[];
+  journalHours: string[];
+  cards: Array<
+    AppointmentItem & {
+      left: number;
+      top: number;
+      height: number;
+      timeLabel: string;
+      topTone: 'green' | 'violet';
+    }
+  >;
+  loading: boolean;
+  onSetDate: () => void;
+  onDaySelect: (value: Date) => void;
+  onCreate: () => void;
+  onReload: () => void;
+  onSettings: () => void;
+}) {
+  return (
+    <div className="pb-5 pt-4">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onSetDate}
+          className="flex items-center gap-2 text-[24px] font-bold text-ink"
+        >
+          {formatDateLabel(selectedDate)}
+          <ChevronDown className="h-6 w-6 text-[#ebaf00]" />
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onReload}
+            className="flex items-center gap-2 rounded-2xl bg-[#e6e9ef] px-3 py-2 text-[14px] font-semibold text-ink"
+          >
+            <RefreshCcw className="h-4 w-4 text-[#8892a2]" />
+            Обновить
+          </button>
+          <button type="button" onClick={onSettings} className="rounded-xl p-2 text-ink">
+            <Settings2 className="h-6 w-6 text-ink" />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-line pt-3">
+        <div className="scrollbar-hidden overflow-x-auto pb-3">
+          <div className="flex min-w-[760px] items-end gap-8">
+            <button type="button" onClick={onCreate} className="text-5xl font-normal leading-none text-accent">
+              +
+            </button>
+            {staff.map((item, index) => (
+              <StaffChip key={item.id} title={item.name} badge={item.name.charAt(0).toUpperCase()} isUser={index === 0} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="scrollbar-hidden mt-3 overflow-x-auto">
+        <div className="relative min-w-[760px] pb-3">
+          <div className="grid grid-cols-[72px_repeat(4,minmax(160px,1fr))] gap-2">
+            <div className="space-y-0">
+              {journalHours.map((time) => (
+                <div key={time} className="h-[76px] pt-1 text-[16px] font-medium text-ink">
+                  {time}
+                </div>
+              ))}
+            </div>
+            {Array.from({ length: 4 }).map((_, colIndex) => (
+              <div key={colIndex} className="space-y-0">
+                {journalHours.map((time) => (
+                  <div key={time} className="h-[76px] border-t border-[#dce1e8]" />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {cards.map((card) => (
+            <AppointmentCard
+              key={card.id}
+              left={card.left}
+              top={card.top}
+              height={card.height}
+              time={card.timeLabel}
+              topTone={card.topTone}
+              client={card.clientName}
+              phone={card.clientPhone}
+              service={card.serviceName}
+            />
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Синхронизация с сервером...
+        </div>
+      ) : null}
+
+      <div className="sticky bottom-0 z-20 mt-4 rounded-2xl bg-slatePanel p-2">
+        <ul className="grid grid-cols-7 text-center">
+          {weekDates.map((date) => {
+            const isActive = toISODate(date) === toISODate(selectedDate);
+            const weekend = date.getDay() === 0 || date.getDay() === 6;
+            return (
+              <li key={toISODate(date)}>
+                <button
+                  type="button"
+                  onClick={() => onDaySelect(date)}
+                  className={clsx(
+                    'w-full rounded-xl py-2 text-[15px] font-semibold',
+                    isActive ? 'bg-accent text-[#222b33]' : 'text-white',
+                  )}
+                >
+                  <div className={clsx(weekend && !isActive ? 'text-[#ff7935]' : undefined)}>
+                    {DAY_NAMES[date.getDay()]}
+                  </div>
+                  <div className={clsx(weekend && !isActive ? 'text-[#ff7935]' : undefined)}>
+                    {date.getDate()}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ScheduleScreen({
+  weekDates,
+  staff,
+  hoursByStaff,
+  loading,
+  onReload,
+  onEdit,
+}: {
+  weekDates: Date[];
+  staff: StaffItem[];
+  hoursByStaff: WorkingHoursMap;
+  loading: boolean;
+  onReload: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="pb-8 pt-6">
+      <div className="flex items-center justify-between">
+        <h1 className="flex items-center gap-3 text-[30px] font-extrabold leading-none text-ink">
+          <span>График работы</span>
+          <CalendarDays className="h-8 w-8 text-accent" />
+        </h1>
+        <button
+          type="button"
+          onClick={onReload}
+          className="flex items-center gap-2 rounded-2xl bg-[#e6e9ef] px-4 py-2 text-[14px] font-semibold text-[#6f7682]"
+        >
+          <RefreshCcw className="h-4 w-4" />
+          Все
+        </button>
+      </div>
+
+      <div className="mt-4 border-t border-line pt-4">
+        <div className="scrollbar-hidden overflow-x-auto pb-4">
+          <div className="grid min-w-[840px] grid-cols-[102px_repeat(7,minmax(96px,1fr))] gap-3">
+            <div />
+            {weekDates.map((date) => (
+              <div key={toISODate(date)} className="text-center text-[14px] font-bold leading-tight text-[#6a717d]">
+                <div>{date.getDate()}</div>
+                <div>{ISO_DAY_LABELS[toISODay(date)]}</div>
+              </div>
+            ))}
+            {staff.map((person, index) => (
+              <ScheduleRow
+                key={person.id}
+                name={person.name}
+                avatar={person.name.charAt(0).toUpperCase()}
+                isLead={index === 0}
+                slots={weekDates.map((day) => {
+                  const daySlots = hoursByStaff[person.id]?.[toISODay(day)] ?? [];
+                  return daySlots.join('\n');
+                })}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onEdit}
+        className="mt-6 w-full rounded-[28px] bg-accentSoft py-4 text-[20px] font-extrabold text-[#796f3a]"
+      >
+        Редактировать график
+      </button>
+
+      {loading ? (
+        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаю график...
+        </div>
+      ) : null}
+
+      <div className="mt-6 rounded-3xl bg-slatePanel p-2">
+        <ul className="grid grid-cols-5 items-center gap-2 text-center text-[18px] font-semibold">
+          {monthStrip(weekDates[0]).map((month, index) => (
+            <li
+              key={month.label}
+              className={clsx(
+                'rounded-2xl py-2 text-white',
+                index === 0 ? 'bg-accent text-[#222b33]' : 'opacity-90',
+              )}
+            >
+              {month.label}
+              {index === 0 ? <div className="text-sm font-semibold">{month.year}</div> : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ClientsScreen({
+  clients,
+  query,
+  loading,
+  onQueryChange,
+  onReload,
+  onAdd,
+  onOpenClientActions,
+}: {
+  clients: ClientItem[];
+  query: string;
+  loading: boolean;
+  onQueryChange: (value: string) => void;
+  onReload: () => void;
+  onAdd: () => void;
+  onOpenClientActions: (client: ClientItem) => void;
+}) {
+  return (
+    <div className="pb-2 pt-5">
+      <div className="flex items-center justify-between pb-4">
+        <h1 className="text-[50px] font-extrabold leading-none text-ink">Клиенты</h1>
+        <div className="flex items-center gap-4 text-ink">
+          <button type="button" onClick={onReload} className="rounded-lg p-1">
+            <MoreVertical className="h-8 w-8" />
+          </button>
+          <button type="button" onClick={onAdd} className="rounded-lg p-1">
+            <Plus className="h-8 w-8" strokeWidth={2.2} />
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-2 border-b border-line pb-4">
+        <label className="flex items-center gap-3 rounded-3xl border-[4px] border-[#dce0e7] px-5 py-3 text-muted">
+          <Search className="h-7 w-7 text-[#97a0ad]" />
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Поиск"
+            className="w-full bg-transparent text-[24px] font-semibold text-muted outline-none placeholder:text-muted"
+          />
+        </label>
+      </div>
+
+      <ul>
+        {clients.map((client) => (
+          <li key={client.id} className="flex items-center justify-between border-b border-line py-5">
+            <div className="space-y-2">
+              <p className="text-[24px] font-extrabold leading-none text-ink">{client.name}</p>
+              <div className="flex items-center gap-2 text-[20px] font-semibold text-muted">
+                <Phone className="h-5 w-5" />
+                <span>{client.phone || 'нет телефона'}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="p-2 text-ink"
+              onClick={() => onOpenClientActions(client)}
+            >
+              <MoreVertical className="h-7 w-7" />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {loading ? (
+        <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаю клиентов...
+        </div>
+      ) : null}
+      {!loading && clients.length === 0 ? (
+        <p className="mt-3 text-[18px] font-semibold text-muted">Ничего не найдено</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ClientHistoryScreen({
+  client,
+  appointments,
+  loading,
+  onBack,
+}: {
+  client: ClientItem | null;
+  appointments: AppointmentItem[];
+  loading: boolean;
+  onBack: () => void;
+}) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, AppointmentItem[]>();
+    appointments.forEach((item) => {
+      const key = formatHistoryDate(item.startAt);
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)?.push(item);
+    });
+    return Array.from(map.entries());
+  }, [appointments]);
+
+  return (
+    <div className="pb-5 pt-4">
+      <div className="mb-4 flex items-center gap-3 border-b border-line pb-3">
+        <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <h1 className="text-[52px] font-extrabold leading-none text-ink">
+          <span className="text-[52%]">История посещений</span>
+        </h1>
+      </div>
+
+      {client ? (
+        <p className="mb-3 text-[18px] font-semibold text-muted">{client.name}</p>
+      ) : null}
+
+      {loading ? (
+        <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаю историю...
+        </div>
+      ) : null}
+
+      {!loading && grouped.length === 0 ? (
+        <p className="mt-6 text-[18px] font-semibold text-muted">Нет посещений</p>
+      ) : null}
+
+      <div className="space-y-7">
+        {grouped.map(([day, list]) => (
+          <section key={day} className="border-t border-dashed border-[#d4d8de] pt-5 first:border-t-0 first:pt-1">
+            <h2 className="mb-4 text-[48px] font-extrabold leading-none text-ink">
+              <span className="text-[58%]">{day}</span>
+            </h2>
+            <div className="space-y-4">
+              {list.map((item) => {
+                const arrived = item.status === 'ARRIVED' || item.status === 'CONFIRMED';
+                return (
+                  <article key={item.id} className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        {arrived ? (
+                          <CheckCircle2 className="mt-1 h-6 w-6 text-black" />
+                        ) : (
+                          <Clock3 className="mt-1 h-6 w-6 text-black" />
+                        )}
+                        <div>
+                          <p className="text-[20px] font-medium text-ink">
+                            {formatTime(item.startAt)} {item.staffName}
+                          </p>
+                          <p className="text-[20px] font-medium text-ink">MARi beauty</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-7 w-7 text-[#46acf5]" />
+                    </div>
+                    <div className="rounded-xl border border-[#d8dbe0] bg-screen p-4">
+                      <p className="text-[20px] font-medium text-ink">{item.serviceName}</p>
+                      <div className="mt-2 flex items-center gap-2 text-[20px] font-medium text-ink">
+                        <Wallet className="h-5 w-5" />
+                        <span>{formatAppointmentPrice(item)}</span>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClientActionsSheet({
+  client,
+  onClose,
+  onOpenHistory,
+  onOpenLoyalty,
+  onCall,
+  onSms,
+  onWhatsApp,
+  onDelete,
+}: {
+  client: ClientItem | null;
+  onClose: () => void;
+  onOpenHistory: () => void;
+  onOpenLoyalty: () => void;
+  onCall: () => void;
+  onSms: () => void;
+  onWhatsApp: () => void;
+  onDelete: () => void;
+}) {
+  if (!client) {
+    return null;
+  }
+
+  const actionClass =
+    'flex w-full items-center justify-between px-6 py-5 text-left border-t border-line';
+
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col bg-[#11182766] pb-[86px]">
+      <button type="button" className="flex-1" onClick={onClose} />
+      <section className="rounded-t-[28px] bg-screen">
+        <div className="mx-auto my-2 h-2 w-16 rounded-full bg-[#c8c8cb]" />
+        <div className="flex items-center gap-3 px-4 pb-3 pt-1">
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-ink">
+            <X className="h-8 w-8" />
+          </button>
+          <p className="text-[50px] font-extrabold leading-none text-ink">
+            <span className="text-[52%]">{client.name}</span>
+          </p>
+        </div>
+
+        <button type="button" className={actionClass} onClick={onOpenHistory}>
+          <div className="flex items-center gap-4">
+            <History className="h-9 w-9 text-ink" />
+            <span className="text-[20px] font-medium text-ink">История посещений</span>
+          </div>
+          <ChevronRight className="h-7 w-7 text-[#efbf1a]" />
+        </button>
+
+        <button type="button" className={actionClass} onClick={onOpenLoyalty}>
+          <div className="flex items-center gap-4">
+            <Wallet className="h-9 w-9 text-ink" />
+            <span className="text-[20px] font-medium text-ink">Лояльность</span>
+          </div>
+          <ChevronRight className="h-7 w-7 text-[#efbf1a]" />
+        </button>
+
+        <div className="h-7 bg-[#e7e9ed]" />
+
+        <button type="button" className={actionClass} onClick={onCall}>
+          <div className="flex items-center gap-4">
+            <PhoneCall className="h-9 w-9 text-ink" />
+            <span className="text-[20px] font-medium text-ink">Позвонить клиенту</span>
+          </div>
+        </button>
+
+        <button type="button" className={actionClass} onClick={onSms}>
+          <div className="flex items-center gap-4">
+            <MessageSquare className="h-9 w-9 text-ink" />
+            <span className="text-[20px] font-medium text-ink">Отправить SMS</span>
+          </div>
+          <ChevronRight className="h-7 w-7 text-[#efbf1a]" />
+        </button>
+
+        <button type="button" className={actionClass} onClick={onWhatsApp}>
+          <div className="flex items-center gap-4">
+            <MessageCircle className="h-9 w-9 text-ink" />
+            <span className="text-[20px] font-medium text-ink">Написать в WhatsApp</span>
+          </div>
+        </button>
+
+        <div className="h-7 bg-[#e7e9ed]" />
+
+        <button type="button" className="w-full px-6 py-5 text-left text-[20px] font-medium text-[#ff622f]" onClick={onDelete}>
+          Удалить клиента
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function NotificationsScreen({
+  notifications,
+  loading,
+  onReload,
+  onOpenAll,
+}: {
+  notifications: NotificationItem[];
+  loading: boolean;
+  onReload: () => void;
+  onOpenAll: () => void;
+}) {
+  const main = notifications.slice(0, 6);
+  const extra = notifications.slice(6);
+
+  return (
+    <div className="pb-7 pt-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-[30px] font-extrabold leading-none text-ink">Уведомления</h1>
+        <button type="button" onClick={onReload} className="rounded-lg p-2">
+          <ChevronsDown className="h-7 w-7 text-muted" />
+        </button>
+      </div>
+
+      <div className="mt-6 flex items-end justify-between">
+        <h2 className="text-[24px] font-extrabold leading-none text-ink">Записи</h2>
+        <button type="button" className="text-[16px] font-medium text-muted" onClick={onOpenAll}>
+          Посмотреть все
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-2 rounded-3xl bg-notice p-4">
+        {main.length > 0 ? (
+          main.map((item) => (
+            <NotificationRow key={item.id} label={item.label} time={item.time} mode={item.mode} />
+          ))
+        ) : (
+          <p className="text-sm font-semibold text-muted">Нет уведомлений</p>
+        )}
+      </div>
+
+      <h2 className="mt-8 text-[24px] font-extrabold leading-none text-ink">Остальные</h2>
+      {loading ? (
+        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Загружаю события...
+        </div>
+      ) : null}
+      {!loading && extra.length === 0 ? (
+        <p className="mt-4 text-[16px] font-medium text-ink">Нет уведомлений</p>
+      ) : null}
+      {!loading && extra.length > 0 ? (
+        <ul className="mt-3 space-y-1">
+          {extra.map((item) => (
+            <li key={item.id}>
+              <NotificationRow label={item.label} time={item.time} mode={item.mode} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function MoreScreen({
+  session,
+  loading,
+  menu,
+  onProfileClick,
+  onAction,
+  onLogout,
+}: {
+  session: StaffSession;
+  loading: boolean;
+  menu: MoreActionItem[];
+  onProfileClick: () => void;
+  onAction: (title: string) => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="pb-7 pt-6">
+      <h1 className="text-[30px] font-extrabold leading-none text-ink">Еще</h1>
+
+      <div className="mt-8 space-y-2">
+        <InfoRow
+          onClick={onProfileClick}
+          avatar={
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3e0f8] text-[#a1a0e8]">
+              <UserRound className="h-7 w-7" strokeWidth={1.8} />
+            </div>
+          }
+          title={session.staff.name}
+          subtitle={`${roleLabel(session.staff.role)} • ${session.staff.phoneE164}`}
+        />
+        <InfoRow
+          avatar={
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#dfe2e9] text-[11px] font-bold text-[#326b86]">
+              MARI
+            </div>
+          }
+          subtitle="Филиал"
+          title="Mari beauty"
+        />
+      </div>
+
+      <div className="mt-5 rounded-2xl bg-screen">
+        {menu.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.title}
+              type="button"
+              onClick={() => onAction(item.title)}
+              className="flex w-full items-center justify-between py-4 text-left text-ink"
+            >
+              <div className="flex items-center gap-4">
+                <Icon className="h-7 w-7 text-ink" strokeWidth={2} />
+                <span className="text-[16px] font-medium">{item.title}</span>
+              </div>
+              <ChevronRight className="h-6 w-6 text-[#a4acb8]" />
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={onLogout}
+        disabled={loading}
+        className="mt-6 inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-bold text-ink disabled:opacity-50"
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+        Выйти
+      </button>
+    </div>
+  );
+}
+
+function StaffManagementScreen({
+  staff,
+  loading,
+  search,
+  onBack,
+  onSearchChange,
+  filters,
+  serviceCounts,
+  onFilterChange,
+  onRefresh,
+  onCreate,
+  onEdit,
+}: {
+  staff: StaffItem[];
+  loading: boolean;
+  search: string;
+  onBack: () => void;
+  onSearchChange: (value: string) => void;
+  filters: StaffFilter;
+  serviceCounts: Record<string, number>;
+  onFilterChange: Dispatch<SetStateAction<StaffFilter>>;
+  onRefresh: () => void;
+  onCreate: () => void;
+  onEdit: (item: StaffItem) => Promise<void> | void;
+}) {
+  return (
+    <div className="pb-4 pt-4">
+      <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
+        <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <h1 className="text-[26px] font-extrabold text-ink">Сотрудники</h1>
+        <div className="flex items-center gap-1 text-muted">
+          <button type="button" onClick={onRefresh} className="rounded-lg p-2 text-ink">
+            <UserRound className="h-6 w-6" />
+            <X className="-ml-2 h-3 w-3" />
+          </button>
+          <button type="button" onClick={onCreate} className="rounded-lg p-2 text-ink">
+            <Plus className="h-6 w-6" />
+          </button>
+        </div>
+      </div>
+
+      <label className="flex items-center gap-3 rounded-3xl border-[3px] border-line bg-screen px-4 py-3 text-muted">
+        <Search className="h-7 w-7 text-[#97a0ad]" />
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Поиск"
+          className="w-full bg-transparent text-[18px] font-semibold text-ink outline-none placeholder:text-[#97a0ad]"
+        />
+      </label>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            onFilterChange((prev) => ({ ...prev, withServices: !prev.withServices }))
+          }
+          className={clsx(
+            'rounded-full px-5 py-2 text-[16px] font-semibold',
+            filters.withServices ? 'bg-[#f2dc7e] text-ink' : 'bg-[#dde2ea] text-ink',
+          )}
+        >
+          Оказывает услуги
+        </button>
+        <button
+          type="button"
+          onClick={() => onFilterChange((prev) => ({ ...prev, withAccess: !prev.withAccess }))}
+          className={clsx(
+            'rounded-full px-5 py-2 text-[16px] font-semibold',
+            filters.withAccess ? 'bg-[#f2dc7e] text-ink' : 'bg-[#dde2ea] text-ink',
+          )}
+        >
+          Доступ к сервису
+        </button>
+      </div>
+
+      <ul className="mt-4 space-y-5">
+        {staff.map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              onClick={() => void onEdit(item)}
+              className="flex w-full items-start gap-3 text-left"
+            >
+              <div className="mt-1 flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#e3e0f8] text-[#a1a0e8]">
+                <UserRound className="h-8 w-8" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[44px] font-medium leading-none text-ink">
+                  <span className="text-[50%]">{item.name}</span>
+                </p>
+                <p className="mt-1 truncate text-[18px] font-medium text-muted">
+                  {item.positionName || roleLabel(item.role)}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-[#f2dc7e] px-4 py-1 text-[16px] font-medium text-ink">
+                    Оказывает услуги
+                  </span>
+                  <span
+                    className={clsx(
+                      'rounded-full px-4 py-1 text-[16px] font-medium',
+                      item.isActive ? 'bg-[#dde2ea] text-ink' : 'bg-[#ebd9d9] text-[#905252]',
+                    )}
+                  >
+                    {item.isActive ? 'Доступ к сервису' : 'Доступ отключен'}
+                  </span>
+                  <span className="rounded-full bg-[#dde2ea] px-4 py-1 text-[16px] font-medium text-ink">
+                    {serviceCounts[item.id] ?? 0} услуг
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="mt-7 h-6 w-6 shrink-0 text-[#9ca5b2]" />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {loading ? (
+        <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Обновляю сотрудников...
+        </div>
+      ) : null}
+      {!loading && staff.length === 0 ? (
+        <p className="mt-3 text-sm font-semibold text-muted">Сотрудники не найдены</p>
+      ) : null}
+    </div>
+  );
+}
+
+function StaffEditorScreen({
+  mode,
+  draft,
+  serviceCount,
+  hasAccess,
+  canDelete,
+  loading,
+  onBack,
+  onDraftChange,
+  onAccessChange,
+  onOpenServices,
+  onOpenPermissions,
+  onSave,
+  onDelete,
+}: {
+  mode: 'create' | 'edit';
+  draft: StaffDraft;
+  serviceCount: number;
+  hasAccess: boolean;
+  canDelete: boolean;
+  loading: boolean;
+  onBack: () => void;
+  onDraftChange: Dispatch<SetStateAction<StaffDraft>>;
+  onAccessChange: (value: boolean) => void;
+  onOpenServices: () => void;
+  onOpenPermissions: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="pb-6 pt-4">
+      <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
+        <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <h1 className="text-[24px] font-extrabold text-ink">Сотрудник</h1>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!canDelete || loading}
+          className="rounded-lg p-2 text-muted disabled:opacity-40"
+        >
+          <Trash2 className="h-6 w-6" />
+        </button>
+      </div>
+
+      <div className="flex flex-col items-center pb-4 pt-2">
+        <div className="flex h-28 w-28 items-center justify-center rounded-full bg-[#e3e0f8] text-[#9a97ec]">
+          <UserRound className="h-12 w-12" />
+        </div>
+        <button type="button" className="mt-3 text-[20px] font-semibold text-muted">
+          Изменить фото
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        <label className="block">
+          <span className="mb-2 block text-[18px] font-medium text-muted">Имя</span>
+          <input
+            value={draft.name}
+            onChange={(event) =>
+              onDraftChange((prev) => ({ ...prev, name: event.target.value }))
+            }
+            className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-[18px] font-medium text-muted">Должность</span>
+          <div className="relative">
+            <select
+              value={draft.role}
+              onChange={(event) =>
+                onDraftChange((prev) => ({
+                  ...prev,
+                  role: event.target.value as StaffCreateRole,
+                }))
+              }
+              className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+            >
+              <option value="MASTER">{roleLabel('MASTER')}</option>
+              <option value="ADMIN">{roleLabel('ADMIN')}</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-6 w-6 -translate-y-1/2 text-muted" />
+          </div>
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-[18px] font-medium text-muted">Специализация</span>
+          <input
+            value={draft.positionName}
+            onChange={(event) =>
+              onDraftChange((prev) => ({ ...prev, positionName: event.target.value }))
+            }
+            className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={onOpenServices}
+          className="flex w-full items-center justify-between border-b border-line pb-4 pt-1 text-left"
+        >
+          <div>
+            <p className="text-[22px] font-medium text-ink">Оказываемые услуги</p>
+            <p className="text-[18px] font-medium text-muted">{serviceCount} услуг</p>
+          </div>
+          <ChevronRight className="h-7 w-7 text-muted" />
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenPermissions}
+          className="flex w-full items-center justify-between border-b border-line pb-4 pt-1 text-left"
+        >
+          <div>
+            <p className="text-[22px] font-medium text-ink">Права доступа</p>
+            <p className="text-[18px] font-medium text-muted">Журнал записи</p>
+          </div>
+          <ChevronRight className="h-7 w-7 text-muted" />
+        </button>
+
+        <div className="flex items-center justify-between pt-1">
+          <div>
+            <p className="text-[22px] font-medium text-ink">Доступ к сервису</p>
+            <p className="max-w-[260px] text-[16px] font-medium text-muted">
+              Сотрудник сможет пользоваться системой в соответствии с установленной ролью
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onAccessChange(!hasAccess)}
+            className={clsx(
+              'relative h-10 w-20 rounded-full transition-colors',
+              hasAccess ? 'bg-accent' : 'bg-[#d7dce5]',
+            )}
+          >
+            <span
+              className={clsx(
+                'absolute top-1 h-8 w-8 rounded-full bg-white transition-transform',
+                hasAccess ? 'left-[44px]' : 'left-1',
+              )}
+            />
+          </button>
+        </div>
+
+        <label className="block">
+          <span className="mb-2 block text-[18px] font-medium text-muted">Номер телефона</span>
+          <input
+            value={draft.phone}
+            onChange={(event) =>
+              onDraftChange((prev) => ({ ...prev, phone: event.target.value }))
+            }
+            className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[22px] font-medium text-muted outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-[18px] font-medium text-muted">Email</span>
+          <input
+            value={draft.email}
+            onChange={(event) =>
+              onDraftChange((prev) => ({ ...prev, email: event.target.value }))
+            }
+            className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[22px] font-medium text-muted outline-none"
+          />
+        </label>
+
+        {mode === 'edit' ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={loading}
+            className="mt-1 w-full rounded-3xl border-[2px] border-line py-4 text-[22px] font-medium text-ink"
+          >
+            Уволить сотрудника
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading}
+          className="mt-2 w-full rounded-3xl bg-[#f2df8f] py-4 text-[22px] font-bold text-[#7c8696] disabled:opacity-60"
+        >
+          {loading ? 'Сохранение...' : 'Сохранить'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OwnerEditScreen({
+  draft,
+  loading,
+  onBack,
+  onDraftChange,
+  onSave,
+}: {
+  draft: OwnerDraft;
+  loading: boolean;
+  onBack: () => void;
+  onDraftChange: Dispatch<SetStateAction<OwnerDraft>>;
+  onSave: () => void;
+}) {
+  return (
+    <div className="pb-4 pt-4">
+      <div className="mb-4 flex items-center justify-between">
+        <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <h1 className="text-[24px] font-extrabold text-ink">Владелец</h1>
+        <div className="w-10" />
+      </div>
+
+      <section className="rounded-2xl border border-line bg-white p-4">
+        <p className="text-[13px] font-semibold text-muted">
+          Режим редактирования владельца
+        </p>
+
+        <div className="mt-3 space-y-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-muted">Имя</span>
+            <input
+              value={draft.name}
+              onChange={(event) =>
+                onDraftChange((prev) => ({ ...prev, name: event.target.value }))
+              }
+              className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-muted">Телефон</span>
+            <input
+              value={draft.phone}
+              onChange={(event) =>
+                onDraftChange((prev) => ({ ...prev, phone: event.target.value }))
+              }
+              className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-muted">Email</span>
+            <input
+              value={draft.email}
+              onChange={(event) =>
+                onDraftChange((prev) => ({ ...prev, email: event.target.value }))
+              }
+              className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-muted">Специализация</span>
+            <input
+              value={draft.positionName}
+              onChange={(event) =>
+                onDraftChange((prev) => ({ ...prev, positionName: event.target.value }))
+              }
+              className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
+            />
+          </label>
+        </div>
+
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading}
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-extrabold text-[#222b33] disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Сохранить
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function InfoPanel({ panel, onClose }: { panel: InfoPanelState; onClose: () => void }) {
+  if (!panel) {
+    return null;
+  }
+  return (
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-[#0d172133]">
+      <div className="w-full rounded-t-3xl bg-white px-4 pb-5 pt-4 shadow-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-[18px] font-extrabold text-ink">{panel.title}</h3>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-ink">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <ul className="max-h-[42vh] space-y-2 overflow-y-auto">
+          {panel.lines.length > 0 ? (
+            panel.lines.map((line, index) => (
+              <li key={`${line}-${index}`} className="rounded-xl bg-[#f4f6f9] px-3 py-2 text-sm font-semibold text-[#465465]">
+                {line}
+              </li>
+            ))
+          ) : (
+            <li className="text-sm font-semibold text-muted">Нет данных</li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({
+  avatar,
+  title,
+  subtitle,
+  onClick,
+}: {
+  avatar: ReactNode;
+  title: string;
+  subtitle?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between py-3 text-left"
+    >
+      <div className="flex items-center gap-4">
+        {avatar}
+        <div>
+          {subtitle ? <div className="text-[14px] font-semibold text-muted">{subtitle}</div> : null}
+          <div className="text-[18px] font-medium text-ink">{title}</div>
+        </div>
+      </div>
+      <ChevronRight className="h-6 w-6 text-[#a4acb8]" />
+    </button>
+  );
+}
+
+function NotificationRow({
+  label,
+  time,
+  mode,
+}: {
+  label: string;
+  time: string;
+  mode: 'new' | 'delete';
+}) {
+  return (
+    <button type="button" className="flex w-full items-center justify-between rounded-xl px-1 py-2 text-left">
+      <div className="flex items-center gap-3">
+        {mode === 'new' ? (
+          <div className="rounded-md border-[3px] border-[#1f56dd] p-1 text-[#1f56dd]">
+            <Phone className="h-5 w-5" />
+          </div>
+        ) : (
+          <div className="rounded-md border-[3px] border-[#1f56dd] p-1 text-[#1f56dd]">
+            <Trash2 className="h-5 w-5" />
+          </div>
+        )}
+        <span className="text-[16px] font-medium text-ink">{label}</span>
+      </div>
+      <div className="flex items-center gap-2 text-[16px] font-medium text-[#727987]">
+        {time}
+        <ChevronRight className="h-5 w-5 text-[#98a0ad]" />
+      </div>
+    </button>
+  );
+}
+
+function ScheduleRow({
+  name,
+  avatar,
+  slots,
+  isLead,
+}: {
+  name: string;
+  avatar: string;
+  slots: string[];
+  isLead: boolean;
+}) {
+  return (
+    <>
+      <div className="flex flex-col items-center gap-1 text-center">
+        <div
+          className={clsx(
+            'flex h-14 w-14 items-center justify-center rounded-2xl text-[18px] font-extrabold',
+            isLead ? 'bg-[#e3e0f8] text-[#7f7bcf]' : 'bg-[#e5e8ee] text-[#68768a]',
+          )}
+        >
+          {avatar}
+        </div>
+        <span className="text-[16px] font-semibold text-ink">{name}</span>
+      </div>
+      {slots.map((slot, index) => (
+        <div
+          key={`${name}-${index}`}
+          className={clsx(
+            'min-h-20 rounded-md p-2 text-[13px] font-semibold leading-tight',
+            slot ? 'bg-[#e8ebf1] text-ink' : 'bg-[#f0f2f6] text-transparent',
+          )}
+        >
+          {slot || '--'}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function StaffChip({
+  title,
+  badge,
+  isUser,
+}: {
+  title: string;
+  badge: string;
+  isUser?: boolean;
+}) {
+  return (
+    <div className="w-[130px] text-center">
+      <div
+        className={clsx(
+          'mx-auto mb-1 flex h-14 w-14 items-center justify-center rounded-full text-[22px] font-bold',
+          isUser ? 'bg-[#e3e0f8] text-[#a1a0e8]' : 'bg-[#e4e8ee] text-[#617589]',
+        )}
+      >
+        {isUser ? <UserRound className="h-7 w-7" strokeWidth={1.8} /> : badge}
+      </div>
+      <div className="line-clamp-1 text-[16px] font-semibold text-ink">{title}</div>
+    </div>
+  );
+}
+
+function AppointmentCard({
+  left,
+  top,
+  height,
+  time,
+  client,
+  phone,
+  service,
+  topTone,
+}: {
+  left: number;
+  top: number;
+  height: number;
+  time: string;
+  client: string;
+  phone: string;
+  service: string;
+  topTone: 'green' | 'violet';
+}) {
+  return (
+    <article
+      className="absolute w-[160px] overflow-hidden rounded-xl bg-successCard text-ink shadow-sm"
+      style={{ left, top, height }}
+    >
+      <div
+        className={clsx(
+          'flex items-center justify-between px-2 py-1 text-[14px] font-bold text-white',
+          topTone === 'green' ? 'bg-[#59c87f]' : 'bg-[#7f62dd]',
+        )}
+      >
+        <span>{time}</span>
+        <Clock3 className="h-4 w-4" />
+      </div>
+      <div className="space-y-1 px-2 pb-2 pt-1 text-[13px] font-semibold leading-tight">
+        <span className="inline-block rounded-md bg-[#1658da] px-1.5 py-[1px] text-white">New</span>
+        <p>{client}</p>
+        <p>{phone || 'нет телефона'}</p>
+        <p>{service || 'услуга не указана'}</p>
+      </div>
+    </article>
+  );
+}
+
+function parseStaff(value: unknown): StaffItem | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const id = toString(record.id);
+  const name = toString(record.name);
+  const role = toString(record.role) as StaffRole | undefined;
+  if (!id || !name || !role) {
+    return null;
+  }
+  const positionRecord = toRecord(record.position);
+  return {
+    id,
+    name,
+    role,
+    phoneE164: toString(record.phoneE164) || toString(record.phone) || '',
+    email: toNullableString(record.email),
+    isActive: Boolean(record.isActive ?? true),
+    positionName: toNullableString(positionRecord?.name),
+  };
+}
+
+function parseClient(value: unknown): ClientItem | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const id = toString(record.id);
+  const name = toString(record.name) || toString(record.fullName);
+  if (!id || !name) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    phone: toString(record.phoneE164) || toString(record.phone) || '',
+  };
+}
+
+function parseService(value: unknown): ServiceItem | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const id = toString(record.id);
+  const name = toString(record.name);
+  if (!id || !name) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    durationSec: toNumber(record.durationSec) ?? 0,
+    priceMin: toNumber(record.priceMin) ?? 0,
+    priceMax: toNumber(record.priceMax) ?? toNumber(record.priceMin) ?? 0,
+  };
+}
+
+function parseAppointment(value: unknown): AppointmentItem | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const id = toString(record.id);
+  if (!id) {
+    return null;
+  }
+  const staffRecord = toRecord(record.staff);
+  const clientRecord = toRecord(record.client);
+  const servicesArray = asArray(record.services);
+  const firstService = toRecord(servicesArray[0]);
+
+  const startAtRaw =
+    toString(record.startAt) || toString(record.startsAt) || toString(record.start);
+  const endAtRaw =
+    toString(record.endAt) ||
+    toString(record.finishAt) ||
+    toString(record.end) ||
+    startAtRaw;
+  const startAt = new Date(startAtRaw || '');
+  const endAt = new Date(endAtRaw || '');
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+    return null;
+  }
+
+  const createdAtRaw =
+    toString(record.createdAt) || toString(record.updatedAt) || startAt.toISOString();
+  const createdAt = new Date(createdAtRaw);
+
+  const discountRecord = toRecord(record.discount);
+  const discountType = toString(discountRecord?.type);
+  const discountValueRaw = toNumber(discountRecord?.value) ?? toNumber(record.discountPercent);
+
+  const amountAfterDiscount =
+    toNumber(record.totalAmount) ??
+    toNumber(record.finalAmount) ??
+    toNumber(record.amountDue) ??
+    toNumber(record.total) ??
+    toNumber(record.sum) ??
+    null;
+  const amountBeforeDiscount =
+    toNumber(record.originalAmount) ??
+    toNumber(record.baseAmount) ??
+    toNumber(record.subtotal) ??
+    toNumber(record.priceTotal) ??
+    amountAfterDiscount;
+
+  let discountPercent: number | null = null;
+  if (discountType === 'PERCENT' && discountValueRaw !== null) {
+    discountPercent = discountValueRaw;
+  } else if (
+    amountBeforeDiscount !== null &&
+    amountAfterDiscount !== null &&
+    amountBeforeDiscount > 0
+  ) {
+    discountPercent =
+      Math.round(((amountBeforeDiscount - amountAfterDiscount) / amountBeforeDiscount) * 1000) / 10;
+  } else if (discountValueRaw !== null) {
+    discountPercent = discountValueRaw;
+  }
+
+  return {
+    id,
+    staffId: toString(staffRecord?.id) || toString(record.staffId) || '',
+    staffName: toString(staffRecord?.name) || toString(record.staffName) || 'Специалист',
+    clientId: toString(clientRecord?.id) || toString(record.clientId) || '',
+    startAt,
+    endAt: endAt.getTime() >= startAt.getTime() ? endAt : new Date(startAt.getTime() + 3_600_000),
+    status: toString(record.status) || 'PENDING',
+    clientName:
+      toString(clientRecord?.name) || toString(record.clientName) || 'Клиент',
+    clientPhone:
+      toString(clientRecord?.phoneE164) ||
+      toString(clientRecord?.phone) ||
+      toString(record.phone) ||
+      '',
+    serviceName:
+      toString(firstService?.name) ||
+      toString(record.serviceName) ||
+      toString(record.title) ||
+      'Услуга',
+    amountBeforeDiscount,
+    discountPercent,
+    amountAfterDiscount,
+    createdAt: Number.isNaN(createdAt.getTime()) ? startAt : createdAt,
+  };
+}
+
+function parseWorkingHours(value: unknown): Record<number, string[]> {
+  const rows = extractItems(value);
+  const result: Record<number, string[]> = {};
+  rows.forEach((row) => {
+    const record = toRecord(row);
+    if (!record) {
+      return;
+    }
+
+    const day = normalizeDay(
+      toNumber(record.dayOfWeek) ??
+        toNumber(record.weekday) ??
+        toNumber(record.day) ??
+        dayNameToIso(toString(record.dayOfWeek)),
+    );
+
+    if (!day) {
+      return;
+    }
+
+    const intervals = asArray(record.intervals);
+    if (intervals.length > 0) {
+      intervals.forEach((interval) => {
+        const item = toRecord(interval);
+        if (!item) {
+          return;
+        }
+        const start = toString(item.startTime) || toString(item.from);
+        const end = toString(item.endTime) || toString(item.to);
+        if (start && end) {
+          if (!result[day]) {
+            result[day] = [];
+          }
+          result[day].push(`${start}-${end}`);
+        }
+      });
+      return;
+    }
+
+    const start = toString(record.startTime) || toString(record.from);
+    const end = toString(record.endTime) || toString(record.to);
+    if (start && end) {
+      if (!result[day]) {
+        result[day] = [];
+      }
+      result[day].push(`${start}-${end}`);
+    }
+  });
+  return result;
+}
+
+function extractItems(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  const record = toRecord(value);
+  if (!record) {
+    return [];
+  }
+  if (Array.isArray(record.items)) {
+    return record.items;
+  }
+  if (Array.isArray(record.rows)) {
+    return record.rows;
+  }
+  return [];
+}
+
+function monthRange(date: Date): [string, string] {
+  const from = new Date(date.getFullYear(), date.getMonth(), 1);
+  const to = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return [toISODate(from), toISODate(to)];
+}
+
+function monthStrip(date: Date): Array<{ label: string; year: number }> {
+  return Array.from({ length: 5 }).map((_, index) => {
+    const candidate = new Date(date.getFullYear(), date.getMonth() + index, 1);
+    return {
+      label: MONTHS_RU[candidate.getMonth()].slice(0, 3),
+      year: candidate.getFullYear(),
+    };
+  });
+}
+
+function getWeekDates(input: Date): Date[] {
+  const current = new Date(input);
+  const day = current.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  current.setDate(current.getDate() + diff);
+  const dates: Date[] = [];
+  for (let index = 0; index < 7; index += 1) {
+    const next = new Date(current);
+    next.setDate(current.getDate() + index);
+    dates.push(next);
+  }
+  return dates;
+}
+
+function formatDateLabel(date: Date): string {
+  const month = MONTHS_RU[date.getMonth()];
+  return `${date.getDate()} ${month}`;
+}
+
+function formatTime(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatHistoryDate(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+function formatRub(amount: number): string {
+  return `${Math.round(amount)}₽`;
+}
+
+function formatAppointmentPrice(item: AppointmentItem): string {
+  const base = item.amountBeforeDiscount ?? item.amountAfterDiscount;
+  const finalAmount = item.amountAfterDiscount ?? item.amountBeforeDiscount;
+  if (base === null || finalAmount === null) {
+    return '—';
+  }
+  const discount =
+    item.discountPercent !== null
+      ? Math.max(0, item.discountPercent)
+      : Math.max(0, Math.round(((base - finalAmount) / base) * 100));
+  return `${formatRub(base)}- ${discount}%= ${formatRub(finalAmount)}`;
+}
+
+function toISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toISODay(date: Date): number {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+}
+
+function dayNameToIso(raw?: string): number | null {
+  if (!raw) {
+    return null;
+  }
+  const normalized = raw.trim().toUpperCase();
+  const map: Record<string, number> = {
+    MONDAY: 1,
+    TUESDAY: 2,
+    WEDNESDAY: 3,
+    THURSDAY: 4,
+    FRIDAY: 5,
+    SATURDAY: 6,
+    SUNDAY: 7,
+  };
+  return map[normalized] ?? null;
+}
+
+function normalizeDay(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+  if (value >= 1 && value <= 7) {
+    return value;
+  }
+  if (value >= 0 && value <= 6) {
+    return value === 0 ? 7 : value;
+  }
+  return null;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function toString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function toNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return typeof value === 'string' ? value : String(value);
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizePhoneForLink(phone: string): string {
+  const value = phone.replace(/[^\d+]/g, '');
+  if (value.startsWith('+')) {
+    return value;
+  }
+  return `+${value}`;
+}
+
+function normalizePhoneForWhatsApp(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('8') && digits.length === 11) {
+    return `7${digits.slice(1)}`;
+  }
+  if (digits.startsWith('7') && digits.length === 11) {
+    return digits;
+  }
+  return digits;
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code) {
+      return `${error.code}: ${error.message}`;
+    }
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Неизвестная ошибка';
+}
+
+function setLoadingKey(
+  setState: Dispatch<SetStateAction<LoadingState>>,
+  key: keyof LoadingState,
+  value: boolean,
+) {
+  setState((prev) => ({ ...prev, [key]: value }));
+}
+
+function roleLabel(role: StaffRole | StaffCreateRole): string {
+  return ROLE_LABELS[role] || role;
+}
+
+export default App;
