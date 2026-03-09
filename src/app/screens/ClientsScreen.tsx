@@ -22,7 +22,7 @@ export function ClientsScreen({
 }: ClientsScreenProps) {
   return (
     <div className="pb-2 pt-[162px]">
-      <div className="fixed left-1/2 top-0 z-30 w-full max-w-[450px] -translate-x-1/2 bg-screen px-4 pb-4 pt-5">
+      <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pb-4 pt-5">
         <div className="flex items-center justify-between pb-4">
           <h1 className="text-[24px] font-extrabold leading-none text-ink">Клиенты</h1>
           <div className="flex items-center gap-4 text-ink">

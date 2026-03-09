@@ -18,9 +18,9 @@ export function BottomNav({ active, items, onChange }: BottomNavProps) {
   };
 
   return (
-    <nav className="shrink-0 border-t border-line bg-screen px-3 pb-2 pt-2">
+    <nav className="shrink-0 border-t border-line bg-screen pb-1 pt-1">
       <ul
-        className="grid gap-1"
+        className="grid gap-0"
         style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(0, 1fr))` }}
       >
         {items.map((item) => {
@@ -31,15 +31,15 @@ export function BottomNav({ active, items, onChange }: BottomNavProps) {
               <NavLink
                 to={tabRoutes[item.key]}
                 onClick={() => onChange(item.key)}
-                className="flex w-full flex-col items-center justify-center gap-1 py-1 text-center"
+                className="flex w-full flex-col items-center justify-center gap-0.5 py-1 text-center"
               >
                 <Icon
-                  className={clsx('h-7 w-7 transition-colors', isActive ? 'text-ink' : 'text-muted')}
+                  className={clsx('h-6 w-6 transition-colors', isActive ? 'text-ink' : 'text-muted')}
                   strokeWidth={2.1}
                 />
                 <span
                   className={clsx(
-                    'text-[14px] leading-none',
+                    'text-[13px] leading-none',
                     isActive ? 'font-semibold text-ink' : 'font-medium text-muted',
                   )}
                 >

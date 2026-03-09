@@ -102,13 +102,23 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
 const resolvePermissionCandidates = (permissionCode: string) =>
   PERMISSION_EQUIVALENTS[permissionCode] ?? [permissionCode];
 
+function resolveFallbackTabKeysByRole(role: StaffSession['staff']['role']): TabKey[] {
+  if (role === 'MASTER') {
+    return ['journal', 'more'];
+  }
+  return TAB_ITEMS.map((item) => item.key);
+}
+
 function resolveAllowedTabKeys(sessionData: StaffSession): TabKey[] {
   if (sessionData.staff.role === 'OWNER') {
     return TAB_ITEMS.map((item) => item.key);
   }
   const permissionCodes = Array.isArray(sessionData.staff.permissions)
     ? sessionData.staff.permissions
-    : [];
+    : null;
+  if (!permissionCodes) {
+    return resolveFallbackTabKeysByRole(sessionData.staff.role);
+  }
   return TAB_ITEMS.filter((item) => {
     if (item.key === 'more') {
       return true;
@@ -350,16 +360,15 @@ export function useAppController(): AppController {
       codes.has('ACCESS_STAFF')
     );
   }, [session, sessionPermissionCodes]);
+  const visibleTabKeys = useMemo(
+    () => (session ? resolveAllowedTabKeys(session) : []),
+    [session],
+  );
   const visibleTabs = useMemo(() => {
-    return TAB_ITEMS.filter((item) => {
-      if (item.key === 'more') {
-        return true;
-      }
-      return hasPermissionAccess(TAB_PERMISSION_CODE[item.key]);
-    });
-  }, [hasPermissionAccess]);
+    const allowedKeys = new Set(visibleTabKeys);
+    return TAB_ITEMS.filter((item) => allowedKeys.has(item.key));
+  }, [visibleTabKeys]);
   const firstAllowedTab = visibleTabs[0]?.key ?? 'more';
-  const visibleTabKeys = useMemo(() => visibleTabs.map((item) => item.key), [visibleTabs]);
   const moreMenu = useMemo(
     () =>
       MORE_MENU.filter((item) => hasPermissionAccess(MORE_ACTION_PERMISSION_CODE[item.title])),
@@ -2298,6 +2307,11 @@ export function useAppController(): AppController {
     setPage('servicesCategories');
   };
 
+  const closeClientSiteEditor = () => {
+    setPage('tabs');
+    setTab('more');
+  };
+
   const closeServicesPage = () => {
     setPage('tabs');
     setTab('more');
@@ -2816,8 +2830,7 @@ export function useAppController(): AppController {
           return;
         }
         case 'Онлайн-запись': {
-          setTab('journal');
-          setToast('Открыт журнал записей');
+          setPage('clientSiteEditor');
           return;
         }
         case 'Настройки': {
@@ -3576,6 +3589,7 @@ export function useAppController(): AppController {
       setServicesCategorySearch,
       setServicesItemsSearch,
       openServicesPage,
+      closeClientSiteEditor,
       closeServicesPage,
       openServiceCategory,
       closeServiceCategory,

@@ -17,6 +17,7 @@ export type AppPage =
   | 'journalClient'
   | 'journalDayEdit'
   | 'journalDayRemove'
+  | 'clientSiteEditor'
   | 'servicesCategories'
   | 'servicesCategory'
   | 'serviceEditor'
@@ -346,6 +347,7 @@ export type ControllerActions = {
   setServicesItemsSearch: (value: string) => void;
   openServicesPage: () => Promise<void>;
   closeServicesPage: () => void;
+  closeClientSiteEditor: () => void;
   openServiceCategory: (categoryId: string) => void;
   closeServiceCategory: () => void;
   openServiceCategoryEditor: (categoryId: string | null) => void;

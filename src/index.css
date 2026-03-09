@@ -10,7 +10,20 @@
   --ink: #2a3138;
   --muted: #8a919d;
   --line: #dfe3ea;
-  --ui-scale: 0.88;
+  --ui-scale: 0.8;
+  --sheet-ui-scale: var(--ui-scale);
+}
+
+@media (max-width: 480px) {
+  :root {
+    --ui-scale: 0.72;
+  }
+}
+
+@media (max-width: 390px) {
+  :root {
+    --ui-scale: 0.68;
+  }
 }
 
 * {
@@ -22,6 +35,8 @@ body {
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   background: var(--shell);
   color: var(--ink);
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -64,9 +79,21 @@ body {
   --rsbs-overlay-rounded: 24px;
   --rsbs-backdrop-bg: rgba(13, 23, 33, 0.35);
   --rsbs-handle-bg: #c8c8cb;
-  --rsbs-max-w: 430px;
+  --rsbs-max-w: 100%;
   --rsbs-ml: auto;
   --rsbs-mr: auto;
+}
+
+.mari-page-sheet [data-rsbs-overlay] {
+  zoom: var(--sheet-ui-scale);
+  transform-origin: bottom center;
+}
+
+@supports not (zoom: 1) {
+  .mari-page-sheet [data-rsbs-overlay] {
+    scale: var(--sheet-ui-scale);
+    transform-origin: bottom center;
+  }
 }
 
 .mari-page-sheet [data-rsbs-overlay],
@@ -92,6 +119,13 @@ body {
   border-top-right-radius: 30px;
   max-height: calc(100vh - 72px);
   max-height: calc(100dvh - 72px);
+  zoom: 1;
+}
+
+@supports not (zoom: 1) {
+  .mari-page-sheet--calendar [data-rsbs-overlay] {
+    scale: 1;
+  }
 }
 
 .mari-page-sheet--journal-date [data-rsbs-overlay] {
@@ -100,5 +134,22 @@ body {
 }
 
 .mari-page-sheet--journal-date [data-rsbs-scroll] {
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+}
+
+.mari-page-sheet--journal-date [data-rsbs-scroll]::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.mari-page-sheet--permissions [data-rsbs-overlay] {
+  zoom: 1;
+}
+
+@supports not (zoom: 1) {
+  .mari-page-sheet--permissions [data-rsbs-overlay] {
+    scale: 1;
+  }
 }

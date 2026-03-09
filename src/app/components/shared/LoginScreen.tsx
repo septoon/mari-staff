@@ -1,5 +1,6 @@
 import { Eye, EyeOff, Loader2, Lock, Phone } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
+import { buildRuPhoneValue, getRuPhoneLocalDigits, normalizePhoneForWhatsApp } from '../../helpers';
 
 type LoginScreenProps = {
   phone: string;
@@ -23,8 +24,9 @@ export function LoginScreen({
   const [localError, setLocalError] = useState('');
   const [showPin, setShowPin] = useState(false);
 
-  const phoneDigits = useMemo(() => phone.replace(/\D+/g, ''), [phone]);
-  const isPhoneValid = phoneDigits.length >= 10;
+  const phoneLocalDigits = useMemo(() => getRuPhoneLocalDigits(phone), [phone]);
+  const phoneDigits = useMemo(() => normalizePhoneForWhatsApp(phone), [phone]);
+  const isPhoneValid = phoneDigits.length === 11 && phoneDigits.startsWith('7');
   const isPinValid = /^\d{4,8}$/.test(pin.trim());
   const isFormValid = isPhoneValid && isPinValid;
 
@@ -74,12 +76,18 @@ export function LoginScreen({
           <label className="text-[17px] font-bold text-[#51565f]">Телефон</label>
           <div className="mt-3 flex items-center gap-3 border-b border-[#f4a7ab] pb-3">
             <Phone className="h-5 w-5 text-[#a3a8b0]" strokeWidth={2.2} />
+            <span className="shrink-0 text-[22px] font-semibold tracking-[0.02em] text-[#31363d]">
+              +7
+            </span>
             <input
-              value={phone}
-              onChange={(event) => onPhoneChange(event.target.value)}
-              placeholder="+7 978 000-00-00"
-              autoComplete="tel"
-              className="w-full bg-transparent text-[22px] font-semibold tracking-[0.02em] text-[#31363d] placeholder:text-[#b7bcc4] outline-none"
+              value={phoneLocalDigits}
+              onChange={(event) => onPhoneChange(buildRuPhoneValue(event.target.value))}
+              placeholder="9780000000"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="tel-national"
+              className="min-w-0 w-full bg-transparent text-[22px] font-semibold tracking-[0.02em] text-[#31363d] placeholder:text-[#b7bcc4] outline-none"
             />
           </div>
 

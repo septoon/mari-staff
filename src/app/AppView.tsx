@@ -17,6 +17,7 @@ import { SetPinScreen } from './components/shared/SetPinScreen';
 import { Shell } from './components/shared/Shell';
 import { StaffPermissionsSheet } from './components/shared/StaffPermissionsSheet';
 import { ClientHistoryScreen } from './screens/ClientHistoryScreen';
+import { ClientSiteEditorScreen } from './screens/ClientSiteEditorScreen';
 import { ClientsScreen } from './screens/ClientsScreen';
 import { JournalDayEditScreen } from './screens/JournalDayEditScreen';
 import { JournalDayRemoveScreen } from './screens/JournalDayRemoveScreen';
@@ -87,7 +88,7 @@ export function AppView({ controller }: AppViewProps) {
       return;
     }
 
-    root.style.setProperty('--ui-scale', '1');
+    root.style.setProperty('--ui-scale', '0.92');
     return () => {
       root.style.removeProperty('--ui-scale');
     };
@@ -345,8 +346,8 @@ export function AppView({ controller }: AppViewProps) {
 
       <main
         className={clsx(
-          'scrollbar-hidden flex-1 overflow-y-auto px-4',
-          isJournalMainPage ? 'pb-[172px]' : isScheduleMainPage ? 'pb-[74px]' : 'pb-[86px]',
+          'scrollbar-hidden flex-1 overflow-y-auto px-6',
+          isJournalMainPage ? 'pb-[192px]' : isScheduleMainPage ? 'pb-[94px]' : 'pb-[106px]',
         )}
       >
         {state.page === 'staff' ? (
@@ -616,6 +617,9 @@ export function AppView({ controller }: AppViewProps) {
             }}
           />
         ) : null}
+        {state.page === 'clientSiteEditor' ? (
+          <ClientSiteEditorScreen onBack={actions.closeClientSiteEditor} />
+        ) : null}
         {state.page === 'servicesCategories' ? (
           <ServicesCategoriesScreen
             categories={state.filteredServiceCategories}
@@ -689,7 +693,7 @@ export function AppView({ controller }: AppViewProps) {
       </main>
 
       {isJournalMainPage ? (
-        <div className="fixed bottom-[74px] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 px-4">
+        <div className="fixed left-1/2 z-40 w-full px-4 -translate-x-1/2" style={{ bottom: '94px' }}>
           <JournalWeekStrip
             selectedDate={state.selectedDate}
             weekDates={state.weekDates}
@@ -697,7 +701,7 @@ export function AppView({ controller }: AppViewProps) {
           />
         </div>
       ) : null}
-      <div className="fixed bottom-0 left-1/2 z-[45] w-full max-w-[430px] -translate-x-1/2">
+      <div className="fixed left-1/2 z-[45] px-8 w-full -translate-x-1/2" style={{ bottom: '20px' }}>
         <BottomNav active={state.tab} items={state.visibleTabs} onChange={actions.handleTabChange} />
       </div>
       {state.page === 'tabs' && state.tab === 'clients' ? (

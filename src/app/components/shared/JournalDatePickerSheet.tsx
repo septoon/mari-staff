@@ -84,7 +84,6 @@ export function JournalDatePickerSheet({
   const selectedIso = toISODate(selectedDate);
   const todayIso = toISODate(new Date());
   const markedSet = new Set(markedDates);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const focusedMonthRef = useRef<HTMLElement | null>(null);
   const focusDate = useMemo(
     () => (initialMonthMode === 'today' ? new Date() : selectedDate),
@@ -123,9 +122,15 @@ export function JournalDatePickerSheet({
       attempts += 1;
       const focusedMonthNode = focusedMonthRef.current;
       if (focusedMonthNode) {
-        const container = scrollRef.current;
+        const container = focusedMonthNode.closest('[data-rsbs-scroll]') as HTMLDivElement | null;
         if (container && container.scrollHeight > container.clientHeight + 1) {
-          const targetTop = Math.max(focusedMonthNode.offsetTop - 8, 0);
+          const targetTop = Math.max(
+            container.scrollTop +
+              focusedMonthNode.getBoundingClientRect().top -
+              container.getBoundingClientRect().top -
+              8,
+            0,
+          );
           container.scrollTo({ top: targetTop, behavior: 'auto' });
           const delta = Math.abs(container.scrollTop - targetTop);
           stableHits = delta <= 2 ? stableHits + 1 : 0;
@@ -156,13 +161,12 @@ export function JournalDatePickerSheet({
         onDismiss={onClose}
         className="mari-page-sheet--calendar mari-page-sheet--journal-date"
         snapPoints={({ maxHeight }) => {
-          const maxSheet = Math.max(420, maxHeight - 72);
-          const midSheet = Math.max(360, Math.min(560, maxSheet - 120));
-          return [midSheet, maxSheet];
+          const sheetHeight = Math.max(360, Math.min(maxHeight - 24, Math.round(maxHeight * 0.8)));
+          return [sheetHeight];
         }}
-        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? snapPoints[0] ?? 0}
+        defaultSnap={({ snapPoints }) => snapPoints[0] ?? 0}
       >
-        <div className="flex h-[min(78vh,760px)] min-h-0 flex-col overflow-hidden rounded-t-[18px] bg-[#f3f3f4] shadow-[0_-8px_20px_rgba(0,0,0,0.12)]">
+        <div className="min-h-full rounded-t-[18px] bg-[#f3f3f4] shadow-[0_-8px_20px_rgba(0,0,0,0.12)]">
           <div className="sticky top-0 z-10 mt-2 flex shrink-0 items-center gap-3 border-b border-[#e0e3e7] bg-[#f3f3f4] px-4 py-4">
             <button
               type="button"
@@ -186,7 +190,7 @@ export function JournalDatePickerSheet({
             </button>
           </div>
 
-          <div ref={scrollRef} className="scrollbar-hidden flex-1 snap-y snap-mandatory overflow-y-auto px-5 pb-8 pt-2">
+          <div className="snap-y snap-mandatory px-5 pb-8 pt-2">
             {months.map((month) => {
               const days = getMonthDaysGrid(month.year, month.month);
               const isFocusedMonth = month.key === focusedMonthKey;

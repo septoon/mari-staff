@@ -1,7 +1,7 @@
 import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, ChevronDown, ChevronRight, Trash2, UserRound } from 'lucide-react';
-import { roleLabel } from '../helpers';
+import { buildRuPhoneValue, getRuPhoneLocalDigits, roleLabel } from '../helpers';
 import type { StaffCreateRole, StaffDraft } from '../types';
 
 type StaffEditorScreenProps = {
@@ -205,13 +205,20 @@ export function StaffEditorScreen({
 
         <label className="block">
           <span className="mb-2 block text-[18px] font-medium text-muted">Номер телефона</span>
-          <input
-            value={draft.phone}
-            onChange={(event) =>
-              onDraftChange((prev) => ({ ...prev, phone: event.target.value }))
-            }
-            className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[22px] font-medium text-muted outline-none"
-          />
+          <div className="flex w-full items-center gap-3 rounded-3xl bg-[#e6e9ef] px-6 py-4">
+            <span className="shrink-0 text-[22px] font-medium text-muted">+7</span>
+            <input
+              value={getRuPhoneLocalDigits(draft.phone)}
+              onChange={(event) =>
+                onDraftChange((prev) => ({ ...prev, phone: buildRuPhoneValue(event.target.value) }))
+              }
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="tel-national"
+              className="min-w-0 w-full bg-transparent text-[22px] font-medium text-muted outline-none"
+            />
+          </div>
         </label>
 
         <label className="block">

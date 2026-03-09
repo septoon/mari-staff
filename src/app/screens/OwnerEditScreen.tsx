@@ -1,7 +1,7 @@
 import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, Loader2, UserRound } from 'lucide-react';
-import { roleLabel } from '../helpers';
+import { buildRuPhoneValue, getRuPhoneLocalDigits, roleLabel } from '../helpers';
 import type { OwnerDraft, StaffRole } from '../types';
 
 type OwnerEditScreenProps = {
@@ -22,10 +22,11 @@ type FieldRowProps = {
   label: string;
   value: string;
   canEdit: boolean;
+  type?: 'text' | 'email' | 'phone';
   onChange: (value: string) => void;
 };
 
-function FieldRow({ label, value, canEdit, onChange }: FieldRowProps) {
+function FieldRow({ label, value, canEdit, type = 'text', onChange }: FieldRowProps) {
   if (!canEdit) {
     return (
       <div>
@@ -40,11 +41,27 @@ function FieldRow({ label, value, canEdit, onChange }: FieldRowProps) {
   return (
     <label className="block">
       <span className="mb-2 block text-[18px] font-medium text-muted">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
-      />
+      {type === 'phone' ? (
+        <div className="flex w-full items-center gap-3 rounded-3xl border-[2px] border-line bg-screen px-6 py-4">
+          <span className="shrink-0 text-[22px] font-medium text-ink">+7</span>
+          <input
+            value={getRuPhoneLocalDigits(value)}
+            onChange={(event) => onChange(buildRuPhoneValue(event.target.value))}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="tel-national"
+            className="min-w-0 w-full bg-transparent text-[22px] font-medium text-ink outline-none"
+          />
+        </div>
+      ) : (
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          type={type}
+          className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+        />
+      )}
     </label>
   );
 }
@@ -150,12 +167,14 @@ export function OwnerEditScreen({
           label="Номер телефона"
           value={draft.phone}
           canEdit={canEdit}
+          type="phone"
           onChange={(value) => onDraftChange((prev) => ({ ...prev, phone: value }))}
         />
         <FieldRow
           label="Email"
           value={draft.email}
           canEdit={canEdit}
+          type="email"
           onChange={(value) => onDraftChange((prev) => ({ ...prev, email: value }))}
         />
         <FieldRow

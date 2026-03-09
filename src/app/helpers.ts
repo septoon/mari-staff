@@ -184,6 +184,38 @@ export function normalizePhoneForLink(phone: string): string {
   return `+${value}`;
 }
 
+export function getRuPhoneLocalDigits(phone: string): string {
+  const normalized = phone.trim();
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+  if (normalized.startsWith('+7')) {
+    return digits.slice(1, 11);
+  }
+  if (digits.startsWith('8') && digits.length >= 11) {
+    return digits.slice(1, 11);
+  }
+  if (digits.startsWith('7') && digits.length >= 11) {
+    return digits.slice(1, 11);
+  }
+  return digits.slice(0, 10);
+}
+
+export function buildRuPhoneValue(localValue: string): string {
+  const rawDigits = localValue.replace(/\D/g, '');
+  if (!rawDigits) {
+    return '';
+  }
+  const digits =
+    rawDigits.length >= 11 && (rawDigits.startsWith('7') || rawDigits.startsWith('8'))
+      ? rawDigits.slice(1, 11)
+      : rawDigits.startsWith('7')
+        ? rawDigits.slice(1, 11)
+        : rawDigits.slice(0, 10);
+  return digits ? `+7${digits}` : '';
+}
+
 export function normalizePhoneForWhatsApp(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (digits.startsWith('8') && digits.length === 11) {

@@ -1,6 +1,12 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { formatHistoryDate, formatRub, formatTime } from '../helpers';
+import {
+  buildRuPhoneValue,
+  formatHistoryDate,
+  formatRub,
+  formatTime,
+  getRuPhoneLocalDigits,
+} from '../helpers';
 import type { AppointmentItem, ClientItem, JournalClientDraft } from '../types';
 
 type JournalClientScreenProps = {
@@ -20,21 +26,46 @@ type FieldRowProps = {
   label: string;
   value: string;
   canEdit: boolean;
+  type?: 'text' | 'email' | 'phone';
   placeholder?: string;
   onChange: (value: string) => void;
 };
 
-function FieldRow({ label, value, canEdit, placeholder, onChange }: FieldRowProps) {
+function FieldRow({
+  label,
+  value,
+  canEdit,
+  type = 'text',
+  placeholder,
+  onChange,
+}: FieldRowProps) {
   return (
     <label className="block border-b border-line px-4 py-3 last:border-b-0">
       <span className="block text-[16px] font-medium text-muted">{label}</span>
-      <input
-        value={value}
-        readOnly={!canEdit}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="mt-1 w-full bg-transparent text-[24px] font-medium text-ink outline-none placeholder:text-[#a5adba]"
-      />
+      {type === 'phone' && canEdit ? (
+        <div className="mt-1 flex items-center gap-3">
+          <span className="shrink-0 text-[24px] font-medium text-ink">+7</span>
+          <input
+            value={getRuPhoneLocalDigits(value)}
+            onChange={(event) => onChange(buildRuPhoneValue(event.target.value))}
+            placeholder="9780000000"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="tel-national"
+            className="min-w-0 w-full bg-transparent text-[24px] font-medium text-ink outline-none placeholder:text-[#a5adba]"
+          />
+        </div>
+      ) : (
+        <input
+          value={value}
+          readOnly={!canEdit}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          type={type}
+          className="mt-1 w-full bg-transparent text-[24px] font-medium text-ink outline-none placeholder:text-[#a5adba]"
+        />
+      )}
     </label>
   );
 }
@@ -86,6 +117,7 @@ export function JournalClientScreen({
           label="Телефон"
           value={draft.phone}
           canEdit={canEdit}
+          type="phone"
           onChange={(value) => onDraftChange((prev) => ({ ...prev, phone: value }))}
         />
         <FieldRow
@@ -98,6 +130,7 @@ export function JournalClientScreen({
           label="Email"
           value={draft.email}
           canEdit={canEdit}
+          type="email"
           placeholder="example@email.com"
           onChange={(value) => onDraftChange((prev) => ({ ...prev, email: value }))}
         />

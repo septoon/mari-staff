@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { CalendarDays, Loader2, Pencil, SlidersHorizontal, UserRound, UsersRound } from 'lucide-react';
+import { CalendarDays, Loader2, SlidersHorizontal, SquarePen, UserRound, UsersRound } from 'lucide-react';
 import { ISO_DAY_LABELS, MONTHS_RU } from '../constants';
 import { toISODate, toISODay } from '../helpers';
 import { JournalDatePickerSheet } from '../components/shared/JournalDatePickerSheet';
@@ -32,13 +32,13 @@ export function ScheduleScreen({
   const monthStripRef = useRef<HTMLDivElement | null>(null);
   const monthScrollSyncRef = useRef(false);
   const monthScrollTimerRef = useRef<number | null>(null);
-  const STAFF_COLUMN_WIDTH = 96;
-  const DAY_COLUMN_WIDTH = 72;
-  const GRID_GAP = 6;
-  const TODAY_LEFT_SHIFT_PX = 36;
+  const STAFF_COLUMN_WIDTH = 90;
+  const DAY_COLUMN_WIDTH = 68;
+  const GRID_GAP = 4;
+  const CURRENT_DAY_GUTTER_PX = 8;
   const MONTH_PAGE_SIZE = 5;
-  const MONTH_CELL_WIDTH = 74;
-  const MONTH_CELL_GAP = 8;
+  const MONTH_CELL_WIDTH = 68;
+  const MONTH_CELL_GAP = 6;
   const MONTH_LEFT_BUFFER = 5;
   const MONTH_RIGHT_BUFFER = 5;
   const MONTH_CELL_STEP_PX = MONTH_CELL_WIDTH + MONTH_CELL_GAP;
@@ -84,9 +84,12 @@ export function ScheduleScreen({
     }
     const currentDayOffset = STAFF_COLUMN_WIDTH + GRID_GAP + index * (DAY_COLUMN_WIDTH + GRID_GAP);
     const leftAnchor = STAFF_COLUMN_WIDTH + GRID_GAP;
-    const targetLeft = Math.max(0, Math.round(currentDayOffset - leftAnchor + TODAY_LEFT_SHIFT_PX));
+    const targetLeft = Math.max(
+      0,
+      Math.round(currentDayOffset - leftAnchor - CURRENT_DAY_GUTTER_PX),
+    );
     container.scrollTo({ left: targetLeft, behavior: 'auto' });
-  }, [DAY_COLUMN_WIDTH, GRID_GAP, STAFF_COLUMN_WIDTH, TODAY_LEFT_SHIFT_PX, monthDates, selectedDateIso]);
+  }, [CURRENT_DAY_GUTTER_PX, DAY_COLUMN_WIDTH, GRID_GAP, STAFF_COLUMN_WIDTH, monthDates, selectedDateIso]);
 
   const markedDates = useMemo(() => {
     const daysWithHours = new Set<number>();
@@ -189,23 +192,23 @@ export function ScheduleScreen({
   };
 
   return (
-    <div className="flex min-h-full flex-col pb-[170px] pt-5">
+    <div className="flex min-h-full flex-col pb-[190px] pt-5">
       <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-[24px] font-extrabold leading-none text-ink">
+        <h1 className="flex items-center gap-2 text-[22px] font-extrabold leading-none text-ink">
           <span>График работы</span>
           <button
             type="button"
             onClick={() => setDatePickerOpen(true)}
             aria-label="Открыть календарь"
           >
-            <CalendarDays className="h-6 w-6 text-accent" />
+            <CalendarDays className="h-5 w-5 text-accent" />
           </button>
         </h1>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onReload}
-            className="flex items-center gap-2 rounded-2xl bg-[#e6e9ef] px-3 py-2 text-[13px] font-semibold text-[#6f7682]"
+            className="flex items-center gap-2 rounded-2xl bg-[#e6e9ef] px-3 py-2 text-[12px] font-semibold text-[#6f7682]"
           >
             <UsersRound className="h-4 w-4" />
             Все
@@ -216,14 +219,14 @@ export function ScheduleScreen({
             className="rounded-2xl bg-[#e6e9ef] p-2 text-[#6f7682]"
             aria-label="Обновить график"
           >
-            <SlidersHorizontal className="h-5 w-5" />
+            <SlidersHorizontal className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="mt-4 border-t border-line pt-4">
+      <div className="-mx-4 mt-4 border-t border-line pt-4">
         <div ref={scrollRef} className="scrollbar-hidden overflow-x-auto pb-4">
-          <div className="grid gap-3" style={{ gridTemplateColumns: gridColumns, minWidth }}>
+          <div className="grid gap-1" style={{ gridTemplateColumns: gridColumns, minWidth }}>
             <div className="sticky left-0 z-30 bg-screen" />
             {monthDates.map((date) => (
               <div
@@ -237,7 +240,7 @@ export function ScheduleScreen({
                       : 'text-[#a9b2be]',
                 )}
               >
-                <div className="text-[16px]">{date.getDate()}</div>
+                <div className="text-[14px]">{date.getDate()}</div>
                 <div className="mt-1">{ISO_DAY_LABELS[toISODay(date)]}</div>
               </div>
             ))}
@@ -246,43 +249,50 @@ export function ScheduleScreen({
               <Fragment key={person.id}>
                 <div
                   key={`${person.id}-profile`}
-                  className="sticky left-0 z-30 bg-screen pr-2 text-center"
+                  className="sticky flex flex-col justify-center left-0 z-30 bg-screen pr-2 text-center"
                 >
                   <div className="pointer-events-none absolute inset-y-0 right-0 w-2 bg-gradient-to-r from-screen to-transparent" />
-                  <button
-                    type="button"
-                    onClick={() => onEditStaff(person)}
-                    className="group relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl"
-                    aria-label={`Редактировать график: ${person.name}`}
-                  >
-                    <div
-                      className={clsx(
-                        'absolute inset-0',
-                        index === 0 ? 'bg-[#e3e0f8]' : 'bg-[#e4e8ee]',
-                      )}
-                    />
-                    {person.avatarUrl ? (
-                      <img
-                        src={person.avatarUrl}
-                        alt={person.name}
-                        className="relative z-10 h-full w-full object-cover"
-                      />
-                    ) : (
-                      <UserRound
+                  <div className="relative mx-auto w-[48px]">
+                    <button
+                      type="button"
+                      onClick={() => onEditStaff(person)}
+                      className="group relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px]"
+                      aria-label={`Открыть график: ${person.name}`}
+                    >
+                      <div
                         className={clsx(
-                          'relative z-10 h-6 w-6',
-                          index === 0 ? 'text-[#a2a0eb]' : 'text-[#68768a]',
+                          'absolute inset-0',
+                          index === 0 ? 'bg-[#e3e0f8]' : 'bg-[#e4e8ee]',
                         )}
                       />
-                    )}
-                    <span className="absolute -bottom-1 -right-1 z-20 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#f4c900] text-white shadow-sm">
-                      <Pencil className="h-3 w-3" />
-                    </span>
-                  </button>
+                      {person.avatarUrl ? (
+                        <img
+                          src={person.avatarUrl}
+                          alt={person.name}
+                          className="relative z-10 h-full w-full object-cover"
+                        />
+                      ) : (
+                        <UserRound
+                          className={clsx(
+                            'relative z-10 h-5 w-5',
+                            index === 0 ? 'text-[#a2a0eb]' : 'text-[#68768a]',
+                          )}
+                        />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEditStaff(person)}
+                      className="absolute -bottom-1 -right-1 z-20 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f4c900] text-white shadow-[0_3px_10px_rgba(0,0,0,0.14)]"
+                      aria-label={`Редактировать график: ${person.name}`}
+                    >
+                      <SquarePen className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => onEditStaff(person)}
-                    className="mt-2 line-clamp-2 text-[12px] font-semibold leading-tight text-ink"
+                    className="mt-2 line-clamp-2 text-[11px] font-semibold leading-tight text-ink"
                   >
                     {person.name}
                   </button>
@@ -297,7 +307,7 @@ export function ScheduleScreen({
                     <div
                       key={`${person.id}-${toISODate(day)}`}
                       className={clsx(
-                        'min-h-[74px] rounded-md p-2 text-[11px] font-semibold leading-tight whitespace-pre-line',
+                        'min-h-[68px] rounded-md p-2 text-[10px] font-semibold leading-tight whitespace-pre-line',
                         slotText
                           ? isPast
                             ? 'bg-[#ebeff5] text-[#a8b1be]'
@@ -317,11 +327,11 @@ export function ScheduleScreen({
         </div>
       </div>
 
-      <div className="fixed bottom-[74px] left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 px-4">
+      <div className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-6" style={{ bottom: '94px' }}>
         <button
           type="button"
           onClick={onEdit}
-          className="mt-4 w-full rounded-[28px] bg-accentSoft py-4 text-[20px] font-extrabold text-[#796f3a]"
+          className="mt-4 w-full rounded-xl bg-accentSoft py-4 text-[18px] font-extrabold text-[#796f3a]"
         >
           Редактировать график
         </button>
@@ -333,13 +343,13 @@ export function ScheduleScreen({
           </div>
         ) : null}
 
-        <div className="mt-3 rounded-xl bg-slatePanel p-2">
+        <div className="mt-3 rounded-xl bg-slatePanel py-2">
           <div
             ref={monthStripRef}
             onScroll={handleMonthStripScroll}
             className="scrollbar-hidden overflow-x-auto"
           >
-            <ul className="flex min-w-max items-center gap-2 text-center text-[14px] font-semibold">
+            <ul className="flex min-w-max items-center gap-1.5 text-center text-[13px] font-semibold">
               {monthTabs.map((month) => (
                 <li
                   key={month.key}
@@ -355,7 +365,7 @@ export function ScheduleScreen({
                     className={clsx('w-full rounded-xl py-1', month.active ? 'text-[#222b33]' : 'text-white')}
                   >
                     <span>{month.label}</span>
-                    {month.active ? <div className="text-sm font-semibold text-[#222b33]">{month.year}</div> : null}
+                    {month.active ? <div className="text-[12px] font-semibold text-[#222b33]">{month.year}</div> : null}
                   </button>
                 </li>
               ))}

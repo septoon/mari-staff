@@ -18,8 +18,8 @@ export function JournalWeekStrip({
   const scrollSyncRef = useRef(false);
   const scrollTimerRef = useRef<number | null>(null);
   const WEEK_PAGE_SIZE = 7;
-  const WEEK_CELL_WIDTH = 44;
-  const WEEK_CELL_GAP = 8;
+  const WEEK_CELL_WIDTH = 65;
+  const WEEK_CELL_GAP = 6;
   const WEEK_LEFT_BUFFER = 1;
   const WEEK_RIGHT_BUFFER = 1;
   const WEEK_STEP_PX = (WEEK_CELL_WIDTH + WEEK_CELL_GAP) * WEEK_PAGE_SIZE;
@@ -96,7 +96,7 @@ export function JournalWeekStrip({
   return (
     <div className="rounded-lg bg-slatePanel p-2">
       <div ref={stripRef} onScroll={handleStripScroll} className="scrollbar-hidden overflow-x-auto">
-        <ul className="flex min-w-max items-center gap-2 text-center">
+        <ul className="flex min-w-max items-center gap-1.5 text-center">
           {stripDates.map((date) => {
             const iso = toISODate(date);
             const isActive = iso === selectedIso;
@@ -107,7 +107,7 @@ export function JournalWeekStrip({
                   type="button"
                   onClick={() => onDaySelect(date)}
                   className={clsx(
-                    'w-full rounded-lg py-1 text-[15px] font-semibold',
+                    'w-full rounded-lg py-1 text-[14px] font-semibold',
                     isActive ? 'bg-accent text-[#222b33]' : 'text-white',
                   )}
                 >
