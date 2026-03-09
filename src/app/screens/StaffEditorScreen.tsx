@@ -247,7 +247,7 @@ export function StaffEditorScreen({
           type="button"
           onClick={onSave}
           disabled={loading}
-          className="mt-2 w-full rounded-3xl bg-[#f2df8f] py-4 text-[22px] font-bold text-[#7c8696] disabled:opacity-60"
+          className="mt-2 w-full rounded-3xl bg-[#f4c900] py-4 text-[22px] font-bold text-black disabled:opacity-60"
         >
           {loading ? 'Сохранение...' : mode === 'create' ? 'Добавить' : 'Сохранить'}
         </button>

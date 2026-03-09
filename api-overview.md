@@ -68,6 +68,7 @@
 - `GET /settings/public`
 - `GET /settings/staff`
 - `PATCH /settings/client-cancel-policy`
+- `PATCH /settings/privacy-policy`
 
 ### Schedule
 - `GET /schedule/staff/:staffId/working-hours`
@@ -109,7 +110,13 @@
 - `POST /auth/staff/logout`: `{ "refreshToken": "..." }`
 - `POST /auth/client/register`: `{ "phone": "...", "password": "...", "name"?: "...", "email"?: "..." }`
 - `POST /auth/client/login`: `{ "phone": "...", "password": "..." }`
-- `POST /staff/invite`: `{ "phone": "...", "name": "...", "role": "ADMIN|MASTER", "email"?: "..." }`
+- `POST /staff/invite`: `{ "phone": "...", "name": "...", "role": "ADMIN|MASTER|DEVELOPER|SMM", "email"?: "..." }`
+
+## Settings payloads
+- `GET /settings/public`: `{ "clientCancelPolicy": { "minNoticeMinutes": number }, "privacyPolicy": { "content": string } }`
+- `GET /settings/staff`: тот же payload для авторизованного staff.
+- `PATCH /settings/client-cancel-policy`: `{ "minNoticeMinutes": number }`
+- `PATCH /settings/privacy-policy`: `{ "content": "..." }`
 
 ## Нюансы скидок и промокодов
 - Скидки клиента: постоянная + временная (`from/to`).

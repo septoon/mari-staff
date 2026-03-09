@@ -109,6 +109,8 @@ export function useAppState() {
   const [editorPermissionCatalog, setEditorPermissionCatalog] = useState<StaffPermissionCatalogItem[]>([]);
   const [editorPermissionCodes, setEditorPermissionCodes] = useState<string[]>([]);
   const [editorPermissionBusyCode, setEditorPermissionBusyCode] = useState<string | null>(null);
+  const [settingsClientCancelMinNoticeMinutes, setSettingsClientCancelMinNoticeMinutes] = useState<number | null>(null);
+  const [privacyPolicyText, setPrivacyPolicyText] = useState('');
 
   const routeSyncSourceRef = useRef<'idle' | 'state' | 'location'>('idle');
   const staffAvatarBlobUrlRef = useRef('');
@@ -280,6 +282,10 @@ export function useAppState() {
     setEditorPermissionCodes,
     editorPermissionBusyCode,
     setEditorPermissionBusyCode,
+    settingsClientCancelMinNoticeMinutes,
+    setSettingsClientCancelMinNoticeMinutes,
+    privacyPolicyText,
+    setPrivacyPolicyText,
     routeSyncSourceRef,
     staffAvatarBlobUrlRef,
     ownerAvatarBlobUrlRef,

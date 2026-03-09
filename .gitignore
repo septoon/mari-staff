@@ -11,6 +11,11 @@
 # production
 /build
 
+*.md
+*.MD
+!/README.md
+!/README.MD
+
 # misc
 .DS_Store
 .env.local

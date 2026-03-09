@@ -72,7 +72,8 @@ const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
   Сотрудники: 'VIEW_STAFF',
   Услуги: 'VIEW_SERVICES',
   Аналитика: 'VIEW_FINANCIAL_STATS',
-  'Онлайн-запись': 'VIEW_JOURNAL',
+  'Онлайн-запись': 'MANAGE_CLIENT_FRONT',
+  'Политика конфиденциальности': null,
   Настройки: null,
   Поддержка: null,
 };
@@ -292,6 +293,10 @@ export function useAppController(): AppController {
     setEditorPermissionCodes,
     editorPermissionBusyCode,
     setEditorPermissionBusyCode,
+    settingsClientCancelMinNoticeMinutes,
+    setSettingsClientCancelMinNoticeMinutes,
+    privacyPolicyText,
+    setPrivacyPolicyText,
     routeSyncSourceRef,
     staffAvatarBlobUrlRef,
     ownerAvatarBlobUrlRef,
@@ -339,6 +344,7 @@ export function useAppController(): AppController {
   const canViewServices = hasPermissionAccess('VIEW_SERVICES');
   const canViewStaff = hasPermissionAccess('VIEW_STAFF');
   const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
+  const canEditPrivacyPolicy = hasPermissionAccess('MANAGE_CLIENT_FRONT');
   const canEdit = useCallback(
     (permissionCode: string) => hasPermissionAccess(permissionCode),
     [hasPermissionAccess],
@@ -686,6 +692,8 @@ export function useAppController(): AppController {
     setAppointments,
     setJournalMarkedDates,
     setWorkingHoursByStaff,
+    setSettingsClientCancelMinNoticeMinutes,
+    setPrivacyPolicyText,
   });
 
   useEffect(() => {
@@ -1130,6 +1138,11 @@ export function useAppController(): AppController {
     setTab('more');
   };
 
+  const closePrivacyPolicyPage = () => {
+    setPage('tabs');
+    setTab('more');
+  };
+
   const handleOpenOwnerEditor = useCallback(async () => {
     if (!session) {
       return;
@@ -1369,7 +1382,7 @@ export function useAppController(): AppController {
         email: staffDraft.email.trim() ? staffDraft.email.trim() : null,
         positionName: staffDraft.positionName.trim() || undefined,
       });
-      if (session?.staff.role === 'OWNER' && staffDraft.role !== originalEditRole) {
+      if (staffDraft.role !== originalEditRole) {
         await api.patch<unknown>(`/staff/${id}/role`, { role: staffDraft.role });
       }
 
@@ -2833,8 +2846,14 @@ export function useAppController(): AppController {
           setPage('clientSiteEditor');
           return;
         }
+        case 'Политика конфиденциальности': {
+          await loadSettings();
+          setPage('privacyPolicy');
+          return;
+        }
         case 'Настройки': {
-          const currentNotice = await loadSettings();
+          const currentSettings = await loadSettings();
+          const currentNotice = currentSettings?.clientCancelMinNoticeMinutes ?? null;
           if (session.staff.role !== 'OWNER') {
             setPanel({
               title: 'Настройки',
@@ -2875,6 +2894,31 @@ export function useAppController(): AppController {
       }
     } catch (error) {
       setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const savePrivacyPolicy = async (value: string) => {
+    if (!canEditPrivacyPolicy) {
+      setToast('Нет прав на редактирование политики');
+      return false;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const normalized = value.replace(/\r\n/g, '\n');
+      const data = await api.patch<unknown>('/settings/privacy-policy', {
+        content: normalized,
+      });
+      const record = toRecord(data);
+      const privacyPolicyRecord = toRecord(record?.privacyPolicy);
+      const nextText = toString(privacyPolicyRecord?.content) || normalized;
+      setPrivacyPolicyText(nextText);
+      setToast('Политика конфиденциальности сохранена');
+      return true;
+    } catch (error) {
+      setToast(toErrorMessage(error));
+      return false;
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
@@ -3498,6 +3542,9 @@ export function useAppController(): AppController {
       editorPermissionBusyCode,
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEdit(EDIT_PERMISSION.journal),
+      canEditPrivacyPolicy,
+      settingsClientCancelMinNoticeMinutes,
+      privacyPolicyText,
     },
     actions: {
       setAuthPhone,
@@ -3528,6 +3575,7 @@ export function useAppController(): AppController {
       closeStaffServicesEditor,
       backFromStaffList,
       closeOwnerPage,
+      closePrivacyPolicyPage,
       handleOpenOwnerEditor,
       handleSaveOwner,
       handleCreateStaff,
@@ -3610,6 +3658,7 @@ export function useAppController(): AppController {
       handleSelectOwnerAvatarFile,
       handleDeleteOwnerAvatar,
       handleSelectServiceImageFile,
+      savePrivacyPolicy,
     },
   };
 }

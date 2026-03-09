@@ -17,6 +17,7 @@ const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs'>, string> = {
   scheduleEditor: '/schedule/editor',
   staff: '/staff',
   owner: '/owner',
+  privacyPolicy: '/more/privacy-policy',
   staffEditor: '/staff/editor',
   staffServicesEditor: '/staff/services',
   clientHistory: '/clients/history',
@@ -64,6 +65,8 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'staff', tab: 'more' };
     case '/owner':
       return { page: 'owner', tab: 'more' };
+    case '/more/privacy-policy':
+      return { page: 'privacyPolicy', tab: 'more' };
     case '/staff/editor':
       return { page: 'staffEditor', tab: 'more' };
     case '/staff/services':

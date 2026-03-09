@@ -27,6 +27,7 @@ import { JournalScreen } from './screens/JournalScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { NotificationsScreen } from './screens/NotificationsScreen';
 import { OwnerEditScreen } from './screens/OwnerEditScreen';
+import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { ScheduleEditorScreen } from './screens/ScheduleEditorScreen';
 import { ServiceCategoryEditorScreen } from './screens/ServiceCategoryEditorScreen';
@@ -617,8 +618,23 @@ export function AppView({ controller }: AppViewProps) {
             }}
           />
         ) : null}
+        {state.page === 'privacyPolicy' ? (
+          <PrivacyPolicyScreen
+            text={state.privacyPolicyText}
+            canEdit={state.canEditPrivacyPolicy}
+            loading={state.loading.action}
+            settingsLoading={state.loading.settings}
+            onBack={actions.closePrivacyPolicyPage}
+            onSave={actions.savePrivacyPolicy}
+          />
+        ) : null}
         {state.page === 'clientSiteEditor' ? (
-          <ClientSiteEditorScreen onBack={actions.closeClientSiteEditor} />
+          <ClientSiteEditorScreen
+            onBack={actions.closeClientSiteEditor}
+            onOpenServices={() => {
+              void actions.openServicesPage();
+            }}
+          />
         ) : null}
         {state.page === 'servicesCategories' ? (
           <ServicesCategoriesScreen

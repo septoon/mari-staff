@@ -8,11 +8,13 @@ const CLIENT_FRONT_MEDIA_UPLOAD_ENDPOINT = '/client-front/staff/media/upload';
 export const MEDIA_STORAGE_ROOT_DOC = '/var/lib/mari-server/media';
 export const STAFF_AVATAR_MEDIA_DIR = 'specialists';
 export const SERVICE_IMAGE_MEDIA_DIR = 'content/services';
+export const CLIENT_CONTENT_MEDIA_DIR = 'content/client-front';
 
-type UploadScope = 'staff-avatar' | 'service-image';
+type UploadScope = 'staff-avatar' | 'service-image' | 'client-content';
 const MEDIA_ENTITY_BY_SCOPE: Record<UploadScope, string> = {
   'staff-avatar': 'specialists',
   'service-image': 'services',
+  'client-content': 'client-front',
 };
 
 export type UploadImageResult = {
@@ -34,7 +36,12 @@ function sanitizeSegment(value: string) {
 }
 
 export function getServerMediaDirHint(scope: UploadScope, entityId: string) {
-  const dir = scope === 'staff-avatar' ? STAFF_AVATAR_MEDIA_DIR : SERVICE_IMAGE_MEDIA_DIR;
+  const dir =
+    scope === 'staff-avatar'
+      ? STAFF_AVATAR_MEDIA_DIR
+      : scope === 'service-image'
+        ? SERVICE_IMAGE_MEDIA_DIR
+        : CLIENT_CONTENT_MEDIA_DIR;
   const now = new Date();
   const year = String(now.getFullYear());
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -42,7 +49,12 @@ export function getServerMediaDirHint(scope: UploadScope, entityId: string) {
 }
 
 function buildObjectPath(scope: UploadScope, entityId: string, fileNameWithoutExt: string) {
-  const dir = scope === 'staff-avatar' ? STAFF_AVATAR_MEDIA_DIR : SERVICE_IMAGE_MEDIA_DIR;
+  const dir =
+    scope === 'staff-avatar'
+      ? STAFF_AVATAR_MEDIA_DIR
+      : scope === 'service-image'
+        ? SERVICE_IMAGE_MEDIA_DIR
+        : CLIENT_CONTENT_MEDIA_DIR;
   const now = new Date();
   const year = String(now.getFullYear());
   const month = String(now.getMonth() + 1).padStart(2, '0');

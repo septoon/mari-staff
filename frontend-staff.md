@@ -1,4 +1,4 @@
-# Frontend спецификация: Приложение персонала (OWNER / ADMIN / MASTER)
+# Frontend спецификация: Приложение персонала (OWNER / ADMIN / MASTER / DEVELOPER / SMM)
 
 Документ фиксирует **фактический** backend-контракт для staff-приложения.
 
@@ -11,6 +11,8 @@
 - `OWNER` (Владелец)
 - `ADMIN`
 - `MASTER`
+- `DEVELOPER`
+- `SMM`
 
 ## 1.2 Встроенные ограничения ролей
 
@@ -22,7 +24,7 @@
 `ADMIN`:
 - может приглашать сотрудников (`/staff/invite`), редактировать контакты, назначать услуги, работать с imports/exports/services/reports;
 - не может менять `OWNER`;
-- не может менять роли;
+- может менять роли сотрудников при наличии `EDIT_STAFF`;
 - не может увольнять;
 - не может выдавать permissions.
 
@@ -31,17 +33,29 @@
 - может создать запись через `POST /appointments` (без `discountOverride`);
 - может смотреть `GET /master/clients/:clientId/summary`.
 
+`DEVELOPER`, `SMM`:
+- логин в staff-приложение;
+- доступ к разделам определяется выданными permission-кодами.
+
 ## 1.3 Permission-коды (для OWNER-управления)
-Из seed:
-- `MANAGE_SERVICES`
-- `MANAGE_SCHEDULE`
-- `MANAGE_APPOINTMENTS`
-- `MANAGE_STAFF`
-- `VIEW_REPORTS`
+Актуальный каталог permission-кодов:
+- `VIEW_JOURNAL`
+- `EDIT_JOURNAL`
+- `VIEW_SCHEDULE`
+- `EDIT_SCHEDULE`
+- `VIEW_CLIENTS`
+- `EDIT_CLIENTS`
+- `VIEW_SERVICES`
+- `EDIT_SERVICES`
+- `VIEW_STAFF`
+- `EDIT_STAFF`
+- `EDIT_SELF_PROFILE`
 - `VIEW_FINANCIAL_STATS`
-- `MANAGE_PERMISSIONS`
 - `MANAGE_CLIENT_DISCOUNTS`
 - `MANAGE_PROMOCODES`
+- `MANAGE_CLIENT_FRONT`
+- `PUBLISH_CLIENT_FRONT`
+- `MANAGE_MEDIA`
 
 Важно:
 - `OWNER` проходит permission-проверки всегда;
@@ -94,7 +108,7 @@ Authorization: Bearer <accessToken>
 - `isoDateTime`: `string` (ISO 8601 UTC)
 - `money`: `number` (в JSON, в БД `Decimal`)
 - `boolFlag`: `boolean`
-- `StaffRole`: `'OWNER' | 'ADMIN' | 'MASTER'`
+- `StaffRole`: `'OWNER' | 'ADMIN' | 'MASTER' | 'DEVELOPER' | 'SMM'`
 - `DiscountType`: `'NONE' | 'FIXED' | 'PERCENT'`
 - `AppointmentStatus`: `'PENDING' | 'CONFIRMED' | 'ARRIVED' | 'NO_SHOW' | 'CANCELLED'`
 - `PaymentStatus`: `'UNPAID' | 'PARTIAL' | 'PAID'`
@@ -377,7 +391,7 @@ Body:
 
 ## 6.3 Роль сотрудника
 ### `PATCH /staff/:id/role`
-Доступ: только `OWNER`.
+Доступ: `OWNER` или staff с permission `EDIT_STAFF`.
 
 Body:
 ```json
@@ -386,7 +400,7 @@ Body:
 }
 ```
 
-Можно назначать только `ADMIN|MASTER`.
+Можно назначать только `ADMIN|MASTER|DEVELOPER|SMM`.
 `OWNER` через этот endpoint менять нельзя.
 
 ## 6.4 Увольнение
@@ -508,9 +522,30 @@ Body:
 }
 ```
 
-## 8.3 Политика отмены клиентом (настройка OWNER)
+## 8.3 Настройки клиентского сайта
+### `GET /settings/public`
+Доступ: публичный.
+
+Ответ `200`:
+```json
+{
+  "ok": true,
+  "data": {
+    "clientCancelMinNoticeMinutes": 120,
+    "clientCancelPolicy": {
+      "minNoticeMinutes": 120
+    },
+    "privacyPolicy": {
+      "content": "..."
+    }
+  }
+}
+```
+
 ### `GET /settings/staff`
-Доступ: `MASTER|ADMIN|OWNER` (для чтения текущего значения).
+Доступ: любой авторизованный staff.
+
+Возвращает тот же payload, что и `GET /settings/public`.
 
 ### `PATCH /settings/client-cancel-policy`
 Доступ: только `OWNER`.
@@ -523,6 +558,18 @@ Body:
 ```
 
 `minNoticeMinutes` используется в `POST /client/appointments/:id/cancel`.
+
+### `PATCH /settings/privacy-policy`
+Доступ: `OWNER` или staff с permission `MANAGE_CLIENT_FRONT`.
+
+Body:
+```json
+{
+  "content": "..."
+}
+```
+
+Возвращает тот же payload, что и `GET /settings/staff`.
 
 ## 8.4 Клиенты и лояльность
 

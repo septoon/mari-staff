@@ -10,6 +10,7 @@ export type AppPage =
   | 'scheduleEditor'
   | 'staff'
   | 'owner'
+  | 'privacyPolicy'
   | 'staffEditor'
   | 'staffServicesEditor'
   | 'clientHistory'
@@ -250,6 +251,9 @@ export type ControllerState = {
   editorPermissionBusyCode: string | null;
   canEditClients: boolean;
   canEditJournal: boolean;
+  canEditPrivacyPolicy: boolean;
+  settingsClientCancelMinNoticeMinutes: number | null;
+  privacyPolicyText: string;
 };
 
 export type ControllerActions = {
@@ -281,6 +285,7 @@ export type ControllerActions = {
   closeStaffServicesEditor: () => void;
   backFromStaffList: () => void;
   closeOwnerPage: () => void;
+  closePrivacyPolicyPage: () => void;
   handleOpenOwnerEditor: () => Promise<void>;
   handleSaveOwner: () => Promise<void>;
   handleCreateStaff: () => Promise<void>;
@@ -367,6 +372,7 @@ export type ControllerActions = {
   handleSelectOwnerAvatarFile: (file: File) => Promise<void>;
   handleDeleteOwnerAvatar: () => Promise<void>;
   handleSelectServiceImageFile: (file: File) => Promise<void>;
+  savePrivacyPolicy: (value: string) => Promise<boolean>;
 };
 
 export type AppController = {

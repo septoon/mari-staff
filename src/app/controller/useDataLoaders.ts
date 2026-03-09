@@ -9,6 +9,7 @@ import {
   toISODate,
   toNumber,
   toRecord,
+  toString,
 } from '../helpers';
 import {
   extractItems,
@@ -54,6 +55,13 @@ type UseDataLoadersParams = {
   setAppointments: (value: AppointmentItem[]) => void;
   setJournalMarkedDates: (value: string[]) => void;
   setWorkingHoursByStaff: (value: WorkingHoursMap) => void;
+  setSettingsClientCancelMinNoticeMinutes: (value: number | null) => void;
+  setPrivacyPolicyText: (value: string) => void;
+};
+
+type SettingsPayload = {
+  clientCancelMinNoticeMinutes: number | null;
+  privacyPolicyText: string;
 };
 
 export function useDataLoaders({
@@ -82,6 +90,8 @@ export function useDataLoaders({
   setAppointments,
   setJournalMarkedDates,
   setWorkingHoursByStaff,
+  setSettingsClientCancelMinNoticeMinutes,
+  setPrivacyPolicyText,
 }: UseDataLoadersParams) {
   const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
 
@@ -330,7 +340,9 @@ export function useDataLoaders({
   );
 
   const loadSettings = useCallback(async () => {
-    if (!isAuthorized || sessionRole !== 'OWNER') {
+    if (!isAuthorized) {
+      setSettingsClientCancelMinNoticeMinutes(null);
+      setPrivacyPolicyText('');
       return null;
     }
     setLoadingKey(setLoading, 'settings', true);
@@ -339,14 +351,22 @@ export function useDataLoaders({
       const asRecord = toRecord(data);
       const policyRecord = toRecord(asRecord?.clientCancelPolicy) ?? toRecord(asRecord?.cancelPolicy);
       const minNotice = toNumber(policyRecord?.minNoticeMinutes);
-      return minNotice ?? null;
+      const privacyPolicyRecord = toRecord(asRecord?.privacyPolicy);
+      const privacyPolicyText = toString(privacyPolicyRecord?.content) || toString(asRecord?.privacyPolicy);
+      const nextSettings: SettingsPayload = {
+        clientCancelMinNoticeMinutes: minNotice ?? null,
+        privacyPolicyText,
+      };
+      setSettingsClientCancelMinNoticeMinutes(nextSettings.clientCancelMinNoticeMinutes);
+      setPrivacyPolicyText(nextSettings.privacyPolicyText);
+      return nextSettings;
     } catch (error) {
       setAppError(toErrorMessage(error));
       return null;
     } finally {
       setLoadingKey(setLoading, 'settings', false);
     }
-  }, [isAuthorized, sessionRole, setAppError, setLoading]);
+  }, [isAuthorized, setAppError, setLoading, setPrivacyPolicyText, setSettingsClientCancelMinNoticeMinutes]);
 
   const loadReports = useCallback(async () => {
     if (!isAuthorized || !canViewReports) {

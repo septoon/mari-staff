@@ -1,5 +1,4 @@
 import {
-  BadgeDollarSign,
   Bell,
   CalendarDays,
   CalendarRange,
@@ -8,6 +7,7 @@ import {
   Cog,
   Menu,
   MessageCircleMore,
+  Shield,
   Sparkles,
   UserRound,
   Users,
@@ -56,6 +56,7 @@ export const MORE_MENU: MoreActionItem[] = [
   { title: 'Услуги', icon: Sparkles },
   { title: 'Аналитика', icon: ChartPie },
   { title: 'Онлайн-запись', icon: Clock3 },
+  { title: 'Политика конфиденциальности', icon: Shield },
   { title: 'Настройки', icon: Cog },
   { title: 'Поддержка', icon: MessageCircleMore },
 ];

@@ -18,7 +18,7 @@ export function BottomNav({ active, items, onChange }: BottomNavProps) {
   };
 
   return (
-    <nav className="shrink-0 border-t border-line bg-screen pb-1 pt-1">
+    <nav className="shrink-0 border-t border-line bg-screen py-2 rounded-2xl">
       <ul
         className="grid gap-0"
         style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(0, 1fr))` }}
