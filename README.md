@@ -39,3 +39,14 @@ npm start
 ```bash
 npm run build
 ```
+
+## PWA запуск
+
+`service worker` подключается только в production-сборке.
+
+```bash
+npm run build
+npx serve -s build
+```
+
+После запуска открой приложение в браузере и установи его как приложение (Install/Add to Home Screen).
