@@ -20,8 +20,10 @@ import type {
   StaffDraft,
   StaffFilter,
   StaffItem,
+  StaffPermissionCatalogItem,
   StaffSession,
   TabKey,
+  JournalClientDraft,
   WorkingHoursMap,
 } from '../types';
 
@@ -38,6 +40,17 @@ export function useAppState() {
   const [clientHistoryTarget, setClientHistoryTarget] = useState<ClientItem | null>(null);
   const [clientHistoryAppointments, setClientHistoryAppointments] = useState<AppointmentItem[]>([]);
   const [clientHistoryLoading, setClientHistoryLoading] = useState(false);
+  const [journalAppointmentTarget, setJournalAppointmentTarget] = useState<AppointmentItem | null>(null);
+  const [journalClientTarget, setJournalClientTarget] = useState<ClientItem | null>(null);
+  const [journalClientDraft, setJournalClientDraft] = useState<JournalClientDraft>({
+    name: '',
+    phone: '',
+    email: '',
+    comment: '',
+  });
+  const [journalClientHistory, setJournalClientHistory] = useState<AppointmentItem[]>([]);
+  const [journalClientLoading, setJournalClientLoading] = useState(false);
+  const [journalClientSaving, setJournalClientSaving] = useState(false);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [workingHoursByStaff, setWorkingHoursByStaff] = useState<WorkingHoursMap>({});
@@ -78,15 +91,28 @@ export function useAppState() {
   const [serviceCategoryEditorId, setServiceCategoryEditorId] = useState<string | null>(null);
   const [serviceCategoryEditorName, setServiceCategoryEditorName] = useState('');
   const [serviceDraft, setServiceDraft] = useState<ServiceDraft>(EMPTY_SERVICE_DRAFT);
+  const [serviceProviders, setServiceProviders] = useState<StaffItem[]>([]);
+  const [serviceAssignableStaff, setServiceAssignableStaff] = useState<StaffItem[]>([]);
+  const [serviceProvidersLoading, setServiceProvidersLoading] = useState(false);
   const [staffAvatarPreviewUrl, setStaffAvatarPreviewUrl] = useState('');
+  const [staffAvatarAssetId, setStaffAvatarAssetId] = useState<string | null>(null);
+  const [ownerAvatarPreviewUrl, setOwnerAvatarPreviewUrl] = useState('');
+  const [ownerAvatarAssetId, setOwnerAvatarAssetId] = useState<string | null>(null);
   const [serviceImagePreviewUrl, setServiceImagePreviewUrl] = useState('');
   const [staffAvatarWebpBlob, setStaffAvatarWebpBlob] = useState<Blob | null>(null);
+  const [ownerAvatarWebpBlob, setOwnerAvatarWebpBlob] = useState<Blob | null>(null);
   const [serviceImageWebpBlob, setServiceImageWebpBlob] = useState<Blob | null>(null);
   const [staffAvatarOriginalName, setStaffAvatarOriginalName] = useState('avatar');
+  const [ownerAvatarOriginalName, setOwnerAvatarOriginalName] = useState('avatar');
   const [serviceImageOriginalName, setServiceImageOriginalName] = useState('service');
+  const [editorPermissionsSheetOpen, setEditorPermissionsSheetOpen] = useState(false);
+  const [editorPermissionCatalog, setEditorPermissionCatalog] = useState<StaffPermissionCatalogItem[]>([]);
+  const [editorPermissionCodes, setEditorPermissionCodes] = useState<string[]>([]);
+  const [editorPermissionBusyCode, setEditorPermissionBusyCode] = useState<string | null>(null);
 
   const routeSyncSourceRef = useRef<'idle' | 'state' | 'location'>('idle');
   const staffAvatarBlobUrlRef = useRef('');
+  const ownerAvatarBlobUrlRef = useRef('');
   const serviceImageBlobUrlRef = useRef('');
   const [loading, setLoading] = useState<LoadingState>({
     boot: true,
@@ -126,6 +152,18 @@ export function useAppState() {
     setClientHistoryAppointments,
     clientHistoryLoading,
     setClientHistoryLoading,
+    journalAppointmentTarget,
+    setJournalAppointmentTarget,
+    journalClientTarget,
+    setJournalClientTarget,
+    journalClientDraft,
+    setJournalClientDraft,
+    journalClientHistory,
+    setJournalClientHistory,
+    journalClientLoading,
+    setJournalClientLoading,
+    journalClientSaving,
+    setJournalClientSaving,
     services,
     setServices,
     appointments,
@@ -206,23 +244,47 @@ export function useAppState() {
     setServiceCategoryEditorName,
     serviceDraft,
     setServiceDraft,
+    serviceProviders,
+    setServiceProviders,
+    serviceAssignableStaff,
+    setServiceAssignableStaff,
+    serviceProvidersLoading,
+    setServiceProvidersLoading,
     staffAvatarPreviewUrl,
     setStaffAvatarPreviewUrl,
+    staffAvatarAssetId,
+    setStaffAvatarAssetId,
+    ownerAvatarPreviewUrl,
+    setOwnerAvatarPreviewUrl,
+    ownerAvatarAssetId,
+    setOwnerAvatarAssetId,
     serviceImagePreviewUrl,
     setServiceImagePreviewUrl,
     staffAvatarWebpBlob,
     setStaffAvatarWebpBlob,
+    ownerAvatarWebpBlob,
+    setOwnerAvatarWebpBlob,
     serviceImageWebpBlob,
     setServiceImageWebpBlob,
     staffAvatarOriginalName,
     setStaffAvatarOriginalName,
+    ownerAvatarOriginalName,
+    setOwnerAvatarOriginalName,
     serviceImageOriginalName,
     setServiceImageOriginalName,
+    editorPermissionsSheetOpen,
+    setEditorPermissionsSheetOpen,
+    editorPermissionCatalog,
+    setEditorPermissionCatalog,
+    editorPermissionCodes,
+    setEditorPermissionCodes,
+    editorPermissionBusyCode,
+    setEditorPermissionBusyCode,
     routeSyncSourceRef,
     staffAvatarBlobUrlRef,
+    ownerAvatarBlobUrlRef,
     serviceImageBlobUrlRef,
     loading,
     setLoading,
   };
 }
-

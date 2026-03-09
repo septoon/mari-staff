@@ -31,6 +31,9 @@ export function parseStaff(value: unknown): StaffItem | null {
       toNullableString(record.avatarUrl) ||
       toNullableString(record.photoUrl) ||
       toNullableString(record.imageUrl),
+    avatarAssetId:
+      toNullableString(record.avatarAssetId) ||
+      toNullableString(record.photoAssetId),
     isActive: Boolean(record.isActive ?? true),
     positionName: toNullableString(positionRecord?.name),
   };
@@ -42,14 +45,19 @@ export function parseClient(value: unknown): ClientItem | null {
     return null;
   }
   const id = toString(record.id);
-  const name = toString(record.name) || toString(record.fullName);
-  if (!id || !name) {
+  const phone = toString(record.phoneE164) || toString(record.phone) || '';
+  const name =
+    toString(record.name) ||
+    toString(record.fullName) ||
+    phone ||
+    'Клиент';
+  if (!id) {
     return null;
   }
   return {
     id,
     name,
-    phone: toString(record.phoneE164) || toString(record.phone) || '',
+    phone,
   };
 }
 

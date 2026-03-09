@@ -1,4 +1,4 @@
-export type StaffRole = 'OWNER' | 'ADMIN' | 'MASTER';
+export type StaffRole = 'OWNER' | 'ADMIN' | 'MASTER' | 'DEVELOPER' | 'SMM';
 
 export type StaffSession = {
   staff: {
@@ -7,12 +7,20 @@ export type StaffSession = {
     role: StaffRole;
     phoneE164: string;
     email: string | null;
+    permissions?: string[];
   };
   tokens: {
     accessToken: string;
     refreshToken: string;
     expiresInSec: number;
   };
+};
+
+export type StaffPermissionCatalogItem = {
+  code: string;
+  title: string;
+  description: string;
+  group: 'workspace' | 'finance' | 'marketing' | 'content';
 };
 
 type ApiErrorPayload = {
@@ -49,6 +57,7 @@ export class ApiError extends Error {
 
 const DEFAULT_BASE_URL =
   process.env.REACT_APP_API_BASE_URL || 'https://api.maribeauty.ru';
+const SESSION_STORAGE_KEY = 'mari.staff.session.v1';
 
 class ApiClient {
   private baseUrl: string;
@@ -62,6 +71,7 @@ class ApiClient {
   setSession(session: StaffSession | null) {
     this.accessToken = session?.tokens.accessToken ?? '';
     this.refreshToken = session?.tokens.refreshToken ?? '';
+    this.persistSession(session);
   }
 
   getRefreshToken() {
@@ -71,6 +81,7 @@ class ApiClient {
   clearSession() {
     this.accessToken = '';
     this.refreshToken = '';
+    this.persistSession(null);
   }
 
   async login(phone: string, pin: string) {
@@ -99,12 +110,12 @@ class ApiClient {
     return data;
   }
 
-  async requestStaffPinReset(phone: string) {
+  async requestStaffPinReset(email: string) {
     return this.request<{ sent: boolean; resetLink?: string }>(
       '/staff/reset-pin/request',
       {
         method: 'POST',
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ email }),
       },
       { auth: false, allowRefresh: false },
     );
@@ -216,6 +227,24 @@ class ApiClient {
     );
   }
 
+  async getStaffPermissionsCatalog() {
+    const data = await this.get<{ items: StaffPermissionCatalogItem[] }>('/staff/permissions/catalog');
+    return data.items;
+  }
+
+  async getStaffPermissions(staffId: string) {
+    const data = await this.get<{ items: Array<{ code: string }> }>(`/staff/${staffId}/permissions`);
+    return data.items.map((item) => item.code);
+  }
+
+  async grantStaffPermission(staffId: string, code: string) {
+    await this.post(`/staff/${staffId}/permissions`, { code });
+  }
+
+  async revokeStaffPermission(staffId: string, code: string) {
+    await this.delete(`/staff/${staffId}/permissions/${encodeURIComponent(code)}`);
+  }
+
   private async request<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {
     const auth = options?.auth ?? true;
     const allowRefresh = options?.allowRefresh ?? true;
@@ -271,6 +300,21 @@ class ApiClient {
     }
 
     return parsed as T;
+  }
+
+  private persistSession(session: StaffSession | null) {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return;
+    }
+    try {
+      if (session) {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      } else {
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    } catch {
+      // ignore storage errors (private mode / quota)
+    }
   }
 }
 

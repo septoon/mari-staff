@@ -8,6 +8,7 @@ type StaffEditorScreenProps = {
   mode: 'create' | 'edit';
   draft: StaffDraft;
   serviceCount: number;
+  permissionSummary: string;
   hasAccess: boolean;
   canDelete: boolean;
   loading: boolean;
@@ -19,14 +20,16 @@ type StaffEditorScreenProps = {
   onSave: () => void;
   onDelete: () => void;
   avatarUrl: string;
-  serverDirHint: string;
+  canDeleteAvatar: boolean;
   onAvatarFilePick: (file: File) => void;
+  onDeleteAvatar: () => void;
 };
 
 export function StaffEditorScreen({
   mode,
   draft,
   serviceCount,
+  permissionSummary,
   hasAccess,
   canDelete,
   loading,
@@ -38,8 +41,9 @@ export function StaffEditorScreen({
   onSave,
   onDelete,
   avatarUrl,
-  serverDirHint,
+  canDeleteAvatar,
   onAvatarFilePick,
+  onDeleteAvatar,
 }: StaffEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -73,7 +77,7 @@ export function StaffEditorScreen({
         </button>
       </div>
 
-      <div className="flex flex-col items-center pb-4 pt-2" onClick={pickAvatar} >
+      <div className="flex flex-col items-center pb-4 pt-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -81,19 +85,29 @@ export function StaffEditorScreen({
           onChange={handleAvatarFileChange}
           className="hidden"
         />
-        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#e3e0f8] text-[#9a97ec]">
+        <button
+          type="button"
+          onClick={pickAvatar}
+          className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#e3e0f8] text-[#9a97ec]"
+        >
           {avatarUrl ? (
             <img src={avatarUrl} alt="Фото сотрудника" className="h-full w-full object-cover" />
           ) : (
             <UserRound className="h-12 w-12" />
           )}
-        </div>
-        <button type="button" className="mt-3 text-[20px] font-semibold text-muted">
+        </button>
+        <button type="button" onClick={pickAvatar} className="mt-3 text-[20px] font-semibold text-muted">
           Изменить фото
         </button>
-        <p className="mt-1 max-w-[280px] text-center text-[11px] font-medium text-[#8a929f]">
-          Путь на сервере: {serverDirHint}
-        </p>
+        {canDeleteAvatar ? (
+          <button
+            type="button"
+            onClick={onDeleteAvatar}
+            className="mt-1 text-[14px] font-semibold text-[#8a929f]"
+          >
+            Удалить аватар
+          </button>
+        ) : null}
       </div>
 
       <div className="space-y-4">
@@ -122,6 +136,8 @@ export function StaffEditorScreen({
               className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
             >
               <option value="MASTER">{roleLabel('MASTER')}</option>
+              <option value="DEVELOPER">{roleLabel('DEVELOPER')}</option>
+              <option value="SMM">{roleLabel('SMM')}</option>
               <option value="ADMIN">{roleLabel('ADMIN')}</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-6 w-6 -translate-y-1/2 text-muted" />
@@ -158,7 +174,7 @@ export function StaffEditorScreen({
         >
           <div>
             <p className="text-[22px] font-medium text-ink">Права доступа</p>
-            <p className="text-[18px] font-medium text-muted">Журнал записи</p>
+            <p className="text-[18px] font-medium text-muted">{permissionSummary}</p>
           </div>
           <ChevronRight className="h-7 w-7 text-muted" />
         </button>
@@ -226,7 +242,7 @@ export function StaffEditorScreen({
           disabled={loading}
           className="mt-2 w-full rounded-3xl bg-[#f2df8f] py-4 text-[22px] font-bold text-[#7c8696] disabled:opacity-60"
         >
-          {loading ? 'Сохранение...' : 'Сохранить'}
+          {loading ? 'Сохранение...' : mode === 'create' ? 'Добавить' : 'Сохранить'}
         </button>
       </div>
     </div>

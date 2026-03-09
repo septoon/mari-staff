@@ -21,7 +21,7 @@ export function NotificationsScreen({
   return (
     <div className="pb-7 pt-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-[30px] font-extrabold leading-none text-ink">Уведомления</h1>
+        <h1 className="text-[24px] font-extrabold leading-none text-ink">Уведомления</h1>
         <button type="button" onClick={onReload} className="rounded-lg p-2">
           <ChevronsDown className="h-7 w-7 text-muted" />
         </button>

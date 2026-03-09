@@ -106,16 +106,9 @@ export function StaffServicesEditorScreen({
   }, [allGroups, search]);
 
   useEffect(() => {
-    setExpandedCategoryIds((prev) => {
-      const prevSet = new Set(prev);
-      const next = allGroups.map((group) => group.id).filter((id) => prevSet.has(id));
-      allGroups.forEach((group) => {
-        if (!prevSet.has(group.id)) {
-          next.push(group.id);
-        }
-      });
-      return next;
-    });
+    // Keep only existing category ids; by default all categories stay collapsed.
+    const existingIds = new Set(allGroups.map((group) => group.id));
+    setExpandedCategoryIds((prev) => prev.filter((id) => existingIds.has(id)));
   }, [allGroups]);
 
   const expandedSet = useMemo(() => new Set(expandedCategoryIds), [expandedCategoryIds]);
@@ -130,31 +123,33 @@ export function StaffServicesEditorScreen({
   };
 
   return (
-    <div className="pb-6 pt-4">
-      <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
-        <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
-          <ArrowLeft className="h-6 w-6" />
-        </button>
-        <div className="min-w-0 flex-1 px-2 text-center">
-          <h1 className="truncate text-[24px] font-extrabold text-ink">Оказываемые услуги</h1>
-          <p className="truncate text-[14px] font-semibold text-muted">{staffName}</p>
+    <div className="pb-6 pt-[188px]">
+      <div className="fixed left-1/2 top-0 z-30 w-full max-w-[450px] -translate-x-1/2 bg-screen px-4 pb-4 pt-4">
+        <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
+          <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+          <div className="min-w-0 flex-1 px-2 text-center">
+            <h1 className="truncate text-[24px] font-extrabold text-ink">Оказываемые услуги</h1>
+            <p className="truncate text-[14px] font-semibold text-muted">{staffName}</p>
+          </div>
+          <div className="w-10" />
         </div>
-        <div className="w-10" />
-      </div>
 
-      <label className="flex items-center gap-3 rounded-3xl border-[3px] border-line bg-screen px-4 py-3 text-muted">
-        <Search className="h-6 w-6 text-[#97a0ad]" />
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Поиск услуги"
-          className="w-full bg-transparent text-[18px] font-semibold text-ink outline-none placeholder:text-[#97a0ad]"
-        />
-      </label>
+        <label className="flex items-center gap-3 rounded-xl border-[3px] border-line bg-screen px-4 py-2 text-muted">
+          <Search className="h-6 w-6 text-[#97a0ad]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Поиск услуги"
+            className="w-full bg-transparent text-[16px] font-semibold text-ink outline-none placeholder:text-[#97a0ad]"
+          />
+        </label>
 
-      <div className="mt-2 text-[13px] font-semibold text-muted">
-        Выбрано услуг: {selectedServiceIds.length}
+        <div className="mt-2 text-[13px] font-semibold text-muted">
+          Выбрано услуг: {selectedServiceIds.length}
+        </div>
       </div>
 
       <ul className="mt-3 space-y-3">

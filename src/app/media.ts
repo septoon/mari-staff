@@ -3,14 +3,21 @@ import { toRecord, toString } from './helpers';
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'https://api.maribeauty.ru').replace(/\/+$/, '');
 const MEDIA_PUBLIC_BASE_URL = `${API_BASE_URL}/media`;
+const CLIENT_FRONT_MEDIA_UPLOAD_ENDPOINT = '/client-front/staff/media/upload';
 
 export const MEDIA_STORAGE_ROOT_DOC = '/var/lib/mari-server/media';
 export const STAFF_AVATAR_MEDIA_DIR = 'specialists';
 export const SERVICE_IMAGE_MEDIA_DIR = 'content/services';
 
 type UploadScope = 'staff-avatar' | 'service-image';
+const MEDIA_ENTITY_BY_SCOPE: Record<UploadScope, string> = {
+  'staff-avatar': 'specialists',
+  'service-image': 'services',
+};
 
 export type UploadImageResult = {
+  assetId: string | null;
+  entity: string;
   url: string;
   endpoint: string;
   objectPath: string;
@@ -61,8 +68,29 @@ function derivePublicUrl(pathOrUrl: string) {
 
 function extractUploadedUrl(payload: unknown, fallbackObjectPath: string) {
   const record = toRecord(payload);
+  const rawVariants = record?.variants;
+  const variants = Array.isArray(rawVariants)
+    ? rawVariants
+      .map((item) => toRecord(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item))
+    : [];
+  const preferredVariant =
+    variants
+      .sort((left, right) => {
+        const leftWidth = Number(left?.width ?? 0);
+        const rightWidth = Number(right?.width ?? 0);
+        return leftWidth - rightWidth;
+      })
+      .at(-1) ?? null;
+
+  const variantUrl = toString(preferredVariant?.url) || toString(preferredVariant?.urlPath);
+  if (variantUrl) {
+    return derivePublicUrl(variantUrl);
+  }
+
   const directUrl =
     toString(record?.url) ||
+    toString(record?.originalUrl) ||
     toString(record?.imageUrl) ||
     toString(record?.fileUrl) ||
     toString(record?.publicUrl);
@@ -149,21 +177,6 @@ export async function convertImageFileToWebp(file: File) {
   }
 }
 
-function buildCandidateEndpoints(scope: UploadScope, entityId: string) {
-  if (scope === 'staff-avatar') {
-    return [
-      `/staff/${entityId}/avatar`,
-      '/media/upload',
-      '/uploads/image',
-    ];
-  }
-  return [
-    `/services/${entityId}/image`,
-    '/media/upload',
-    '/uploads/image',
-  ];
-}
-
 export async function uploadWebpImage({
   scope,
   entityId,
@@ -178,6 +191,7 @@ export async function uploadWebpImage({
   const baseName = originalName.replace(/\.[^/.]+$/, '') || 'image';
   const objectPath = buildObjectPath(scope, entityId, baseName);
   const serverDirPath = getServerMediaDirHint(scope, entityId);
+  const entity = MEDIA_ENTITY_BY_SCOPE[scope];
 
   const file = new File([webpBlob], `${sanitizeSegment(baseName)}.webp`, {
     type: 'image/webp',
@@ -185,42 +199,29 @@ export async function uploadWebpImage({
 
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('path', objectPath);
-  formData.append('objectPath', objectPath);
-  formData.append('folder', objectPath.split('/').slice(0, -1).join('/'));
-  formData.append('scope', scope);
-  formData.append('entityId', entityId);
-  formData.append('format', 'webp');
+  formData.append('entity', entity);
 
-  const endpoints = buildCandidateEndpoints(scope, entityId);
   let lastError: unknown = null;
-
-  for (const endpoint of endpoints) {
-    try {
-      const response = await api.postForm<unknown>(endpoint, formData);
-      return {
-        url: extractUploadedUrl(response, objectPath),
-        endpoint,
-        objectPath,
-        serverDirPath,
-      };
-    } catch (error) {
-      lastError = error;
-      if (
-        error instanceof ApiError &&
-        (error.code === 'NOT_FOUND' || error.status === 404)
-      ) {
-        continue;
-      }
-      throw error;
-    }
+  try {
+    const response = await api.postForm<unknown>(CLIENT_FRONT_MEDIA_UPLOAD_ENDPOINT, formData);
+    const responseRecord = toRecord(response);
+    return {
+      assetId: toString(responseRecord?.id) || null,
+      entity,
+      url: extractUploadedUrl(response, objectPath),
+      endpoint: CLIENT_FRONT_MEDIA_UPLOAD_ENDPOINT,
+      objectPath,
+      serverDirPath,
+    };
+  } catch (error) {
+    lastError = error;
   }
 
   if (
     lastError instanceof ApiError &&
     (lastError.code === 'NOT_FOUND' || lastError.status === 404)
   ) {
-    throw new Error(`UPLOAD_ENDPOINT_NOT_FOUND:${serverDirPath}`);
+    throw new Error(`UPLOAD_ENDPOINT_NOT_FOUND:${CLIENT_FRONT_MEDIA_UPLOAD_ENDPOINT}`);
   }
 
   throw lastError instanceof Error ? lastError : new Error('Не удалось загрузить изображение');

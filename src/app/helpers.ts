@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { ApiError } from '../api';
-import { MONTHS_RU, ROLE_LABELS } from './constants';
+import { MONTHS_RU, MONTHS_RU_GENITIVE, ROLE_LABELS } from './constants';
 import type { AppointmentItem, LoadingState, StaffCreateRole, StaffRole } from './types';
 
 export function monthRange(date: Date): [string, string] {
@@ -12,8 +12,9 @@ export function monthRange(date: Date): [string, string] {
 export function monthStrip(date: Date): Array<{ label: string; year: number }> {
   return Array.from({ length: 5 }).map((_, index) => {
     const candidate = new Date(date.getFullYear(), date.getMonth() + index, 1);
+    const monthLabel = MONTHS_RU[candidate.getMonth()];
     return {
-      label: MONTHS_RU[candidate.getMonth()].slice(0, 3),
+      label: monthLabel.length > 4 ? monthLabel.slice(0, 3) : monthLabel,
       year: candidate.getFullYear(),
     };
   });
@@ -34,7 +35,7 @@ export function getWeekDates(input: Date): Date[] {
 }
 
 export function formatDateLabel(date: Date): string {
-  const month = MONTHS_RU[date.getMonth()];
+  const month = MONTHS_RU_GENITIVE[date.getMonth()] || MONTHS_RU[date.getMonth()];
   return `${date.getDate()} ${month}`;
 }
 

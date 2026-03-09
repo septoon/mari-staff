@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { PageSheet } from './PageSheet';
 import type { InfoPanelState } from '../../types';
 
 type InfoPanelProps = {
@@ -11,8 +12,13 @@ export function InfoPanel({ panel, onClose }: InfoPanelProps) {
     return null;
   }
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-[#0d172133]">
-      <div className="w-full rounded-t-3xl bg-white px-4 pb-5 pt-4 shadow-xl">
+    <PageSheet
+      open={Boolean(panel)}
+      onDismiss={onClose}
+      snapPoints={({ maxHeight }) => [Math.min(260, maxHeight), Math.min(420, maxHeight)]}
+      defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? snapPoints[0] ?? 0}
+    >
+      <div className="bg-white px-4 pb-5 pt-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-[18px] font-extrabold text-ink">{panel.title}</h3>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-ink">
@@ -31,6 +37,6 @@ export function InfoPanel({ panel, onClose }: InfoPanelProps) {
           )}
         </ul>
       </div>
-    </div>
+    </PageSheet>
   );
 }

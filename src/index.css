@@ -10,6 +10,7 @@
   --ink: #2a3138;
   --muted: #8a919d;
   --line: #dfe3ea;
+  --ui-scale: 0.88;
 }
 
 * {
@@ -27,7 +28,6 @@ body {
 
 #root {
   min-height: 100vh;
-  --ui-scale: 0.88;
   zoom: var(--ui-scale);
 }
 
@@ -57,4 +57,48 @@ body {
     #dae3f0 7px,
     #dae3f0 14px
   );
+}
+
+.mari-page-sheet[data-rsbs-root] {
+  --rsbs-bg: #f3f4f6;
+  --rsbs-overlay-rounded: 24px;
+  --rsbs-backdrop-bg: rgba(13, 23, 33, 0.35);
+  --rsbs-handle-bg: #c8c8cb;
+  --rsbs-max-w: 430px;
+  --rsbs-ml: auto;
+  --rsbs-mr: auto;
+}
+
+.mari-page-sheet [data-rsbs-overlay],
+.mari-page-sheet [data-rsbs-backdrop],
+.mari-page-sheet[data-rsbs-root]::after {
+  z-index: 130;
+}
+
+.mari-page-sheet [data-rsbs-header] {
+  padding: 0;
+}
+
+.mari-page-sheet [data-rsbs-header]::before {
+  top: 10px;
+}
+
+.mari-page-sheet [data-rsbs-scroll] {
+  -webkit-overflow-scrolling: touch;
+}
+
+.mari-page-sheet--calendar [data-rsbs-overlay] {
+  border-top-left-radius: 30px;
+  border-top-right-radius: 30px;
+  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px);
+}
+
+.mari-page-sheet--journal-date [data-rsbs-overlay] {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+
+.mari-page-sheet--journal-date [data-rsbs-scroll] {
+  overflow: hidden !important;
 }

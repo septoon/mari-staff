@@ -8,13 +8,16 @@ import {
   EMPTY_STAFF_DRAFT,
   EMPTY_STAFF_FILTER,
   HOUR_HEIGHT,
+  JOURNAL_CARD_COLUMN_WIDTH,
+  JOURNAL_GRID_GAP,
   JOURNAL_END_HOUR,
   JOURNAL_START_HOUR,
+  JOURNAL_TIME_COLUMN_WIDTH,
   MORE_MENU,
   SESSION_STORAGE_KEY,
+  TAB_ITEMS,
 } from './constants';
 import {
-  asArray,
   formatTime,
   getWeekDates,
   normalizePhoneForLink,
@@ -59,9 +62,69 @@ import type {
   TabKey,
 } from './types';
 
-const JOURNAL_TIME_COLUMN_WIDTH = 72;
-const JOURNAL_CARD_COLUMN_WIDTH = 160;
-const JOURNAL_GRID_GAP = 8;
+const TAB_PERMISSION_CODE: Partial<Record<TabKey, string>> = {
+  journal: 'VIEW_JOURNAL',
+  schedule: 'VIEW_SCHEDULE',
+  clients: 'VIEW_CLIENTS',
+  notifications: 'VIEW_JOURNAL',
+};
+const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
+  Сотрудники: 'VIEW_STAFF',
+  Услуги: 'VIEW_SERVICES',
+  Аналитика: 'VIEW_FINANCIAL_STATS',
+  'Онлайн-запись': 'VIEW_JOURNAL',
+  Настройки: null,
+  Поддержка: null,
+};
+
+const EDIT_PERMISSION = {
+  journal: 'EDIT_JOURNAL',
+  schedule: 'EDIT_SCHEDULE',
+  clients: 'EDIT_CLIENTS',
+  services: 'EDIT_SERVICES',
+  staff: 'EDIT_STAFF',
+  selfProfile: 'EDIT_SELF_PROFILE',
+} as const;
+
+const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
+  VIEW_JOURNAL: ['VIEW_JOURNAL', 'EDIT_JOURNAL', 'ACCESS_JOURNAL'],
+  EDIT_JOURNAL: ['EDIT_JOURNAL', 'ACCESS_JOURNAL'],
+  VIEW_SCHEDULE: ['VIEW_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
+  EDIT_SCHEDULE: ['EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
+  VIEW_CLIENTS: ['VIEW_CLIENTS', 'EDIT_CLIENTS', 'ACCESS_CLIENTS'],
+  EDIT_CLIENTS: ['EDIT_CLIENTS', 'ACCESS_CLIENTS'],
+  VIEW_SERVICES: ['VIEW_SERVICES', 'EDIT_SERVICES', 'ACCESS_SERVICES'],
+  EDIT_SERVICES: ['EDIT_SERVICES', 'ACCESS_SERVICES'],
+  VIEW_STAFF: ['VIEW_STAFF', 'EDIT_STAFF', 'ACCESS_STAFF'],
+  EDIT_STAFF: ['EDIT_STAFF', 'ACCESS_STAFF'],
+};
+
+const resolvePermissionCandidates = (permissionCode: string) =>
+  PERMISSION_EQUIVALENTS[permissionCode] ?? [permissionCode];
+
+function resolveAllowedTabKeys(sessionData: StaffSession): TabKey[] {
+  if (sessionData.staff.role === 'OWNER') {
+    return TAB_ITEMS.map((item) => item.key);
+  }
+  const permissionCodes = Array.isArray(sessionData.staff.permissions)
+    ? sessionData.staff.permissions
+    : [];
+  return TAB_ITEMS.filter((item) => {
+    if (item.key === 'more') {
+      return true;
+    }
+    const requiredPermission = TAB_PERMISSION_CODE[item.key];
+    if (!requiredPermission) {
+      return true;
+    }
+    const candidates = resolvePermissionCandidates(requiredPermission);
+    return candidates.some((code) => permissionCodes.includes(code));
+  }).map((item) => item.key);
+}
+
+function resolveDefaultTab(sessionData: StaffSession): TabKey {
+  return resolveAllowedTabKeys(sessionData)[0] ?? 'more';
+}
 
 export function useAppController(): AppController {
   const navigate = useNavigate();
@@ -91,6 +154,18 @@ export function useAppController(): AppController {
     setClientHistoryAppointments,
     clientHistoryLoading,
     setClientHistoryLoading,
+    journalAppointmentTarget,
+    setJournalAppointmentTarget,
+    journalClientTarget,
+    setJournalClientTarget,
+    journalClientDraft,
+    setJournalClientDraft,
+    journalClientHistory,
+    setJournalClientHistory,
+    journalClientLoading,
+    setJournalClientLoading,
+    journalClientSaving,
+    setJournalClientSaving,
     services,
     setServices,
     appointments,
@@ -171,20 +246,45 @@ export function useAppController(): AppController {
     setServiceCategoryEditorName,
     serviceDraft,
     setServiceDraft,
+    serviceProviders,
+    setServiceProviders,
+    serviceAssignableStaff,
+    setServiceAssignableStaff,
+    serviceProvidersLoading,
+    setServiceProvidersLoading,
     staffAvatarPreviewUrl,
     setStaffAvatarPreviewUrl,
+    staffAvatarAssetId,
+    setStaffAvatarAssetId,
+    ownerAvatarPreviewUrl,
+    setOwnerAvatarPreviewUrl,
+    ownerAvatarAssetId,
+    setOwnerAvatarAssetId,
     serviceImagePreviewUrl,
     setServiceImagePreviewUrl,
     staffAvatarWebpBlob,
     setStaffAvatarWebpBlob,
+    ownerAvatarWebpBlob,
+    setOwnerAvatarWebpBlob,
     serviceImageWebpBlob,
     setServiceImageWebpBlob,
     staffAvatarOriginalName,
     setStaffAvatarOriginalName,
+    ownerAvatarOriginalName,
+    setOwnerAvatarOriginalName,
     serviceImageOriginalName,
     setServiceImageOriginalName,
+    editorPermissionsSheetOpen,
+    setEditorPermissionsSheetOpen,
+    editorPermissionCatalog,
+    setEditorPermissionCatalog,
+    editorPermissionCodes,
+    setEditorPermissionCodes,
+    editorPermissionBusyCode,
+    setEditorPermissionBusyCode,
     routeSyncSourceRef,
     staffAvatarBlobUrlRef,
+    ownerAvatarBlobUrlRef,
     serviceImageBlobUrlRef,
     loading,
     setLoading,
@@ -199,14 +299,152 @@ export function useAppController(): AppController {
 
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const isAuthorized = Boolean(session);
-  const visibleStaff = useMemo(() => staff.filter((item) => item.role !== 'OWNER'), [staff]);
+  const sessionPermissionCodes = useMemo(
+    () => {
+      const permissions = session?.staff.permissions;
+      return Array.isArray(permissions) ? permissions : [];
+    },
+    [session],
+  );
+  const hasPermissionsPayload = Array.isArray(session?.staff.permissions);
+  const hasPermissionAccess = useCallback(
+    (permissionCode: string | null | undefined) => {
+      if (!session) {
+        return false;
+      }
+      if (session.staff.role === 'OWNER' || !permissionCode) {
+        return true;
+      }
+      if (!hasPermissionsPayload) {
+        return true;
+      }
+      const candidates = resolvePermissionCandidates(permissionCode);
+      return candidates.some((code) => sessionPermissionCodes.includes(code));
+    },
+    [hasPermissionsPayload, session, sessionPermissionCodes],
+  );
+  const canViewJournal = hasPermissionAccess('VIEW_JOURNAL');
+  const canViewSchedule = hasPermissionAccess('VIEW_SCHEDULE');
+  const canViewClients = hasPermissionAccess('VIEW_CLIENTS');
+  const canViewServices = hasPermissionAccess('VIEW_SERVICES');
+  const canViewStaff = hasPermissionAccess('VIEW_STAFF');
+  const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
+  const canEdit = useCallback(
+    (permissionCode: string) => hasPermissionAccess(permissionCode),
+    [hasPermissionAccess],
+  );
+  const canEditOwnProfile = useMemo(() => {
+    if (!session) {
+      return false;
+    }
+    if (session.staff.role === 'OWNER') {
+      return true;
+    }
+    if (session.staff.role !== 'ADMIN') {
+      return false;
+    }
+    const codes = new Set(sessionPermissionCodes);
+    return (
+      codes.has(EDIT_PERMISSION.selfProfile) ||
+      codes.has(EDIT_PERMISSION.staff) ||
+      codes.has('ACCESS_STAFF')
+    );
+  }, [session, sessionPermissionCodes]);
+  const visibleTabs = useMemo(() => {
+    return TAB_ITEMS.filter((item) => {
+      if (item.key === 'more') {
+        return true;
+      }
+      return hasPermissionAccess(TAB_PERMISSION_CODE[item.key]);
+    });
+  }, [hasPermissionAccess]);
+  const firstAllowedTab = visibleTabs[0]?.key ?? 'more';
+  const visibleTabKeys = useMemo(() => visibleTabs.map((item) => item.key), [visibleTabs]);
+  const moreMenu = useMemo(
+    () =>
+      MORE_MENU.filter((item) => hasPermissionAccess(MORE_ACTION_PERMISSION_CODE[item.title])),
+    [hasPermissionAccess],
+  );
+
+  const staffWithServices = useMemo(() => {
+    const hasServiceMeta = Object.keys(staffServiceCounts).length > 0;
+    return staff.filter((item) => {
+      if (!item.isActive || item.role === 'OWNER') {
+        return false;
+      }
+      if (!hasServiceMeta) {
+        return true;
+      }
+      return (staffServiceCounts[item.id] ?? 0) > 0;
+    });
+  }, [staff, staffServiceCounts]);
+  const visibleStaff = useMemo(() => {
+    const activeMasters = staffWithServices.filter((item) => item.role === 'MASTER');
+    if (activeMasters.length > 0) {
+      return activeMasters;
+    }
+    return staffWithServices;
+  }, [staffWithServices]);
+  const journalStaff = useMemo(() => {
+    if (appointments.length === 0) {
+      return visibleStaff;
+    }
+    const merged = [...visibleStaff];
+    const seenIds = new Set(visibleStaff.map((item) => item.id));
+    const seenNames = new Set(
+      visibleStaff.map((item) => item.name.trim().toLowerCase()).filter(Boolean),
+    );
+
+    appointments.forEach((item) => {
+      const staffName = item.staffName.trim() || 'Специалист';
+      const normalizedName = staffName.toLowerCase();
+      const rawStaffId = item.staffId.trim();
+      const staffId = rawStaffId || `appointment-staff:${normalizedName}`;
+      if (seenIds.has(staffId) || seenNames.has(normalizedName)) {
+        return;
+      }
+      merged.push({
+        id: staffId,
+        name: staffName,
+        role: 'MASTER',
+        phoneE164: '',
+        email: null,
+        avatarUrl: null,
+        avatarAssetId: null,
+        isActive: true,
+        positionName: null,
+      });
+      seenIds.add(staffId);
+      seenNames.add(normalizedName);
+    });
+
+    return merged;
+  }, [appointments, visibleStaff]);
+  const journalVisibleStaffIdsKey = useMemo(
+    () => journalStaff.map((item) => item.id).join('|'),
+    [journalStaff],
+  );
+  const journalBounds = useMemo(() => {
+    if (appointments.length === 0) {
+      return { startHour: JOURNAL_START_HOUR, endHour: JOURNAL_END_HOUR };
+    }
+    const minStart = Math.min(
+      ...appointments.map((item) => item.startAt.getHours() + item.startAt.getMinutes() / 60),
+    );
+    const maxEnd = Math.max(
+      ...appointments.map((item) => item.endAt.getHours() + item.endAt.getMinutes() / 60),
+    );
+    const startHour = Math.max(6, Math.min(JOURNAL_START_HOUR, Math.floor(minStart)));
+    const endHour = Math.min(23, Math.max(JOURNAL_END_HOUR, Math.ceil(maxEnd)));
+    return { startHour, endHour };
+  }, [appointments]);
   const journalHours = useMemo(() => {
     const hours: string[] = [];
-    for (let hour = JOURNAL_START_HOUR; hour <= JOURNAL_END_HOUR; hour += 1) {
+    for (let hour = journalBounds.startHour; hour <= journalBounds.endHour; hour += 1) {
       hours.push(`${String(hour).padStart(2, '0')}:00`);
     }
     return hours;
-  }, []);
+  }, [journalBounds.endHour, journalBounds.startHour]);
 
   const notifications = useMemo(() => {
     return [...appointments]
@@ -224,11 +462,8 @@ export function useAppController(): AppController {
   }, [appointments]);
 
   const filteredStaff = useMemo(() => {
-    const withoutOwner = staff.filter((item) => item.role !== 'OWNER');
+    const withoutOwner = staff.filter((item) => item.role !== 'OWNER' && item.isActive);
     const filteredByFlags = withoutOwner.filter((item) => {
-      if (staffFilter.withAccess && !item.isActive) {
-        return false;
-      }
       if (staffFilter.withServices && (staffServiceCounts[item.id] ?? 0) <= 0) {
         return false;
       }
@@ -244,7 +479,7 @@ export function useAppController(): AppController {
       } ${roleLabel(item.role)}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [staff, staffFilter.withAccess, staffFilter.withServices, staffSearch, staffServiceCounts]);
+  }, [staff, staffFilter.withServices, staffSearch, staffServiceCounts]);
 
   const serviceCategories = useMemo<ServiceCategoryItem[]>(() => {
     const map = new Map<string, ServiceCategoryItem>();
@@ -330,12 +565,29 @@ export function useAppController(): AppController {
     setStaffAvatarWebpBlob(null);
     setStaffAvatarOriginalName('avatar');
     setStaffAvatarPreviewUrl('');
+    setStaffAvatarAssetId(null);
   }, [
     clearBlobPreview,
+    setStaffAvatarAssetId,
     setStaffAvatarOriginalName,
     setStaffAvatarPreviewUrl,
     setStaffAvatarWebpBlob,
     staffAvatarBlobUrlRef,
+  ]);
+
+  const resetOwnerAvatarState = useCallback(() => {
+    clearBlobPreview(ownerAvatarBlobUrlRef);
+    setOwnerAvatarWebpBlob(null);
+    setOwnerAvatarOriginalName('avatar');
+    setOwnerAvatarPreviewUrl('');
+    setOwnerAvatarAssetId(null);
+  }, [
+    clearBlobPreview,
+    ownerAvatarBlobUrlRef,
+    setOwnerAvatarAssetId,
+    setOwnerAvatarOriginalName,
+    setOwnerAvatarPreviewUrl,
+    setOwnerAvatarWebpBlob,
   ]);
 
   const resetServiceImageState = useCallback(() => {
@@ -377,11 +629,14 @@ export function useAppController(): AppController {
       if (staffAvatarBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(staffAvatarBlobUrlRef.current);
       }
+      if (ownerAvatarBlobUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(ownerAvatarBlobUrlRef.current);
+      }
       if (serviceImageBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(serviceImageBlobUrlRef.current);
       }
     };
-  }, [serviceImageBlobUrlRef, staffAvatarBlobUrlRef]);
+  }, [ownerAvatarBlobUrlRef, serviceImageBlobUrlRef, staffAvatarBlobUrlRef]);
 
   const {
     loadStaff,
@@ -398,6 +653,16 @@ export function useAppController(): AppController {
     refreshAll,
   } = useDataLoaders({
     isAuthorized,
+    sessionRole: session?.staff.role ?? null,
+    sessionStaffId: session?.staff.id ?? null,
+    sessionStaffName: session?.staff.name ?? null,
+    canViewStaff,
+    canViewServices,
+    canViewClients,
+    canViewJournal,
+    canViewSchedule,
+    canViewReports,
+    journalVisibleStaffIdsKey,
     selectedDate,
     debouncedClientsQuery,
     setLoading,
@@ -435,14 +700,23 @@ export function useAppController(): AppController {
         return;
       }
 
+      let parsed: StaffSession | null = null;
       try {
-        const parsed = JSON.parse(raw) as StaffSession;
+        parsed = JSON.parse(raw) as StaffSession;
         api.setSession(parsed);
         const refreshed = await api.refresh();
         setSession(refreshed);
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          api.clearSession();
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+          return;
+        }
+        if (parsed) {
+          setSession(parsed);
+          return;
+        }
         api.clearSession();
-        localStorage.removeItem(SESSION_STORAGE_KEY);
       } finally {
         setLoadingKey(setLoading, 'boot', false);
       }
@@ -492,6 +766,13 @@ export function useAppController(): AppController {
       return;
     }
 
+    if (routeState.page === 'tabs' && !visibleTabKeys.includes(routeState.tab)) {
+      routeSyncSourceRef.current = 'state';
+      setPage('tabs');
+      setTab(firstAllowedTab);
+      return;
+    }
+
     if (routeState.page !== pageRef.current || routeState.tab !== tabRef.current) {
       routeSyncSourceRef.current = 'location';
       setPage(routeState.page);
@@ -505,6 +786,8 @@ export function useAppController(): AppController {
     session,
     setPage,
     setTab,
+    firstAllowedTab,
+    visibleTabKeys,
   ]);
 
   useEffect(() => {
@@ -535,6 +818,16 @@ export function useAppController(): AppController {
   }, [loading.boot, location.pathname, navigate, page, routeSyncSourceRef, session, tab]);
 
   useEffect(() => {
+    if (!session || page !== 'tabs') {
+      return;
+    }
+    if (visibleTabKeys.includes(tab)) {
+      return;
+    }
+    setTab(firstAllowedTab);
+  }, [firstAllowedTab, page, session, setTab, tab, visibleTabKeys]);
+
+  useEffect(() => {
     if (page === 'staffEditor' && !staffFormMode) {
       setPage('staff');
     }
@@ -546,6 +839,25 @@ export function useAppController(): AppController {
       setTab('schedule');
     }
   }, [page, scheduleEditorStaff, setPage, setTab]);
+
+  useEffect(() => {
+    if (page === 'journalAppointment' && !journalAppointmentTarget) {
+      setPage('tabs');
+      setTab('journal');
+    }
+  }, [journalAppointmentTarget, page, setPage, setTab]);
+
+  useEffect(() => {
+    if (page === 'journalClient' && !journalClientTarget) {
+      if (journalAppointmentTarget) {
+        setPage('journalAppointment');
+        setTab('journal');
+        return;
+      }
+      setPage('tabs');
+      setTab('journal');
+    }
+  }, [journalAppointmentTarget, journalClientTarget, page, setPage, setTab]);
 
   useEffect(() => {
     if (!isAuthorized) {
@@ -593,8 +905,16 @@ export function useAppController(): AppController {
     setEditorServiceNames([]);
     setStaffServicesEditorQuery('');
     setStaffServicesEditorSelectedIds([]);
+    setEditorPermissionsSheetOpen(false);
+    setEditorPermissionCatalog([]);
+    setEditorPermissionCodes([]);
+    setEditorPermissionBusyCode(null);
     resetStaffAvatarState();
   }, [
+    setEditorPermissionBusyCode,
+    setEditorPermissionCatalog,
+    setEditorPermissionCodes,
+    setEditorPermissionsSheetOpen,
     resetStaffAvatarState,
     setEditingStaffId,
     setEditorAccessEnabled,
@@ -614,8 +934,7 @@ export function useAppController(): AppController {
       const data = await api.login(authPhone.trim(), authPin.trim());
       setSession(data);
       setPage('tabs');
-      setTab('journal');
-      setToast('Вы вошли в систему');
+      setTab(resolveDefaultTab(data));
     } catch (error) {
       setAuthError(toErrorMessage(error));
     } finally {
@@ -630,8 +949,7 @@ export function useAppController(): AppController {
       const data = await api.setStaffPin(token.trim(), pin.trim());
       setSession(data);
       setPage('tabs');
-      setTab('journal');
-      setToast('PIN установлен, вход выполнен');
+      setTab(resolveDefaultTab(data));
     } catch (error) {
       setAuthError(toErrorMessage(error));
       throw error;
@@ -640,11 +958,11 @@ export function useAppController(): AppController {
     }
   };
 
-  const handleRequestPinReset = async (phone: string) => {
+  const handleRequestPinReset = async (email: string) => {
     setAuthError('');
     setLoadingKey(setLoading, 'auth', true);
     try {
-      return await api.requestStaffPinReset(phone.trim());
+      return await api.requestStaffPinReset(email.trim().toLowerCase());
     } catch (error) {
       setAuthError(toErrorMessage(error));
       throw error;
@@ -660,8 +978,7 @@ export function useAppController(): AppController {
       const data = await api.confirmStaffPinReset(token.trim(), newPin.trim());
       setSession(data);
       setPage('tabs');
-      setTab('journal');
-      setToast('PIN сброшен, вход выполнен');
+      setTab(resolveDefaultTab(data));
     } catch (error) {
       setAuthError(toErrorMessage(error));
       throw error;
@@ -683,6 +1000,17 @@ export function useAppController(): AppController {
       setClientActionsFor(null);
       setClientHistoryTarget(null);
       setClientHistoryAppointments([]);
+      setJournalAppointmentTarget(null);
+      setJournalClientTarget(null);
+      setJournalClientDraft({
+        name: '',
+        phone: '',
+        email: '',
+        comment: '',
+      });
+      setJournalClientHistory([]);
+      setJournalClientLoading(false);
+      setJournalClientSaving(false);
       setServices([]);
       setAppointments([]);
       setWorkingHoursByStaff({});
@@ -713,6 +1041,9 @@ export function useAppController(): AppController {
       setServiceCategoryEditorId(null);
       setServiceCategoryEditorName('');
       setServiceDraft(EMPTY_SERVICE_DRAFT);
+      setServiceProviders([]);
+      setServiceAssignableStaff([]);
+      setServiceProvidersLoading(false);
       resetStaffAvatarState();
       resetServiceImageState();
       setToast('Сессия завершена');
@@ -720,12 +1051,20 @@ export function useAppController(): AppController {
   };
 
   const openStaffCreate = () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
     setEditingStaffId(null);
     setStaffDraft(EMPTY_STAFF_DRAFT);
     setEditorAccessEnabled(true);
     setOriginalEditRole(DEFAULT_STAFF_ROLE);
     setEditorServiceCount(0);
     setEditorServiceNames([]);
+    setEditorPermissionCatalog([]);
+    setEditorPermissionCodes([]);
+    setEditorPermissionBusyCode(null);
+    setEditorPermissionsSheetOpen(false);
     resetStaffAvatarState();
     setStaffFormMode('create');
     setPage('staffEditor');
@@ -738,12 +1077,24 @@ export function useAppController(): AppController {
       phone: item.phoneE164 || '',
       email: item.email || '',
       positionName: item.positionName || '',
-      role: item.role === 'ADMIN' ? 'ADMIN' : 'MASTER',
+      role:
+        item.role === 'ADMIN' || item.role === 'MASTER' || item.role === 'DEVELOPER' || item.role === 'SMM'
+          ? item.role
+          : 'MASTER',
     });
-    setOriginalEditRole(item.role === 'ADMIN' ? 'ADMIN' : 'MASTER');
+    setOriginalEditRole(
+      item.role === 'ADMIN' || item.role === 'MASTER' || item.role === 'DEVELOPER' || item.role === 'SMM'
+        ? item.role
+        : 'MASTER',
+    );
     setEditorAccessEnabled(item.isActive);
+    setEditorPermissionCatalog([]);
+    setEditorPermissionCodes([]);
+    setEditorPermissionBusyCode(null);
+    setEditorPermissionsSheetOpen(false);
     resetStaffAvatarState();
     setStaffAvatarPreviewUrl(item.avatarUrl || '');
+    setStaffAvatarAssetId(item.avatarAssetId ?? null);
     setStaffFormMode('edit');
     setPage('staffEditor');
     await loadStaffServicesForEditor(item.id);
@@ -765,56 +1116,79 @@ export function useAppController(): AppController {
   };
 
   const closeOwnerPage = () => {
+    resetOwnerAvatarState();
     setPage('tabs');
     setTab('more');
   };
 
-  const handleOpenOwnerEditor = async () => {
+  const handleOpenOwnerEditor = useCallback(async () => {
     if (!session) {
       return;
     }
     setLoadingKey(setLoading, 'action', true);
     try {
       let rows = staff;
-      if (rows.length === 0) {
+      if (rows.length === 0 && canViewStaff) {
         rows = await loadStaff();
       }
-      const owner = rows.find((item) => item.role === 'OWNER');
-      const fallback =
-        session.staff.role === 'OWNER'
-          ? {
-              id: session.staff.id,
-              name: session.staff.name,
-              role: session.staff.role,
-              phoneE164: session.staff.phoneE164,
-              email: session.staff.email,
-              isActive: true,
-              positionName: null,
-            }
-          : null;
-      const target = owner || fallback;
-      if (!target) {
-        setToast('Владелец не найден');
-        return;
-      }
-      setOwnerEditId(target.id);
+      const target =
+        rows.find((item) => item.id === session.staff.id) ?? {
+          id: session.staff.id,
+          name: session.staff.name,
+          role: session.staff.role,
+          phoneE164: session.staff.phoneE164,
+          email: session.staff.email,
+          avatarUrl: null,
+          avatarAssetId: null,
+          isActive: true,
+          positionName: null,
+        };
+
+      setOwnerEditId(session.staff.id);
       setOwnerDraft({
         name: target.name,
         phone: target.phoneE164 || '',
         email: target.email || '',
         positionName: target.positionName || '',
       });
+      resetOwnerAvatarState();
+      setOwnerAvatarPreviewUrl(target.avatarUrl || '');
+      setOwnerAvatarAssetId(target.avatarAssetId ?? null);
       setPage('owner');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
-  };
+  }, [
+    canViewStaff,
+    loadStaff,
+    resetOwnerAvatarState,
+    session,
+    setLoading,
+    setOwnerAvatarAssetId,
+    setOwnerAvatarPreviewUrl,
+    setOwnerDraft,
+    setOwnerEditId,
+    setPage,
+    setToast,
+    staff,
+  ]);
 
   const handleSaveOwner = async () => {
+    if (!session) {
+      return;
+    }
     if (!ownerEditId) {
-      setToast('ID владельца не найден');
+      setToast('ID сотрудника не найден');
+      return;
+    }
+    if (ownerEditId !== session.staff.id) {
+      setToast('Можно редактировать только свой профиль');
+      return;
+    }
+    if (!canEditOwnProfile) {
+      setToast('Недостаточно прав для редактирования профиля');
       return;
     }
     const name = ownerDraft.name.trim();
@@ -825,12 +1199,21 @@ export function useAppController(): AppController {
     }
     setLoadingKey(setLoading, 'action', true);
     try {
+      let nextToast = 'Профиль обновлен';
       await api.patch<unknown>(`/staff/${ownerEditId}/contact`, {
         name,
         phone,
         email: ownerDraft.email.trim() ? ownerDraft.email.trim() : null,
         positionName: ownerDraft.positionName.trim() || undefined,
       });
+
+      if (ownerAvatarWebpBlob) {
+        const uploadResult = await uploadOwnerAvatarIfNeeded(ownerEditId);
+        if (uploadResult.warning) {
+          nextToast = uploadResult.warning;
+        }
+      }
+
       await loadStaff();
       setSession((prev) => {
         if (!prev || prev.staff.id !== ownerEditId) {
@@ -846,7 +1229,20 @@ export function useAppController(): AppController {
           },
         };
       });
-      setToast('Данные владельца обновлены');
+      setStaff((prev) =>
+        prev.map((item) =>
+          item.id === ownerEditId
+            ? {
+                ...item,
+                name,
+                phoneE164: phone,
+                email: ownerDraft.email.trim() ? ownerDraft.email.trim() : null,
+                positionName: ownerDraft.positionName.trim() || null,
+              }
+            : item,
+        ),
+      );
+      setToast(nextToast);
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -855,22 +1251,54 @@ export function useAppController(): AppController {
   };
 
   const handleCreateStaff = async () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
     const name = staffDraft.name.trim();
     const phone = staffDraft.phone.trim();
+    const email = staffDraft.email.trim().toLowerCase();
     if (!name || !phone) {
       setToast('Имя и телефон обязательны');
       return;
     }
     setLoadingKey(setLoading, 'action', true);
     try {
+      let existingRows = staff;
+      if (existingRows.length === 0) {
+        existingRows = await loadStaff();
+      }
+      if (
+        email &&
+        existingRows.some((item) => item.email?.trim().toLowerCase() === email)
+      ) {
+        setToast('Email уже используется другим сотрудником');
+        return;
+      }
+
       let nextToast = 'Сотрудник создан';
-      await api.post<unknown>('/staff/invite', {
+      const invite = await api.post<unknown>('/staff/invite', {
         phone,
         name,
         role: staffDraft.role,
-        email: staffDraft.email.trim() || undefined,
+        email: email || undefined,
         positionName: staffDraft.positionName.trim() || undefined,
       });
+      const inviteRecord = toRecord(invite);
+      const emailSent = Boolean(inviteRecord?.emailSent);
+      const deliveryMode = toString(inviteRecord?.emailDeliveryMode);
+      if (email) {
+        if (emailSent) {
+          nextToast =
+            deliveryMode === 'SMTP'
+              ? 'Сотрудник добавлен, приглашение отправлено'
+              : 'Сотрудник добавлен, приглашение отправлено (DEV_LOG)';
+        } else {
+          nextToast = 'Сотрудник добавлен, но приглашение не отправлено';
+        }
+      } else {
+        nextToast = 'Сотрудник добавлен без email (приглашение не отправлено)';
+      }
       const rows = await loadStaff();
       await loadStaffServiceMeta(rows);
       if (staffAvatarWebpBlob) {
@@ -894,6 +1322,14 @@ export function useAppController(): AppController {
       setPage('staff');
       setToast(nextToast);
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        error.message.toLowerCase().includes('email already in use')
+      ) {
+        setToast('Email уже используется другим сотрудником');
+        return;
+      }
       setToast(toErrorMessage(error));
     } finally {
       setLoadingKey(setLoading, 'action', false);
@@ -901,6 +1337,10 @@ export function useAppController(): AppController {
   };
 
   const handleUpdateStaff = async () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
     const id = editingStaffId;
     if (!id) {
       return;
@@ -949,18 +1389,29 @@ export function useAppController(): AppController {
   };
 
   const handleFireStaff = async () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
     if (!editingStaffId) {
       return;
     }
+    const firedStaffId = editingStaffId;
     const confirmed = window.confirm('Уволить сотрудника?');
     if (!confirmed) {
       return;
     }
     setLoadingKey(setLoading, 'action', true);
     try {
-      await api.post<unknown>(`/staff/${editingStaffId}/fire`, {
+      await api.post<unknown>(`/staff/${firedStaffId}/fire`, {
         firedAt: toISODate(new Date()),
       });
+      setStaff((prev) =>
+        prev.map((item) =>
+          item.id === firedStaffId ? { ...item, isActive: false } : item,
+        ),
+      );
+      setStaffFilter((prev) => ({ ...prev, withAccess: true }));
       const rows = await loadStaff();
       await loadStaffServiceMeta(rows);
       closeStaffForm();
@@ -1010,6 +1461,35 @@ export function useAppController(): AppController {
     setClientActionsFor(null);
   };
 
+  const fetchClientHistoryFromAppointments = async (client: ClientItem) => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setFullYear(now.getFullYear() - 2);
+    const params = new URLSearchParams({
+      page: '1',
+      limit: '500',
+      from: toISODate(from),
+      to: toISODate(now),
+    });
+    const historyEndpoint =
+      session?.staff.role === 'MASTER' ? '/master/appointments' : '/appointments';
+    const data = await api.get<unknown>(`${historyEndpoint}?${params.toString()}`);
+    const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
+    return parsed
+      .filter((item) => {
+        if (item.clientId) {
+          return item.clientId === client.id;
+        }
+        const samePhone =
+          normalizePhoneForWhatsApp(item.clientPhone) ===
+          normalizePhoneForWhatsApp(client.phone);
+        const sameName =
+          item.clientName.trim().toLowerCase() === client.name.trim().toLowerCase();
+        return samePhone || sameName;
+      })
+      .sort((a, b) => b.startAt.getTime() - a.startAt.getTime());
+  };
+
   const handleOpenClientHistory = async () => {
     const client = clientActionsFor;
     if (!client) {
@@ -1019,26 +1499,7 @@ export function useAppController(): AppController {
     setClientHistoryLoading(true);
     setClientActionsFor(null);
     try {
-      const now = new Date();
-      const from = new Date(now);
-      from.setFullYear(now.getFullYear() - 2);
-      const data = await api.get<unknown>(
-        `/appointments?page=1&limit=500&from=${toISODate(from)}&to=${toISODate(now)}`,
-      );
-      const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
-      const filtered = parsed
-        .filter((item) => {
-          if (item.clientId) {
-            return item.clientId === client.id;
-          }
-          const samePhone =
-            normalizePhoneForWhatsApp(item.clientPhone) ===
-            normalizePhoneForWhatsApp(client.phone);
-          const sameName =
-            item.clientName.trim().toLowerCase() === client.name.trim().toLowerCase();
-          return samePhone || sameName;
-        })
-        .sort((a, b) => b.startAt.getTime() - a.startAt.getTime());
+      const filtered = await fetchClientHistoryFromAppointments(client);
       setClientHistoryAppointments(filtered);
       setPage('clientHistory');
     } catch (error) {
@@ -1051,6 +1512,277 @@ export function useAppController(): AppController {
   const handleCloseClientHistory = () => {
     setPage('tabs');
     setTab('clients');
+  };
+
+  const handleOpenJournalAppointment = (appointment: AppointmentItem) => {
+    const fallbackClient: ClientItem = {
+      id: appointment.clientId,
+      name: appointment.clientName || 'Клиент',
+      phone: appointment.clientPhone || '',
+    };
+    setJournalAppointmentTarget(appointment);
+    setJournalClientTarget(null);
+    setJournalClientDraft({
+      name: '',
+      phone: '',
+      email: '',
+      comment: '',
+    });
+    setJournalClientHistory([]);
+    setJournalClientLoading(true);
+    setPage('journalAppointment');
+    setTab('journal');
+    void (async () => {
+      try {
+        const history = await fetchClientHistoryFromAppointments(fallbackClient);
+        setJournalClientHistory(history);
+      } catch {
+        setJournalClientHistory([]);
+      } finally {
+        setJournalClientLoading(false);
+      }
+    })();
+  };
+
+  const handleCloseJournalAppointment = () => {
+    setJournalAppointmentTarget(null);
+    setJournalClientTarget(null);
+    setJournalClientDraft({
+      name: '',
+      phone: '',
+      email: '',
+      comment: '',
+    });
+    setJournalClientHistory([]);
+    setJournalClientLoading(false);
+    setJournalClientSaving(false);
+    setPage('tabs');
+    setTab('journal');
+  };
+
+  const handleUpdateJournalAppointmentStatus = async (
+    status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED',
+  ) => {
+    const appointment = journalAppointmentTarget;
+    if (!appointment) {
+      return;
+    }
+    if (!canEdit(EDIT_PERMISSION.journal)) {
+      setToast('Нет прав на редактирование журнала');
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.patch<unknown>(`/appointments/${appointment.id}/status`, { status });
+      setAppointments((prev) =>
+        prev.map((item) => (item.id === appointment.id ? { ...item, status } : item)),
+      );
+      setJournalAppointmentTarget((prev) =>
+        prev && prev.id === appointment.id ? { ...prev, status } : prev,
+      );
+      setJournalClientHistory((prev) =>
+        prev.map((item) => (item.id === appointment.id ? { ...item, status } : item)),
+      );
+      setClientHistoryAppointments((prev) =>
+        prev.map((item) => (item.id === appointment.id ? { ...item, status } : item)),
+      );
+      setToast('Статус записи обновлен');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleOpenJournalClient = async () => {
+    const appointment = journalAppointmentTarget;
+    if (!appointment) {
+      return;
+    }
+    const fallbackClient: ClientItem = {
+      id: appointment.clientId,
+      name: appointment.clientName || 'Клиент',
+      phone: appointment.clientPhone || '',
+    };
+
+    setJournalClientTarget(fallbackClient);
+    setJournalClientDraft({
+      name: fallbackClient.name,
+      phone: fallbackClient.phone,
+      email: '',
+      comment: '',
+    });
+    setJournalClientHistory([]);
+    setJournalClientLoading(true);
+    setPage('journalClient');
+    setTab('journal');
+
+    try {
+      const nextDraft = {
+        name: fallbackClient.name,
+        phone: fallbackClient.phone,
+        email: '',
+        comment: '',
+      };
+
+      if (fallbackClient.id) {
+        try {
+          const detailsData = await api.get<unknown>(`/clients/${fallbackClient.id}`);
+          const details = toRecord(detailsData);
+          nextDraft.name = toString(details?.name) || fallbackClient.name;
+          nextDraft.phone =
+            toString(details?.phoneE164) ||
+            toString(details?.phone) ||
+            fallbackClient.phone;
+          nextDraft.email = toString(details?.email);
+          nextDraft.comment = toString(details?.comment);
+        } catch {
+          // Ignore details fetch errors here: history and base info still work.
+        }
+      }
+
+      const history = await fetchClientHistoryFromAppointments(fallbackClient);
+      setJournalClientHistory(history);
+      setJournalClientDraft(nextDraft);
+      setJournalClientTarget((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: nextDraft.name || prev.name,
+              phone: nextDraft.phone || prev.phone,
+            }
+          : prev,
+      );
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setJournalClientLoading(false);
+    }
+  };
+
+  const handleCloseJournalClient = () => {
+    if (journalAppointmentTarget) {
+      setPage('journalAppointment');
+      setTab('journal');
+      return;
+    }
+    setPage('tabs');
+    setTab('journal');
+  };
+
+  const handleSaveJournalClient = async () => {
+    if (!canEdit(EDIT_PERMISSION.clients)) {
+      setToast('Нет прав на редактирование клиентов');
+      return;
+    }
+    if (!journalClientTarget?.id) {
+      setToast('Нельзя сохранить клиента без ID');
+      return;
+    }
+    const payload = {
+      name: journalClientDraft.name.trim(),
+      phone: journalClientDraft.phone.trim(),
+      email: journalClientDraft.email.trim(),
+      comment: journalClientDraft.comment.trim(),
+    };
+    if (!payload.name || !payload.phone) {
+      setToast('Имя и телефон обязательны');
+      return;
+    }
+
+    setJournalClientSaving(true);
+    try {
+      const data = await api.patch<unknown>(`/clients/${journalClientTarget.id}`, {
+        name: payload.name,
+        phone: payload.phone,
+        email: payload.email || null,
+        comment: payload.comment || null,
+      });
+      const root = toRecord(data);
+      const updated = toRecord(root?.client) ?? root;
+      const nextName = toString(updated?.name) || payload.name;
+      const nextPhone = toString(updated?.phoneE164) || payload.phone;
+      const nextEmail = toString(updated?.email) || payload.email;
+      const nextComment = toString(updated?.comment) || payload.comment;
+
+      setJournalClientDraft({
+        name: nextName,
+        phone: nextPhone,
+        email: nextEmail,
+        comment: nextComment,
+      });
+      setJournalClientTarget((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: nextName,
+              phone: nextPhone,
+            }
+          : prev,
+      );
+      setClients((prev) =>
+        prev.map((item) =>
+          item.id === journalClientTarget.id
+            ? { ...item, name: nextName, phone: nextPhone }
+            : item,
+        ),
+      );
+      setAppointments((prev) =>
+        prev.map((item) =>
+          item.clientId === journalClientTarget.id
+            ? { ...item, clientName: nextName, clientPhone: nextPhone }
+            : item,
+        ),
+      );
+      setJournalAppointmentTarget((prev) =>
+        prev && prev.clientId === journalClientTarget.id
+          ? { ...prev, clientName: nextName, clientPhone: nextPhone }
+          : prev,
+      );
+      setJournalClientHistory((prev) =>
+        prev.map((item) =>
+          item.clientId === journalClientTarget.id
+            ? { ...item, clientName: nextName, clientPhone: nextPhone }
+            : item,
+        ),
+      );
+      setToast('Карточка клиента обновлена');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setJournalClientSaving(false);
+    }
+  };
+
+  const handleCallJournalClient = () => {
+    const phone =
+      journalAppointmentTarget?.clientPhone || journalClientTarget?.phone || journalClientDraft.phone;
+    if (!phone) {
+      setToast('Телефон клиента не найден');
+      return;
+    }
+    window.location.href = `tel:${normalizePhoneForLink(phone)}`;
+  };
+
+  const handleSmsJournalClient = () => {
+    const phone =
+      journalAppointmentTarget?.clientPhone || journalClientTarget?.phone || journalClientDraft.phone;
+    if (!phone) {
+      setToast('Телефон клиента не найден');
+      return;
+    }
+    window.location.href = `sms:${normalizePhoneForLink(phone)}`;
+  };
+
+  const handleWhatsAppJournalClient = () => {
+    const phone =
+      journalAppointmentTarget?.clientPhone || journalClientTarget?.phone || journalClientDraft.phone;
+    if (!phone) {
+      setToast('Телефон клиента не найден');
+      return;
+    }
+    const digits = normalizePhoneForWhatsApp(phone);
+    window.open(`https://wa.me/${digits}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleCallClient = () => {
@@ -1083,6 +1815,73 @@ export function useAppController(): AppController {
     setToast('Удаление клиента недоступно в текущем API');
   };
 
+  const handleImportClientsFromContacts = async (
+    contacts: Array<{ name: string; phone: string }>,
+  ) => {
+    if (!canEdit(EDIT_PERMISSION.clients)) {
+      throw new Error('Нет прав на редактирование клиентов');
+    }
+    const normalized = contacts
+      .map((item) => ({
+        name: item.name.trim(),
+        phone: item.phone.trim(),
+      }))
+      .filter((item) => item.phone.length > 0);
+
+    if (normalized.length === 0) {
+      return { imported: 0, skipped: contacts.length };
+    }
+
+    const dedupedMap = new Map<string, { name: string; phone: string }>();
+    normalized.forEach((item) => {
+      const dedupeKey = normalizePhoneForWhatsApp(item.phone);
+      if (!dedupeKey) {
+        return;
+      }
+      if (!dedupedMap.has(dedupeKey)) {
+        dedupedMap.set(dedupeKey, item);
+      }
+    });
+    const deduped = Array.from(dedupedMap.values());
+    const skipped = contacts.length - deduped.length;
+    if (deduped.length === 0) {
+      return { imported: 0, skipped: contacts.length };
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const results = await Promise.allSettled(
+        deduped.map((item) =>
+          api.post<unknown>('/clients/loyalty/upsert', {
+            phone: item.phone,
+            name: item.name || undefined,
+            discount: {
+              mode: 'PERMANENT',
+              type: 'NONE',
+            },
+          }),
+        ),
+      );
+      const imported = results.filter((result) => result.status === 'fulfilled').length;
+      const failed = results.length - imported;
+      await loadClients(debouncedClientsQuery);
+
+      const firstRejected = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (imported === 0 && firstRejected) {
+        throw firstRejected.reason;
+      }
+
+      return {
+        imported,
+        skipped: skipped + failed,
+      };
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const handleSetDate = () => {
     setJournalDatePickerOpen(true);
   };
@@ -1097,6 +1896,10 @@ export function useAppController(): AppController {
   };
 
   const handleCreateAppointment = async () => {
+    if (!canEdit(EDIT_PERMISSION.journal)) {
+      setToast('Нет прав на редактирование журнала');
+      return;
+    }
     if (staff.length === 0 || services.length === 0) {
       setToast('Нет данных staff/services для создания записи');
       return;
@@ -1173,12 +1976,16 @@ export function useAppController(): AppController {
   };
 
   const handleScheduleEdit = async () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     const target =
       visibleStaff[0] ||
-      staff.find((item) => item.role !== 'OWNER') ||
+      staffWithServices[0] ||
       null;
     if (!target) {
-      setToast('Нет сотрудников');
+      setToast('Нет сотрудников с услугами');
       return;
     }
     await openScheduleEditorForStaff(target);
@@ -1224,6 +2031,23 @@ export function useAppController(): AppController {
     }
   };
 
+  const handleSelectOwnerAvatarFile = async (file: File) => {
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const converted = await convertImageFileToWebp(file);
+      clearBlobPreview(ownerAvatarBlobUrlRef);
+      ownerAvatarBlobUrlRef.current = converted.previewUrl;
+      setOwnerAvatarPreviewUrl(converted.previewUrl);
+      setOwnerAvatarWebpBlob(converted.blob);
+      setOwnerAvatarOriginalName(file.name || 'avatar');
+      setToast('Фото профиля подготовлено (WEBP)');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const handleSelectServiceImageFile = async (file: File) => {
     setLoadingKey(setLoading, 'action', true);
     try {
@@ -1242,36 +2066,185 @@ export function useAppController(): AppController {
     }
   };
 
-  const uploadStaffAvatarIfNeeded = async (staffId: string) => {
-    if (!staffAvatarWebpBlob) {
-      return { url: null, warning: '' };
+  const patchStaffAvatarAsset = async (staffId: string, photoAssetId: string | null) => {
+    const payload = await api.patch<unknown>(`/staff/${staffId}/avatar`, { photoAssetId });
+    const record = toRecord(payload);
+    return {
+      avatarUrl: toString(record?.avatarUrl) || null,
+      avatarAssetId: toString(record?.avatarAssetId) || null,
+      previousAvatarAssetId: toString(record?.previousAvatarAssetId) || null,
+    };
+  };
+
+  const deleteMediaAssetById = async (assetId: string | null) => {
+    if (!assetId) {
+      return;
+    }
+    try {
+      await api.delete<unknown>(`/client-front/staff/media/${assetId}`);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.code === 'NOT_FOUND')
+      ) {
+        return;
+      }
+      throw error;
+    }
+  };
+
+  const applyAvatarLocally = (
+    staffId: string,
+    avatarUrl: string | null,
+    avatarAssetId: string | null,
+  ) => {
+    setStaff((prev) =>
+      prev.map((item) =>
+        item.id === staffId ? { ...item, avatarUrl, avatarAssetId } : item,
+      ),
+    );
+  };
+
+  const uploadAvatarIfNeeded = async ({
+    staffId,
+    webpBlob,
+    originalName,
+    previousAssetId,
+  }: {
+    staffId: string;
+    webpBlob: Blob | null;
+    originalName: string;
+    previousAssetId: string | null;
+  }) => {
+    if (!webpBlob) {
+      return { url: null as string | null, assetId: previousAssetId, warning: '' };
     }
     try {
       const uploaded = await uploadWebpImage({
         scope: 'staff-avatar',
         entityId: staffId,
-        webpBlob: staffAvatarWebpBlob,
-        originalName: staffAvatarOriginalName,
+        webpBlob,
+        originalName,
       });
-      setStaffAvatarPreviewUrl(uploaded.url);
-      setStaff((prev) =>
-        prev.map((item) =>
-          item.id === staffId ? { ...item, avatarUrl: uploaded.url } : item,
-        ),
-      );
-      return { url: uploaded.url, warning: '' };
+      if (!uploaded.assetId) {
+        return {
+          url: null,
+          assetId: previousAssetId,
+          warning: 'Не удалось получить ID загруженного файла',
+        };
+      }
+      const linked = await patchStaffAvatarAsset(staffId, uploaded.assetId);
+      const nextAssetId = linked.avatarAssetId || uploaded.assetId;
+      const nextUrl = linked.avatarUrl || uploaded.url;
+      if (previousAssetId && previousAssetId !== nextAssetId) {
+        await deleteMediaAssetById(previousAssetId);
+      }
+      applyAvatarLocally(staffId, nextUrl, nextAssetId);
+      return { url: nextUrl, assetId: nextAssetId, warning: '' };
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.code === 'FORBIDDEN')
+      ) {
+        return {
+          url: null,
+          assetId: previousAssetId,
+          warning: 'Недостаточно прав для media upload/delete (нужно MANAGE_MEDIA)',
+        };
+      }
       const message = toErrorMessage(error);
       if (message.startsWith('UPLOAD_ENDPOINT_NOT_FOUND')) {
         return {
           url: null,
-          warning: `Серверный upload endpoint не найден. Проверьте API загрузки и путь: ${getServerMediaDirHint(
-            'staff-avatar',
-            staffId,
-          )}`,
+          assetId: previousAssetId,
+          warning:
+            'Серверный upload endpoint не найден. Проверьте API путь: /client-front/staff/media/upload',
         };
       }
       throw error;
+    }
+  };
+
+  const uploadStaffAvatarIfNeeded = async (staffId: string) => {
+    const result = await uploadAvatarIfNeeded({
+      staffId,
+      webpBlob: staffAvatarWebpBlob,
+      originalName: staffAvatarOriginalName,
+      previousAssetId: staffAvatarAssetId,
+    });
+    if (result.url) {
+      setStaffAvatarPreviewUrl(result.url);
+    }
+    if (result.assetId !== undefined) {
+      setStaffAvatarAssetId(result.assetId ?? null);
+    }
+    return result;
+  };
+
+  const uploadOwnerAvatarIfNeeded = async (staffId: string) => {
+    const result = await uploadAvatarIfNeeded({
+      staffId,
+      webpBlob: ownerAvatarWebpBlob,
+      originalName: ownerAvatarOriginalName,
+      previousAssetId: ownerAvatarAssetId,
+    });
+    if (result.url) {
+      setOwnerAvatarPreviewUrl(result.url);
+    }
+    if (result.assetId !== undefined) {
+      setOwnerAvatarAssetId(result.assetId ?? null);
+    }
+    return result;
+  };
+
+  const handleDeleteStaffAvatar = async () => {
+    if (!staffAvatarPreviewUrl) {
+      return;
+    }
+    const staffId = editingStaffId;
+    if (!staffId) {
+      resetStaffAvatarState();
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await patchStaffAvatarAsset(staffId, null);
+      await deleteMediaAssetById(staffAvatarAssetId);
+      resetStaffAvatarState();
+      applyAvatarLocally(staffId, null, null);
+      setToast('Аватар сотрудника удален');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleDeleteOwnerAvatar = async () => {
+    if (!ownerAvatarPreviewUrl) {
+      return;
+    }
+    if (!ownerEditId) {
+      resetOwnerAvatarState();
+      return;
+    }
+    if (!canEditOwnProfile) {
+      setToast('Недостаточно прав для удаления аватара');
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await patchStaffAvatarAsset(ownerEditId, null);
+      await deleteMediaAssetById(ownerAvatarAssetId);
+      resetOwnerAvatarState();
+      applyAvatarLocally(ownerEditId, null, null);
+      setToast('Аватар профиля удален');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
     }
   };
 
@@ -1295,14 +2268,21 @@ export function useAppController(): AppController {
       );
       return { url: uploaded.url, warning: '' };
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.code === 'FORBIDDEN')
+      ) {
+        return {
+          url: null,
+          warning: 'Недостаточно прав для media upload (нужно MANAGE_MEDIA)',
+        };
+      }
       const message = toErrorMessage(error);
       if (message.startsWith('UPLOAD_ENDPOINT_NOT_FOUND')) {
         return {
           url: null,
-          warning: `Серверный upload endpoint не найден. Проверьте API загрузки и путь: ${getServerMediaDirHint(
-            'service-image',
-            serviceId,
-          )}`,
+          warning:
+            'Серверный upload endpoint не найден. Проверьте API путь: /client-front/staff/media/upload',
         };
       }
       throw error;
@@ -1344,6 +2324,10 @@ export function useAppController(): AppController {
   };
 
   const openServiceCategoryEditor = (categoryId: string | null) => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
     if (!categoryId) {
       setServiceCategoryEditorId(null);
       setServiceCategoryEditorName('');
@@ -1372,6 +2356,10 @@ export function useAppController(): AppController {
   };
 
   const saveServiceCategoryEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
     const name = serviceCategoryEditorName.trim();
     if (!name) {
       setToast('Название категории обязательно');
@@ -1434,6 +2422,10 @@ export function useAppController(): AppController {
   };
 
   const deleteServiceCategoryEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
     if (!serviceCategoryEditorId) {
       return;
     }
@@ -1476,7 +2468,94 @@ export function useAppController(): AppController {
     }
   };
 
+  const getStaffServiceIds = async (staffId: string) => {
+    const data = await api.get<unknown>(`/staff/${staffId}/services`);
+    return extractItems(data)
+      .map((row) => toString(toRecord(row)?.id))
+      .filter(Boolean);
+  };
+
+  const loadServiceProvidersForEditor = async (serviceId: string) => {
+    const masters = staff.filter((item) => item.role === 'MASTER' && item.isActive);
+    setServiceAssignableStaff(masters);
+    if (masters.length === 0) {
+      setServiceProviders([]);
+      return;
+    }
+
+    setServiceProvidersLoading(true);
+    try {
+      const rows = await Promise.all(
+        masters.map(async (member) => {
+          try {
+            const ids = await getStaffServiceIds(member.id);
+            return ids.includes(serviceId) ? member : null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      setServiceProviders(rows.filter(Boolean) as StaffItem[]);
+    } finally {
+      setServiceProvidersLoading(false);
+    }
+  };
+
+  const syncServiceProvidersForCurrentService = async (staffIds: string[]) => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
+    if (!serviceDraft.id) {
+      setToast('Сначала сохраните услугу');
+      return;
+    }
+    const targetIds = Array.from(new Set(staffIds));
+    const currentIds = serviceProviders.map((item) => item.id);
+    const changedIds = Array.from(new Set([...targetIds, ...currentIds]));
+    if (changedIds.length === 0) {
+      setServiceProviders([]);
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await Promise.all(
+        changedIds.map(async (staffId) => {
+          const currentServiceIds = await getStaffServiceIds(staffId);
+          const hasService = currentServiceIds.includes(serviceDraft.id!);
+          const shouldHaveService = targetIds.includes(staffId);
+          if (hasService === shouldHaveService) {
+            return;
+          }
+          const nextServiceIds = shouldHaveService
+            ? Array.from(new Set([...currentServiceIds, serviceDraft.id!]))
+            : currentServiceIds.filter((id) => id !== serviceDraft.id);
+          await api.put<unknown>(`/staff/${staffId}/services`, {
+            serviceIds: nextServiceIds,
+          });
+        }),
+      );
+      await loadServiceProvidersForEditor(serviceDraft.id);
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const removeServiceProviderFromCurrentService = async (staffId: string) => {
+    const nextIds = serviceProviders
+      .map((item) => item.id)
+      .filter((itemId) => itemId !== staffId);
+    await syncServiceProvidersForCurrentService(nextIds);
+  };
+
   const openServiceEditor = (serviceId: string | null) => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
     if (!serviceId) {
       resetServiceImageState();
       setServiceDraft({
@@ -1484,6 +2563,9 @@ export function useAppController(): AppController {
         categoryId: selectedServiceCategoryId || '',
         categoryName: selectedServiceCategoryName || '',
       });
+      setServiceProviders([]);
+      setServiceAssignableStaff(staff.filter((item) => item.role === 'MASTER' && item.isActive));
+      setServiceProvidersLoading(false);
       setPage('serviceEditor');
       return;
     }
@@ -1501,16 +2583,21 @@ export function useAppController(): AppController {
       imageUrl: found.imageUrl || '',
       durationSec: found.durationSec || 0,
       priceMin: found.priceMin || 0,
-      priceMax: found.priceMax || found.priceMin || 0,
+      priceMax: found.priceMin || 0,
       isActive: found.isActive,
     });
+    setServiceAssignableStaff(staff.filter((item) => item.role === 'MASTER' && item.isActive));
     resetServiceImageState();
     setServiceImagePreviewUrl(found.imageUrl || '');
+    void loadServiceProvidersForEditor(found.id);
     setPage('serviceEditor');
   };
 
   const closeServiceEditor = () => {
     setServiceDraft(EMPTY_SERVICE_DRAFT);
+    setServiceProviders([]);
+    setServiceAssignableStaff([]);
+    setServiceProvidersLoading(false);
     resetServiceImageState();
     setPage('servicesCategory');
   };
@@ -1528,7 +2615,7 @@ export function useAppController(): AppController {
               imageUrl: serviceImagePreviewUrl || serviceDraft.imageUrl || item.imageUrl,
               durationSec: Math.max(0, serviceDraft.durationSec),
               priceMin: Math.max(0, serviceDraft.priceMin),
-              priceMax: Math.max(serviceDraft.priceMin, serviceDraft.priceMax),
+              priceMax: Math.max(0, serviceDraft.priceMin),
               isActive: serviceDraft.isActive,
             }
           : item,
@@ -1537,6 +2624,10 @@ export function useAppController(): AppController {
   };
 
   const saveServiceEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
     const name = serviceDraft.name.trim();
     if (!name) {
       setToast('Название услуги обязательно');
@@ -1554,10 +2645,7 @@ export function useAppController(): AppController {
       description: serviceDraft.description.trim() || undefined,
       durationSec: Math.max(600, Math.round(serviceDraft.durationSec)),
       priceMin: Math.max(0, Math.round(serviceDraft.priceMin)),
-      priceMax: Math.max(
-        Math.round(serviceDraft.priceMin),
-        Math.round(serviceDraft.priceMax),
-      ),
+      priceMax: Math.max(0, Math.round(serviceDraft.priceMin)),
       isActive: serviceDraft.isActive,
     };
 
@@ -1652,6 +2740,10 @@ export function useAppController(): AppController {
   };
 
   const deleteServiceEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
     if (!serviceDraft.id) {
       closeServiceEditor();
       return;
@@ -1684,6 +2776,11 @@ export function useAppController(): AppController {
     if (!session) {
       return;
     }
+    const requiredPermission = MORE_ACTION_PERMISSION_CODE[title];
+    if (!hasPermissionAccess(requiredPermission)) {
+      setToast('Нет доступа к разделу');
+      return;
+    }
     setLoadingKey(setLoading, 'action', true);
     try {
       switch (title) {
@@ -1692,6 +2789,7 @@ export function useAppController(): AppController {
           await loadStaffServiceMeta(rows);
           setPanel(null);
           setStaffSearch('');
+          setStaffFilter(EMPTY_STAFF_FILTER);
           closeStaffForm();
           setPage('staff');
           return;
@@ -1714,21 +2812,6 @@ export function useAppController(): AppController {
               `No-show: ${toNumber(overview.noShowCount) ?? 0}`,
               `Отменено: ${toNumber(overview.cancelledCount) ?? 0}`,
             ],
-          });
-          return;
-        }
-        case 'Расчет зарплат': {
-          const overview = await loadReports();
-          const byStaffRaw = asArray(toRecord(overview)?.byStaff);
-          const lines = byStaffRaw.map((item) => {
-            const record = toRecord(item);
-            return `${toString(record?.name) || 'Сотрудник'}: ${
-              toNumber(record?.arrivedCount) ?? 0
-            } визитов`;
-          });
-          setPanel({
-            title: 'Расчет зарплат',
-            lines: lines.length > 0 ? lines : ['Нет данных по сотрудникам'],
           });
           return;
         }
@@ -1785,6 +2868,10 @@ export function useAppController(): AppController {
   };
 
   const openEditorServicesPanel = () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
     const staffId = editingStaffId;
     if (!staffId) {
       setToast('Сначала сохраните сотрудника, затем назначьте услуги');
@@ -1839,6 +2926,10 @@ export function useAppController(): AppController {
   };
 
   const saveStaffServicesEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
     if (!editingStaffId) {
       setToast('Сотрудник не выбран');
       return;
@@ -1868,10 +2959,77 @@ export function useAppController(): AppController {
   };
 
   const openEditorPermissionsPanel = () => {
-    setPanel({
-      title: 'Права доступа',
-      lines: ['Журнал записи'],
-    });
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
+    if (!editingStaffId) {
+      setToast('Сначала сохраните сотрудника, затем настраивайте права');
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    void (async () => {
+      try {
+        const [catalog, assignedCodes] = await Promise.all([
+          api.getStaffPermissionsCatalog(),
+          api.getStaffPermissions(editingStaffId),
+        ]);
+        setEditorPermissionCatalog(catalog);
+        setEditorPermissionCodes(assignedCodes);
+        setEditorPermissionsSheetOpen(true);
+      } catch (error) {
+        setToast(toErrorMessage(error));
+      } finally {
+        setLoadingKey(setLoading, 'action', false);
+      }
+    })();
+  };
+
+  const closeEditorPermissionsPanel = () => {
+    setEditorPermissionsSheetOpen(false);
+    setEditorPermissionBusyCode(null);
+  };
+
+  const toggleEditorPermission = async (code: string, enabled: boolean) => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
+    if (!editingStaffId) {
+      return;
+    }
+    setEditorPermissionBusyCode(code);
+    try {
+      if (enabled) {
+        await api.grantStaffPermission(editingStaffId, code);
+        setEditorPermissionCodes((prev) => (prev.includes(code) ? prev : [...prev, code]));
+      } else {
+        await api.revokeStaffPermission(editingStaffId, code);
+        setEditorPermissionCodes((prev) => prev.filter((value) => value !== code));
+      }
+
+      setSession((prev) => {
+        if (!prev || prev.staff.id !== editingStaffId) {
+          return prev;
+        }
+        const current = Array.isArray(prev.staff.permissions) ? prev.staff.permissions : [];
+        const next = enabled
+          ? Array.from(new Set([...current, code]))
+          : current.filter((value) => value !== code);
+        return {
+          ...prev,
+          staff: {
+            ...prev.staff,
+            permissions: next,
+          },
+        };
+      });
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setEditorPermissionBusyCode(null);
+    }
   };
 
   const fetchStaffWorkingHours = async (staffId: string) => {
@@ -1906,6 +3064,10 @@ export function useAppController(): AppController {
   };
 
   const openScheduleEditorForStaff = async (item: StaffItem) => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     if (item.role === 'OWNER') {
       return;
     }
@@ -1967,6 +3129,10 @@ export function useAppController(): AppController {
   };
 
   const saveScheduleEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     if (!scheduleEditorStaff) {
       setToast('Сотрудник не выбран');
       return;
@@ -2003,6 +3169,10 @@ export function useAppController(): AppController {
   };
 
   const clearScheduleEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     if (!scheduleEditorStaff) {
       return;
     }
@@ -2035,6 +3205,10 @@ export function useAppController(): AppController {
   };
 
   const handleOpenJournalDayEditPage = () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     if (!journalActionStaff) {
       return;
     }
@@ -2047,6 +3221,10 @@ export function useAppController(): AppController {
   };
 
   const handleOpenJournalDayRemovePage = () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     if (!journalActionStaff) {
       return;
     }
@@ -2093,6 +3271,10 @@ export function useAppController(): AppController {
   };
 
   const handleSaveJournalDayEdit = async () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     if (!isValidTime(journalDayStart) || !isValidTime(journalDayEnd)) {
       setToast('Время в формате HH:mm');
       return;
@@ -2114,6 +3296,10 @@ export function useAppController(): AppController {
   };
 
   const handleSaveJournalDayRemove = async () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
     const success = await updateStaffScheduleForSelectedDay([]);
     if (!success) {
       return;
@@ -2125,6 +3311,10 @@ export function useAppController(): AppController {
   };
 
   const handleTabChange = (next: TabKey) => {
+    if (!visibleTabKeys.includes(next)) {
+      setToast('Нет доступа к разделу');
+      return;
+    }
     closeStaffForm();
     setClientActionsFor(null);
     setJournalActionStaff(null);
@@ -2136,6 +3326,20 @@ export function useAppController(): AppController {
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
     setServiceDraft(EMPTY_SERVICE_DRAFT);
+    setServiceProviders([]);
+    setServiceAssignableStaff([]);
+    setServiceProvidersLoading(false);
+    setJournalAppointmentTarget(null);
+    setJournalClientTarget(null);
+    setJournalClientDraft({
+      name: '',
+      phone: '',
+      email: '',
+      comment: '',
+    });
+    setJournalClientHistory([]);
+    setJournalClientLoading(false);
+    setJournalClientSaving(false);
     if (next !== 'clients') {
       setClientHistoryTarget(null);
       setClientHistoryAppointments([]);
@@ -2161,11 +3365,16 @@ export function useAppController(): AppController {
   };
 
   const journalCards = useMemo<JournalCard[]>(() => {
-    const staffById = new Map(visibleStaff.map((item, index) => [item.id, index]));
+    const staffById = new Map(journalStaff.map((item, index) => [item.id, index]));
+    const staffByName = new Map(
+      journalStaff.map((item, index) => [item.name.trim().toLowerCase(), index]),
+    );
     return appointments
-      .filter((item) => staffById.has(item.staffId))
       .map((item) => {
-        const column = staffById.get(item.staffId);
+        let column = staffById.get(item.staffId);
+        if (column === undefined && item.staffName.trim()) {
+          column = staffByName.get(item.staffName.trim().toLowerCase());
+        }
         if (column === undefined) {
           return null;
         }
@@ -2175,9 +3384,9 @@ export function useAppController(): AppController {
           column * (JOURNAL_CARD_COLUMN_WIDTH + JOURNAL_GRID_GAP);
         const startDecimal = item.startAt.getHours() + item.startAt.getMinutes() / 60;
         const endDecimal = item.endAt.getHours() + item.endAt.getMinutes() / 60;
-        const clampedStart = Math.max(startDecimal, JOURNAL_START_HOUR);
-        const clampedEnd = Math.min(endDecimal, JOURNAL_END_HOUR + 1);
-        const top = (clampedStart - JOURNAL_START_HOUR) * HOUR_HEIGHT + 8;
+        const clampedStart = Math.max(startDecimal, journalBounds.startHour);
+        const clampedEnd = Math.min(endDecimal, journalBounds.endHour + 1);
+        const top = (clampedStart - journalBounds.startHour) * HOUR_HEIGHT + 8;
         const height = Math.max((clampedEnd - clampedStart) * HOUR_HEIGHT, 62);
         return {
           ...item,
@@ -2189,7 +3398,7 @@ export function useAppController(): AppController {
         };
       })
       .filter(Boolean) as JournalCard[];
-  }, [appointments, visibleStaff]);
+  }, [appointments, journalBounds.endHour, journalBounds.startHour, journalStaff]);
 
   return {
     state: {
@@ -2200,6 +3409,7 @@ export function useAppController(): AppController {
       weekDates,
       staff,
       visibleStaff,
+      journalStaff,
       filteredStaff,
       staffSearch,
       staffFilter,
@@ -2218,6 +3428,9 @@ export function useAppController(): AppController {
       serviceCategoryEditorId,
       serviceCategoryEditorName,
       serviceDraft,
+      serviceProviders,
+      serviceAssignableStaff,
+      serviceProvidersLoading,
       scheduleEditorStaff,
       scheduleEditorDays,
       scheduleEditorStart,
@@ -2234,11 +3447,18 @@ export function useAppController(): AppController {
       authPin,
       authError,
       loading,
-      moreMenu: MORE_MENU,
+      moreMenu,
+      visibleTabs,
       clientActionsFor,
       clientHistoryTarget,
       clientHistoryAppointments,
       clientHistoryLoading,
+      journalAppointmentTarget,
+      journalClientTarget,
+      journalClientDraft,
+      journalClientHistory,
+      journalClientLoading,
+      journalClientSaving,
       staffFormMode,
       staffDraft,
       editorAccessEnabled,
@@ -2248,6 +3468,8 @@ export function useAppController(): AppController {
       staffServicesEditorSelectedIds,
       filteredStaffServicesForEditor,
       ownerDraft,
+      ownerCanEdit: canEditOwnProfile,
+      ownerAvatarPreviewUrl,
       journalDatePickerOpen,
       journalMarkedDates,
       journalActionStaff,
@@ -2257,6 +3479,12 @@ export function useAppController(): AppController {
       serviceImagePreviewUrl,
       staffAvatarServerDirHint,
       serviceImageServerDirHint,
+      editorPermissionsSheetOpen,
+      editorPermissionCatalog,
+      editorPermissionCodes,
+      editorPermissionBusyCode,
+      canEditClients: canEdit(EDIT_PERMISSION.clients),
+      canEditJournal: canEdit(EDIT_PERMISSION.journal),
     },
     actions: {
       setAuthPhone,
@@ -2298,10 +3526,21 @@ export function useAppController(): AppController {
       handleOpenClientHistory,
       handleOpenClientLoyalty,
       handleCloseClientHistory,
+      handleOpenJournalAppointment,
+      handleCloseJournalAppointment,
+      handleUpdateJournalAppointmentStatus,
+      handleOpenJournalClient,
+      handleCloseJournalClient,
+      setJournalClientDraft,
+      handleSaveJournalClient,
+      handleCallJournalClient,
+      handleSmsJournalClient,
+      handleWhatsAppJournalClient,
       handleCallClient,
       handleSmsClient,
       handleWhatsAppClient,
       handleDeleteClient,
+      handleImportClientsFromContacts,
       handleSetDate,
       closeJournalDatePicker,
       selectJournalDate,
@@ -2322,6 +3561,8 @@ export function useAppController(): AppController {
       toggleStaffServiceCategorySelection,
       saveStaffServicesEditor,
       openEditorPermissionsPanel,
+      closeEditorPermissionsPanel,
+      toggleEditorPermission,
       handleOpenJournalStaffActions,
       handleCloseJournalStaffActions,
       handleOpenJournalDayEditPage,
@@ -2346,9 +3587,14 @@ export function useAppController(): AppController {
       openServiceEditor,
       closeServiceEditor,
       setServiceDraft,
+      syncServiceProvidersForCurrentService,
+      removeServiceProviderFromCurrentService,
       saveServiceEditor,
       deleteServiceEditor,
       handleSelectStaffAvatarFile,
+      handleDeleteStaffAvatar,
+      handleSelectOwnerAvatarFile,
+      handleDeleteOwnerAvatar,
       handleSelectServiceImageFile,
     },
   };

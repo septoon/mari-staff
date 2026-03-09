@@ -1,10 +1,11 @@
 import { ChevronRight, Loader2, LogOut, UserRound } from 'lucide-react';
 import { InfoRow } from '../components/shared/InfoRow';
 import { roleLabel } from '../helpers';
-import type { MoreActionItem, StaffSession } from '../types';
+import type { MoreActionItem, StaffItem, StaffSession } from '../types';
 
 type MoreScreenProps = {
   session: StaffSession;
+  currentStaff: StaffItem | null;
   loading: boolean;
   menu: MoreActionItem[];
   onProfileClick: () => void;
@@ -14,26 +15,42 @@ type MoreScreenProps = {
 
 export function MoreScreen({
   session,
+  currentStaff,
   loading,
   menu,
   onProfileClick,
   onAction,
   onLogout,
 }: MoreScreenProps) {
+  const displayName = currentStaff?.name?.trim() || session.staff.name;
+  const displayRole = currentStaff?.role || session.staff.role;
+  const displayPhone = currentStaff?.phoneE164?.trim() || session.staff.phoneE164;
+  const displaySubtitle = displayPhone
+    ? `${roleLabel(displayRole)} • ${displayPhone}`
+    : roleLabel(displayRole);
+
   return (
     <div className="pb-7 pt-6">
-      <h1 className="text-[30px] font-extrabold leading-none text-ink">Еще</h1>
+      <h1 className="text-[24px] font-extrabold leading-none text-ink">Еще</h1>
 
       <div className="mt-8 space-y-2">
         <InfoRow
           onClick={onProfileClick}
           avatar={
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3e0f8] text-[#a1a0e8]">
-              <UserRound className="h-7 w-7" strokeWidth={1.8} />
-            </div>
+            currentStaff?.avatarUrl ? (
+              <img
+                src={currentStaff.avatarUrl}
+                alt={displayName}
+                className="h-14 w-14 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3e0f8] text-[#a1a0e8]">
+                <UserRound className="h-7 w-7" strokeWidth={1.8} />
+              </div>
+            )
           }
-          title={session.staff.name}
-          subtitle={`${roleLabel(session.staff.role)} • ${session.staff.phoneE164}`}
+          title={displayName}
+          subtitle={displaySubtitle}
         />
       </div>
 

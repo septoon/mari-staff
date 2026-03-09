@@ -1,8 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { StaffRole, StaffSession } from '../api';
+import type { StaffPermissionCatalogItem, StaffRole, StaffSession } from '../api';
 
-export type { StaffRole, StaffSession };
+export type { StaffPermissionCatalogItem, StaffRole, StaffSession };
 
 export type TabKey = 'journal' | 'schedule' | 'clients' | 'notifications' | 'more';
 export type AppPage =
@@ -13,6 +13,8 @@ export type AppPage =
   | 'staffEditor'
   | 'staffServicesEditor'
   | 'clientHistory'
+  | 'journalAppointment'
+  | 'journalClient'
   | 'journalDayEdit'
   | 'journalDayRemove'
   | 'servicesCategories'
@@ -33,11 +35,12 @@ export type StaffItem = {
   phoneE164: string;
   email: string | null;
   avatarUrl: string | null;
+  avatarAssetId: string | null;
   isActive: boolean;
   positionName: string | null;
 };
 
-export type StaffCreateRole = 'ADMIN' | 'MASTER';
+export type StaffCreateRole = 'ADMIN' | 'MASTER' | 'DEVELOPER' | 'SMM';
 
 export type StaffDraft = {
   name: string;
@@ -115,6 +118,13 @@ export type AppointmentItem = {
   createdAt: Date;
 };
 
+export type JournalClientDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  comment: string;
+};
+
 export type JournalCard = AppointmentItem & {
   left: number;
   top: number;
@@ -163,6 +173,7 @@ export type ControllerState = {
   weekDates: Date[];
   staff: StaffItem[];
   visibleStaff: StaffItem[];
+  journalStaff: StaffItem[];
   filteredStaff: StaffItem[];
   staffSearch: string;
   staffFilter: StaffFilter;
@@ -181,6 +192,9 @@ export type ControllerState = {
   serviceCategoryEditorId: string | null;
   serviceCategoryEditorName: string;
   serviceDraft: ServiceDraft;
+  serviceProviders: StaffItem[];
+  serviceAssignableStaff: StaffItem[];
+  serviceProvidersLoading: boolean;
   scheduleEditorStaff: StaffItem | null;
   scheduleEditorDays: number[];
   scheduleEditorStart: string;
@@ -198,10 +212,17 @@ export type ControllerState = {
   authError: string;
   loading: LoadingState;
   moreMenu: MoreActionItem[];
+  visibleTabs: TabItem[];
   clientActionsFor: ClientItem | null;
   clientHistoryTarget: ClientItem | null;
   clientHistoryAppointments: AppointmentItem[];
   clientHistoryLoading: boolean;
+  journalAppointmentTarget: AppointmentItem | null;
+  journalClientTarget: ClientItem | null;
+  journalClientDraft: JournalClientDraft;
+  journalClientHistory: AppointmentItem[];
+  journalClientLoading: boolean;
+  journalClientSaving: boolean;
   staffFormMode: 'create' | 'edit' | null;
   staffDraft: StaffDraft;
   editorAccessEnabled: boolean;
@@ -211,6 +232,8 @@ export type ControllerState = {
   staffServicesEditorSelectedIds: string[];
   filteredStaffServicesForEditor: ServiceItem[];
   ownerDraft: OwnerDraft;
+  ownerCanEdit: boolean;
+  ownerAvatarPreviewUrl: string;
   journalDatePickerOpen: boolean;
   journalMarkedDates: string[];
   journalActionStaff: StaffItem | null;
@@ -220,6 +243,12 @@ export type ControllerState = {
   serviceImagePreviewUrl: string;
   staffAvatarServerDirHint: string;
   serviceImageServerDirHint: string;
+  editorPermissionsSheetOpen: boolean;
+  editorPermissionCatalog: StaffPermissionCatalogItem[];
+  editorPermissionCodes: string[];
+  editorPermissionBusyCode: string | null;
+  canEditClients: boolean;
+  canEditJournal: boolean;
 };
 
 export type ControllerActions = {
@@ -227,7 +256,7 @@ export type ControllerActions = {
   setAuthPin: (value: string) => void;
   handleLogin: () => Promise<void>;
   handleSetPin: (token: string, pin: string) => Promise<void>;
-  handleRequestPinReset: (phone: string) => Promise<{ sent: boolean; resetLink?: string }>;
+  handleRequestPinReset: (email: string) => Promise<{ sent: boolean; resetLink?: string }>;
   handleConfirmPinReset: (token: string, newPin: string) => Promise<void>;
   handleLogout: () => Promise<void>;
   setClientsQuery: (value: string) => void;
@@ -262,10 +291,25 @@ export type ControllerActions = {
   handleOpenClientHistory: () => Promise<void>;
   handleOpenClientLoyalty: () => Promise<void>;
   handleCloseClientHistory: () => void;
+  handleOpenJournalAppointment: (appointment: AppointmentItem) => void;
+  handleCloseJournalAppointment: () => void;
+  handleUpdateJournalAppointmentStatus: (
+    status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED',
+  ) => Promise<void>;
+  handleOpenJournalClient: () => Promise<void>;
+  handleCloseJournalClient: () => void;
+  setJournalClientDraft: Dispatch<SetStateAction<JournalClientDraft>>;
+  handleSaveJournalClient: () => Promise<void>;
+  handleCallJournalClient: () => void;
+  handleSmsJournalClient: () => void;
+  handleWhatsAppJournalClient: () => void;
   handleCallClient: () => void;
   handleSmsClient: () => void;
   handleWhatsAppClient: () => void;
   handleDeleteClient: () => void;
+  handleImportClientsFromContacts: (
+    contacts: Array<{ name: string; phone: string }>,
+  ) => Promise<{ imported: number; skipped: number }>;
   handleSetDate: () => void;
   handleCreateAppointment: () => Promise<void>;
   handleScheduleEdit: () => Promise<void>;
@@ -284,6 +328,8 @@ export type ControllerActions = {
   toggleStaffServiceCategorySelection: (categoryId: string) => void;
   saveStaffServicesEditor: () => Promise<void>;
   openEditorPermissionsPanel: () => void;
+  closeEditorPermissionsPanel: () => void;
+  toggleEditorPermission: (code: string, enabled: boolean) => Promise<void>;
   handleOpenJournalStaffActions: (item: StaffItem) => void;
   handleCloseJournalStaffActions: () => void;
   closeJournalDatePicker: () => void;
@@ -310,9 +356,14 @@ export type ControllerActions = {
   openServiceEditor: (serviceId: string | null) => void;
   closeServiceEditor: () => void;
   setServiceDraft: Dispatch<SetStateAction<ServiceDraft>>;
+  syncServiceProvidersForCurrentService: (staffIds: string[]) => Promise<void>;
+  removeServiceProviderFromCurrentService: (staffId: string) => Promise<void>;
   saveServiceEditor: () => Promise<void>;
   deleteServiceEditor: () => Promise<void>;
   handleSelectStaffAvatarFile: (file: File) => Promise<void>;
+  handleDeleteStaffAvatar: () => Promise<void>;
+  handleSelectOwnerAvatarFile: (file: File) => Promise<void>;
+  handleDeleteOwnerAvatar: () => Promise<void>;
   handleSelectServiceImageFile: (file: File) => Promise<void>;
 };
 

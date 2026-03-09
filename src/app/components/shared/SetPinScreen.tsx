@@ -1,5 +1,6 @@
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { PinCodePad } from './PinCodePad';
 
 type SetPinScreenProps = {
   token: string;
@@ -8,99 +9,140 @@ type SetPinScreenProps = {
   onSubmit: (pin: string) => Promise<void>;
 };
 
-const PIN_PATTERN = /^\d{4,8}$/;
+const PIN_PATTERN = /^\d{4}$/;
+const PIN_LENGTH = 4;
+type PinStep = 'create' | 'confirm';
 
 export function SetPinScreen({ token, loading, error, onSubmit }: SetPinScreenProps) {
   const [pin, setPin] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
   const [localError, setLocalError] = useState('');
+  const [step, setStep] = useState<PinStep>('create');
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const isCreateStep = step === 'create';
+  const activeValue = isCreateStep ? pin : pinConfirm;
+
+  const submitIfConfirmed = (confirmValue: string) => {
+    if (!PIN_PATTERN.test(pin) || !PIN_PATTERN.test(confirmValue)) {
+      setLocalError('Код-пароль должен содержать 4 цифры');
+      setStep('create');
+      setPin('');
+      setPinConfirm('');
+      return;
+    }
+    if (pin !== confirmValue) {
+      setLocalError('Код-пароль и подтверждение не совпадают');
+      setPinConfirm('');
+      return;
+    }
+    void onSubmit(pin);
+  };
+
+  const appendDigit = (digit: string) => {
+    if (loading) {
+      return;
+    }
     setLocalError('');
-
     if (!token.trim()) {
       setLocalError('Токен приглашения не найден');
       return;
     }
 
-    if (!PIN_PATTERN.test(pin.trim())) {
-      setLocalError('PIN должен содержать от 4 до 8 цифр');
+    if (isCreateStep) {
+      if (pin.length >= PIN_LENGTH) {
+        return;
+      }
+      const nextPin = `${pin}${digit}`;
+      setPin(nextPin);
+      if (nextPin.length === PIN_LENGTH) {
+        setStep('confirm');
+        setPinConfirm('');
+      }
       return;
     }
-
-    if (pin !== pinConfirm) {
-      setLocalError('PIN и подтверждение не совпадают');
+    if (pinConfirm.length >= PIN_LENGTH) {
       return;
     }
+    const nextConfirm = `${pinConfirm}${digit}`;
+    setPinConfirm(nextConfirm);
+    if (nextConfirm.length === PIN_LENGTH) {
+      submitIfConfirmed(nextConfirm);
+    }
+  };
 
-    void onSubmit(pin.trim());
+  const deleteDigit = () => {
+    if (loading) {
+      return;
+    }
+    setLocalError('');
+    if (isCreateStep) {
+      setPin((prev) => prev.slice(0, -1));
+      return;
+    }
+    setPinConfirm((prev) => prev.slice(0, -1));
   };
 
   return (
-    <form
-      className="flex flex-1 flex-col justify-center px-6 pb-16 pt-8"
-      onSubmit={handleSubmit}
-    >
-      <h1 className="text-3xl font-extrabold text-ink">Установка PIN</h1>
-      <p className="mt-2 text-sm font-semibold text-muted">
-        Завершите приглашение сотрудника
-      </p>
+    <section className="flex h-full min-h-full flex-1 flex-col px-6 pb-8 pt-8">
+      <div>
+        <h1 className="text-2xl my-6 font-extrabold text-ink">Установка код-пароля</h1>
+        <p className="mb-20 text-sm font-semibold text-muted">
+          {isCreateStep
+            ? 'Введите код-пароль сотрудника (4 цифры)'
+            : 'Повторите код-пароль для подтверждения'}
+        </p>
 
-      <div className="mt-6 space-y-3">
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-muted">PIN</span>
-          <input
-            value={pin}
-            onChange={(event) => setPin(event.target.value)}
-            placeholder="1234"
-            type="password"
-            autoComplete="new-password"
-            className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-muted">
-            Подтверждение PIN
-          </span>
-          <input
-            value={pinConfirm}
-            onChange={(event) => setPinConfirm(event.target.value)}
-            placeholder="1234"
-            type="password"
-            autoComplete="new-password"
-            className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none"
-          />
-        </label>
+        <PinCodePad
+          value={activeValue}
+          maxLength={PIN_LENGTH}
+          onAppendDigit={appendDigit}
+          onDeleteDigit={deleteDigit}
+          disabled={loading}
+        />
+
+        {loading ? (
+          <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Сохраняю код-пароль...
+          </div>
+        ) : null}
+
+        {localError ? (
+          <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
+            {localError}
+          </div>
+        ) : null}
+
+        {!localError && error ? (
+          <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
+            {error}
+          </div>
+        ) : null}
       </div>
 
-      {localError ? (
-        <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
-          {localError}
-        </div>
-      ) : null}
+      <div className="mt-auto flex flex-col">
+        {step === 'confirm' ? (
+          <button
+            type="button"
+            onClick={() => {
+              setLocalError('');
+              setStep('create');
+              setPin('');
+              setPinConfirm('');
+            }}
+            className="rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-muted"
+          >
+            Изменить код-пароль
+          </button>
+        ) : null}
 
-      {!localError && error ? (
-        <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
-          {error}
-        </div>
-      ) : null}
-
-      <button
-        type="submit"
-        disabled={loading || pin.trim().length === 0 || pinConfirm.trim().length === 0}
-        className="mt-5 inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-extrabold text-[#222b33] disabled:opacity-50"
-      >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Сохранить PIN
-      </button>
-
-      <a
-        href="/login"
-        className="mt-4 text-center text-sm font-semibold text-muted underline"
-      >
-        Перейти к входу
-      </a>
-    </form>
+        <a
+          href="/login"
+          className="mt-4 text-center text-sm font-semibold text-muted underline"
+        >
+          Перейти к входу
+        </a>
+      </div>
+    </section>
   );
 }

@@ -27,6 +27,9 @@ export const SESSION_STORAGE_KEY = 'mari.staff.session.v1';
 export const HOUR_HEIGHT = 76;
 export const JOURNAL_START_HOUR = 10;
 export const JOURNAL_END_HOUR = 18;
+export const JOURNAL_TIME_COLUMN_WIDTH = 72;
+export const JOURNAL_CARD_COLUMN_WIDTH = 160;
+export const JOURNAL_GRID_GAP = 8;
 
 export const DAY_NAMES = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'] as const;
 
@@ -52,7 +55,6 @@ export const MORE_MENU: MoreActionItem[] = [
   { title: 'Сотрудники', icon: UserRound },
   { title: 'Услуги', icon: Sparkles },
   { title: 'Аналитика', icon: ChartPie },
-  { title: 'Расчет зарплат', icon: BadgeDollarSign },
   { title: 'Онлайн-запись', icon: Clock3 },
   { title: 'Настройки', icon: Cog },
   { title: 'Поддержка', icon: MessageCircleMore },
@@ -73,10 +75,27 @@ export const MONTHS_RU = [
   'декабрь',
 ] as const;
 
+export const MONTHS_RU_GENITIVE = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+] as const;
+
 export const ROLE_LABELS: Record<StaffRole, string> = {
   MASTER: 'Мастер',
   OWNER: 'Владелец',
   ADMIN: 'Администратор',
+  DEVELOPER: 'Разработчик',
+  SMM: 'SMM',
 };
 
 export const EMPTY_STAFF_DRAFT: StaffDraft = {
@@ -89,7 +108,7 @@ export const EMPTY_STAFF_DRAFT: StaffDraft = {
 
 export const EMPTY_STAFF_FILTER: StaffFilter = {
   withServices: false,
-  withAccess: false,
+  withAccess: true,
 };
 
 export const EMPTY_OWNER_DRAFT: OwnerDraft = {

@@ -36,7 +36,7 @@ export function LoginScreen({
       return;
     }
     if (!isPinValid) {
-      setLocalError('PIN должен содержать 4-8 цифр');
+      setLocalError('Код-пароль должен содержать 4-8 цифр');
       return;
     }
     onLogin();
@@ -83,13 +83,13 @@ export function LoginScreen({
             />
           </div>
 
-          <label className="mt-8 text-[17px] font-bold text-[#51565f]">Пароль (PIN)</label>
+          <label className="mt-8 text-[17px] font-bold text-[#51565f]">Код-пароль</label>
           <div className="mt-3 flex items-center gap-3 border-b border-[#d2d5da] pb-3">
             <Lock className="h-5 w-5 text-[#a3a8b0]" strokeWidth={2.2} />
             <input
               value={pin}
               onChange={(event) => onPinChange(event.target.value)}
-              placeholder="Введите PIN"
+              placeholder="Введите код-пароль"
               type={showPin ? 'text' : 'password'}
               inputMode="numeric"
               autoComplete="current-password"
@@ -99,7 +99,7 @@ export function LoginScreen({
               type="button"
               onClick={() => setShowPin((prev) => !prev)}
               className="inline-flex h-8 w-8 items-center justify-center text-[#b5bac2]"
-              aria-label={showPin ? 'Скрыть PIN' : 'Показать PIN'}
+              aria-label={showPin ? 'Скрыть код-пароль' : 'Показать код-пароль'}
             >
               {showPin ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>

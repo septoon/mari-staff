@@ -14,7 +14,7 @@ export function StaffChip({ title, badge, avatarUrl, isUser, onClick }: StaffChi
     <button
       type="button"
       onClick={onClick}
-      className="mx-2 text-center"
+      className="w-full text-center"
     >
       <div
         className={clsx(

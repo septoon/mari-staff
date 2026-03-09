@@ -7,6 +7,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import { PageSheet } from './PageSheet';
 import type { ClientItem } from '../../types';
 
 type ClientActionsSheetProps = {
@@ -34,14 +35,16 @@ export function ClientActionsSheet({
     return null;
   }
 
-  const actionClass =
-    'flex w-full items-center justify-between px-6 py-5 text-left border-t border-line';
+  const actionClass = 'flex w-full items-center justify-between border-t border-line px-6 py-5 text-left';
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-[#11182766] pb-[86px]">
-      <button type="button" className="flex-1" onClick={onClose} />
-      <section className="rounded-t-[28px] bg-screen">
-        <div className="mx-auto my-2 h-2 w-16 rounded-full bg-[#c8c8cb]" />
+    <PageSheet
+      open={Boolean(client)}
+      onDismiss={onClose}
+      snapPoints={({ maxHeight }) => [Math.min(420, maxHeight), Math.min(720, maxHeight)]}
+      defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? snapPoints[0] ?? 0}
+    >
+      <section className="bg-screen">
         <div className="flex items-center gap-3 px-4 pb-3 pt-1">
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-ink">
             <X className="h-8 w-8" />
@@ -93,10 +96,14 @@ export function ClientActionsSheet({
 
         <div className="h-7 bg-[#e7e9ed]" />
 
-        <button type="button" className="w-full px-6 py-5 text-left text-[20px] font-medium text-[#ff622f]" onClick={onDelete}>
+        <button
+          type="button"
+          className="w-full px-6 py-5 text-left text-[20px] font-medium text-[#ff622f]"
+          onClick={onDelete}
+        >
           Удалить клиента
         </button>
       </section>
-    </div>
+    </PageSheet>
   );
 }

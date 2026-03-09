@@ -19,8 +19,8 @@ test('renders set-pin screen by route', () => {
       <App />
     </MemoryRouter>,
   );
-  expect(screen.getByText('Установка PIN')).toBeInTheDocument();
-  expect(screen.getByText('Сохранить PIN')).toBeInTheDocument();
+  expect(screen.getByText('Установка код-пароля')).toBeInTheDocument();
+  expect(screen.getByText('Введите код-пароль сотрудника (4 цифры)')).toBeInTheDocument();
 });
 
 test('renders reset-pin request screen by route', () => {
@@ -29,8 +29,8 @@ test('renders reset-pin request screen by route', () => {
       <App />
     </MemoryRouter>,
   );
-  expect(screen.getByText('Сброс PIN')).toBeInTheDocument();
-  expect(screen.getByText('Запросить сброс PIN')).toBeInTheDocument();
+  expect(screen.getByText('Сброс код-пароля')).toBeInTheDocument();
+  expect(screen.getByText('Запросить сброс код-пароля')).toBeInTheDocument();
 });
 
 test('renders reset-pin confirm screen by route token', () => {
@@ -39,6 +39,6 @@ test('renders reset-pin confirm screen by route token', () => {
       <App />
     </MemoryRouter>,
   );
-  expect(screen.getByRole('heading', { name: 'Новый PIN' })).toBeInTheDocument();
-  expect(screen.getByText('Сохранить новый PIN')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Новый код-пароль' })).toBeInTheDocument();
+  expect(screen.getByText('Введите новый код-пароль (4 цифры)')).toBeInTheDocument();
 });
