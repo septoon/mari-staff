@@ -18,6 +18,7 @@ import {
   TAB_ITEMS,
 } from './constants';
 import {
+  appointmentMatchesClient,
   formatTime,
   getWeekDates,
   normalizePhoneForLink,
@@ -66,6 +67,7 @@ const TAB_PERMISSION_CODE: Partial<Record<TabKey, string>> = {
   journal: 'VIEW_JOURNAL',
   schedule: 'VIEW_SCHEDULE',
   clients: 'VIEW_CLIENTS',
+  analytics: 'VIEW_FINANCIAL_STATS',
   notifications: 'VIEW_JOURNAL',
 };
 const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
@@ -94,6 +96,7 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   EDIT_SCHEDULE: ['EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   VIEW_CLIENTS: ['VIEW_CLIENTS', 'EDIT_CLIENTS', 'ACCESS_CLIENTS'],
   EDIT_CLIENTS: ['EDIT_CLIENTS', 'ACCESS_CLIENTS'],
+  VIEW_FINANCIAL_STATS: ['VIEW_FINANCIAL_STATS', 'ACCESS_FINANCIAL_STATS', 'VIEW_REPORTS'],
   VIEW_SERVICES: ['VIEW_SERVICES', 'EDIT_SERVICES', 'ACCESS_SERVICES'],
   EDIT_SERVICES: ['EDIT_SERVICES', 'ACCESS_SERVICES'],
   VIEW_STAFF: ['VIEW_STAFF', 'EDIT_STAFF', 'ACCESS_STAFF'],
@@ -181,6 +184,8 @@ export function useAppController(): AppController {
     setServices,
     appointments,
     setAppointments,
+    journalListAppointments,
+    setJournalListAppointments,
     workingHoursByStaff,
     setWorkingHoursByStaff,
     panel,
@@ -257,6 +262,8 @@ export function useAppController(): AppController {
     setServiceCategoryEditorName,
     serviceDraft,
     setServiceDraft,
+    serviceEditorReturnPage,
+    setServiceEditorReturnPage,
     serviceProviders,
     setServiceProviders,
     serviceAssignableStaff,
@@ -306,6 +313,7 @@ export function useAppController(): AppController {
   } = useAppState();
   const pageRef = useRef(page);
   const tabRef = useRef(tab);
+  const initialDataLoadedRef = useRef(false);
 
   useEffect(() => {
     pageRef.current = page;
@@ -344,6 +352,7 @@ export function useAppController(): AppController {
   const canViewServices = hasPermissionAccess('VIEW_SERVICES');
   const canViewStaff = hasPermissionAccess('VIEW_STAFF');
   const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
+  const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
   const canEditPrivacyPolicy = hasPermissionAccess('MANAGE_CLIENT_FRONT');
   const canEdit = useCallback(
     (permissionCode: string) => hasPermissionAccess(permissionCode),
@@ -660,9 +669,9 @@ export function useAppController(): AppController {
     loadStaffServicesForEditor,
     loadClients,
     loadAppointments,
+    loadJournalListAppointments,
     loadJournalMarkedDates,
     loadSettings,
-    loadReports,
     loadWorkingHours,
     refreshStaffAndMeta,
     refreshAll,
@@ -690,6 +699,7 @@ export function useAppController(): AppController {
     setToast,
     setClients,
     setAppointments,
+    setJournalListAppointments,
     setJournalMarkedDates,
     setWorkingHoursByStaff,
     setSettingsClientCancelMinNoticeMinutes,
@@ -878,10 +888,47 @@ export function useAppController(): AppController {
 
   useEffect(() => {
     if (!isAuthorized) {
+      initialDataLoadedRef.current = false;
       return;
     }
-    void refreshAll();
-  }, [isAuthorized, refreshAll]);
+    if (initialDataLoadedRef.current) {
+      return;
+    }
+    initialDataLoadedRef.current = true;
+
+    void (async () => {
+      const rows = canUseStaffDirectory ? await loadStaff() : [];
+      await Promise.all([
+        canViewServices ? loadServices() : Promise.resolve([]),
+        loadSettings(),
+        canViewJournal ? loadJournalListAppointments() : Promise.resolve(),
+      ]);
+      if (!canUseStaffDirectory) {
+        setStaff([]);
+        return;
+      }
+      if (rows.length === 0) {
+        setStaff([]);
+      }
+    })();
+  }, [
+    canUseStaffDirectory,
+    canViewJournal,
+    canViewServices,
+    isAuthorized,
+    loadJournalListAppointments,
+    loadServices,
+    loadSettings,
+    loadStaff,
+    setStaff,
+  ]);
+
+  useEffect(() => {
+    if (!isAuthorized || !canViewStaff || page !== 'staff' || staff.length === 0) {
+      return;
+    }
+    void loadStaffServiceMeta(staff);
+  }, [canViewStaff, isAuthorized, loadStaffServiceMeta, page, staff]);
 
   useEffect(() => {
     if (!isAuthorized) {
@@ -895,8 +942,7 @@ export function useAppController(): AppController {
       return;
     }
     void loadAppointments(selectedDate);
-    void loadReports();
-  }, [isAuthorized, loadAppointments, loadReports, selectedDate]);
+  }, [isAuthorized, loadAppointments, selectedDate]);
 
   useEffect(() => {
     if (!isAuthorized) {
@@ -906,11 +952,11 @@ export function useAppController(): AppController {
   }, [isAuthorized, loadJournalMarkedDates, selectedDate]);
 
   useEffect(() => {
-    if (!isAuthorized || staff.length === 0) {
+    if (!isAuthorized || page !== 'tabs' || tab !== 'schedule' || staff.length === 0) {
       return;
     }
     void loadWorkingHours(staff);
-  }, [isAuthorized, loadWorkingHours, staff]);
+  }, [isAuthorized, loadWorkingHours, page, staff, tab]);
 
   const closeStaffForm = useCallback(() => {
     setStaffFormMode(null);
@@ -1114,6 +1160,19 @@ export function useAppController(): AppController {
     setStaffAvatarAssetId(item.avatarAssetId ?? null);
     setStaffFormMode('edit');
     setPage('staffEditor');
+    void (async () => {
+      try {
+        const [catalog, assignedCodes] = await Promise.all([
+          api.getStaffPermissionsCatalog(),
+          api.getStaffPermissions(item.id),
+        ]);
+        setEditorPermissionCatalog(catalog);
+        setEditorPermissionCodes(assignedCodes);
+      } catch {
+        setEditorPermissionCatalog([]);
+        setEditorPermissionCodes([]);
+      }
+    })();
     await loadStaffServicesForEditor(item.id);
   };
 
@@ -1484,32 +1543,51 @@ export function useAppController(): AppController {
   };
 
   const fetchClientHistoryFromAppointments = async (client: ClientItem) => {
+    const sortHistory = (items: AppointmentItem[]) =>
+      [...items].sort((a, b) => b.startAt.getTime() - a.startAt.getTime());
+    const matchHistory = (items: AppointmentItem[]) =>
+      items.filter((item) => appointmentMatchesClient(item, client));
+
+    const localHistory = sortHistory(matchHistory(journalListAppointments));
+    if (localHistory.length > 0) {
+      return localHistory;
+    }
+
     const now = new Date();
     const from = new Date(now);
     from.setFullYear(now.getFullYear() - 2);
-    const params = new URLSearchParams({
-      page: '1',
-      limit: '500',
-      from: toISODate(from),
-      to: toISODate(now),
-    });
     const historyEndpoint =
       session?.staff.role === 'MASTER' ? '/master/appointments' : '/appointments';
-    const data = await api.get<unknown>(`${historyEndpoint}?${params.toString()}`);
-    const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
-    return parsed
-      .filter((item) => {
-        if (item.clientId) {
-          return item.clientId === client.id;
-        }
-        const samePhone =
-          normalizePhoneForWhatsApp(item.clientPhone) ===
-          normalizePhoneForWhatsApp(client.phone);
-        const sameName =
-          item.clientName.trim().toLowerCase() === client.name.trim().toLowerCase();
-        return samePhone || sameName;
-      })
-      .sort((a, b) => b.startAt.getTime() - a.startAt.getTime());
+    const merged: AppointmentItem[] = [];
+    const limit = 200;
+    let page = 1;
+
+    while (page <= 20) {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        from: toISODate(from),
+        to: toISODate(now),
+      });
+      const data = await api.get<unknown>(`${historyEndpoint}?${params.toString()}`);
+      const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
+      merged.push(...parsed);
+
+      const root = toRecord(data);
+      const meta = toRecord(root?.meta);
+      const totalPages =
+        toNumber(meta?.totalPages) ?? toNumber(meta?.pages) ?? toNumber(meta?.pageCount);
+
+      if (totalPages && page >= totalPages) {
+        break;
+      }
+      if (parsed.length < limit) {
+        break;
+      }
+      page += 1;
+    }
+
+    return sortHistory(matchHistory(merged));
   };
 
   const handleOpenClientHistory = async () => {
@@ -2583,6 +2661,7 @@ export function useAppController(): AppController {
       setToast('Нет прав на редактирование услуг');
       return;
     }
+    setServiceEditorReturnPage(page === 'servicesCategories' ? 'servicesCategories' : 'servicesCategory');
     if (!serviceId) {
       resetServiceImageState();
       setServiceDraft({
@@ -2620,13 +2699,38 @@ export function useAppController(): AppController {
     setPage('serviceEditor');
   };
 
+  const openServiceCreateForCategory = (categoryId: string) => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
+    const category = serviceCategories.find((item) => item.id === categoryId);
+    if (!category) {
+      setToast('Категория не найдена');
+      return;
+    }
+    setSelectedServiceCategoryId(category.id);
+    setSelectedServiceCategoryName(category.name);
+    setServiceEditorReturnPage('servicesCategories');
+    resetServiceImageState();
+    setServiceDraft({
+      ...EMPTY_SERVICE_DRAFT,
+      categoryId: category.id,
+      categoryName: category.name,
+    });
+    setServiceProviders([]);
+    setServiceAssignableStaff(staff.filter((item) => item.role === 'MASTER' && item.isActive));
+    setServiceProvidersLoading(false);
+    setPage('serviceEditor');
+  };
+
   const closeServiceEditor = () => {
     setServiceDraft(EMPTY_SERVICE_DRAFT);
     setServiceProviders([]);
     setServiceAssignableStaff([]);
     setServiceProvidersLoading(false);
     resetServiceImageState();
-    setPage('servicesCategory');
+    setPage(serviceEditorReturnPage);
   };
 
   const persistLocalServiceDraft = (id: string) => {
@@ -2799,6 +2903,52 @@ export function useAppController(): AppController {
     }
   };
 
+  const toggleServiceActiveInline = async (serviceId: string, enabled: boolean) => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
+    const found = services.find((item) => item.id === serviceId);
+    if (!found) {
+      setToast('Услуга не найдена');
+      return;
+    }
+
+    const payload = {
+      name: found.name,
+      nameOnline: found.nameOnline || found.name,
+      categoryId: found.categoryId,
+      description: found.description || undefined,
+      durationSec: Math.max(600, Math.round(found.durationSec || 0)),
+      priceMin: Math.max(0, Math.round(found.priceMin || 0)),
+      priceMax: Math.max(0, Math.round(found.priceMax || found.priceMin || 0)),
+      isActive: enabled,
+    };
+
+    try {
+      const result = await runServiceMutations([
+        () => api.patch(`/services/${serviceId}`, payload),
+        () => api.put(`/services/${serviceId}`, payload),
+      ]);
+      setServices((prev) =>
+        prev.map((item) =>
+          item.id === serviceId
+            ? {
+                ...item,
+                isActive: enabled,
+                nameOnline: payload.nameOnline,
+              }
+            : item,
+        ),
+      );
+      if (!result.ok) {
+        setToast('Статус услуги обновлен локально (API read-only)');
+      }
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    }
+  };
+
   const handleMoreAction = async (title: string) => {
     if (!session) {
       return;
@@ -2826,20 +2976,9 @@ export function useAppController(): AppController {
           return;
         }
         case 'Аналитика': {
-          const overview = await loadReports();
-          if (!overview) {
-            setPanel({ title: 'Аналитика', lines: ['Нет данных'] });
-            return;
-          }
-          setPanel({
-            title: 'Аналитика',
-            lines: [
-              `Записей: ${toNumber(overview.appointmentsCount) ?? 0}`,
-              `Пришли: ${toNumber(overview.arrivedCount) ?? 0}`,
-              `No-show: ${toNumber(overview.noShowCount) ?? 0}`,
-              `Отменено: ${toNumber(overview.cancelledCount) ?? 0}`,
-            ],
-          });
+          setPanel(null);
+          setPage('tabs');
+          setTab('analytics');
           return;
         }
         case 'Онлайн-запись': {
@@ -3022,6 +3161,11 @@ export function useAppController(): AppController {
     }
     if (!editingStaffId) {
       setToast('Сначала сохраните сотрудника, затем настраивайте права');
+      return;
+    }
+
+    if (editorPermissionCatalog.length > 0) {
+      setEditorPermissionsSheetOpen(true);
       return;
     }
 
@@ -3269,12 +3413,20 @@ export function useAppController(): AppController {
     if (!journalActionStaff) {
       return;
     }
-    const day = toISODay(selectedDate);
-    const daySlots = workingHoursByStaff[journalActionStaff.id]?.[day] ?? [];
-    const firstSlot = daySlots.length > 0 ? parseSlot(daySlots[0]) : null;
-    setJournalDayStart(firstSlot?.start || '10:00');
-    setJournalDayEnd(firstSlot?.end || '18:00');
-    setPage('journalDayEdit');
+    setLoadingKey(setLoading, 'action', true);
+    void (async () => {
+      try {
+        const day = toISODay(selectedDate);
+        const hours = await fetchStaffWorkingHours(journalActionStaff.id);
+        const daySlots = hours[day] ?? [];
+        const firstSlot = daySlots.length > 0 ? parseSlot(daySlots[0]) : null;
+        setJournalDayStart(firstSlot?.start || '10:00');
+        setJournalDayEnd(firstSlot?.end || '18:00');
+        setPage('journalDayEdit');
+      } finally {
+        setLoadingKey(setLoading, 'action', false);
+      }
+    })();
   };
 
   const handleOpenJournalDayRemovePage = () => {
@@ -3408,6 +3560,7 @@ export function useAppController(): AppController {
   const loadAppointmentsForSelectedDate = async () => {
     await Promise.all([
       loadAppointments(selectedDate),
+      loadJournalListAppointments(),
       loadJournalMarkedDates(selectedDate),
     ]);
   };
@@ -3493,6 +3646,7 @@ export function useAppController(): AppController {
       scheduleEditorStart,
       scheduleEditorEnd,
       appointments,
+      journalListAppointments,
       journalCards,
       notifications,
       workingHoursByStaff,
@@ -3647,8 +3801,10 @@ export function useAppController(): AppController {
       saveServiceCategoryEditor,
       deleteServiceCategoryEditor,
       openServiceEditor,
+      openServiceCreateForCategory,
       closeServiceEditor,
       setServiceDraft,
+      toggleServiceActiveInline,
       syncServiceProvidersForCurrentService,
       removeServiceProviderFromCurrentService,
       saveServiceEditor,

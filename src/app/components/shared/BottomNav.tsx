@@ -13,6 +13,7 @@ export function BottomNav({ active, items, onChange }: BottomNavProps) {
     journal: '/journal',
     schedule: '/schedule',
     clients: '/clients',
+    analytics: '/analytics',
     notifications: '/notifications',
     more: '/more',
   };

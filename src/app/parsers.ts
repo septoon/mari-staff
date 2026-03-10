@@ -45,7 +45,11 @@ export function parseClient(value: unknown): ClientItem | null {
     return null;
   }
   const id = toString(record.id);
-  const phone = toString(record.phoneE164) || toString(record.phone) || '';
+  const phone =
+    toString(record.phoneE164) ||
+    toString(record.phoneNumber) ||
+    toString(record.phone) ||
+    '';
   const name =
     toString(record.name) ||
     toString(record.fullName) ||
@@ -58,6 +62,12 @@ export function parseClient(value: unknown): ClientItem | null {
     id,
     name,
     phone,
+    email: toString(record.email),
+    comment: toString(record.comment),
+    avatarUrl:
+      toNullableString(record.avatarUrl) ||
+      toNullableString(record.photoUrl) ||
+      toNullableString(record.imageUrl),
   };
 }
 
@@ -142,11 +152,19 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
     toString(record.createdAt) || toString(record.updatedAt) || startAt.toISOString();
   const createdAt = new Date(createdAtRaw);
 
-  const discountRecord = toRecord(record.discount);
-  const discountType = toString(discountRecord?.type);
-  const discountValueRaw = toNumber(discountRecord?.value) ?? toNumber(record.discountPercent);
+  const pricesRecord = toRecord(record.prices);
+  const promoRecord = toRecord(record.promo);
+  const paymentRecord = toRecord(record.payment);
+  const discountRecord = toRecord(record.discount) || promoRecord;
+  const discountType =
+    toString(discountRecord?.type) || toString(discountRecord?.discountType);
+  const discountValueRaw =
+    toNumber(discountRecord?.value) ??
+    toNumber(discountRecord?.discountValue) ??
+    toNumber(record.discountPercent);
 
   const amountAfterDiscount =
+    toNumber(pricesRecord?.finalTotal) ??
     toNumber(record.totalAmount) ??
     toNumber(record.finalAmount) ??
     toNumber(record.amountDue) ??
@@ -154,11 +172,16 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
     toNumber(record.sum) ??
     null;
   const amountBeforeDiscount =
+    toNumber(pricesRecord?.baseTotal) ??
     toNumber(record.originalAmount) ??
     toNumber(record.baseAmount) ??
     toNumber(record.subtotal) ??
     toNumber(record.priceTotal) ??
     amountAfterDiscount;
+  const paidAmount =
+    toNumber(paymentRecord?.paidAmount) ??
+    toNumber(record.paidAmount) ??
+    null;
 
   let discountPercent: number | null = null;
   if (discountType === 'PERCENT' && discountValueRaw !== null) {
@@ -215,6 +238,7 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
     amountBeforeDiscount,
     discountPercent,
     amountAfterDiscount,
+    paidAmount,
     createdAt: Number.isNaN(createdAt.getTime()) ? startAt : createdAt,
   };
 }

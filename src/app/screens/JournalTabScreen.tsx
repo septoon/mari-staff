@@ -1,6 +1,15 @@
 import clsx from 'clsx';
-import { ChevronDown, Loader2, Plus, RefreshCcw, Search, Settings2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  RefreshCcw,
+  Search,
+  Settings2,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   JOURNAL_CARD_COLUMN_WIDTH,
   JOURNAL_GRID_GAP,
@@ -9,21 +18,21 @@ import {
 import { formatDateLabel, formatRub, formatTime } from '../helpers';
 import type { AppointmentItem, JournalCard, StaffItem, TabItem, TabKey } from '../types';
 import { AppointmentCard } from '../components/shared/AppointmentCard';
-import { DesktopTabSidebar } from '../components/shared/DesktopTabSidebar';
 import { JournalDatePickerSheet } from '../components/shared/JournalDatePickerSheet';
-import { JournalMiniCalendar } from '../components/shared/JournalMiniCalendar';
 import { StaffChip } from '../components/shared/StaffChip';
 
-type JournalScreenProps = {
+type JournalTabScreenProps = {
   selectedDate: Date;
   staff: StaffItem[];
   journalHours: string[];
   cards: JournalCard[];
+  listAppointments: AppointmentItem[];
   loading: boolean;
   datePickerOpen: boolean;
   markedDates: string[];
   visibleTabs: TabItem[];
   activeTab: TabKey;
+  showOwnerDaySummary: boolean;
   onSetDate: () => void;
   onCloseDatePicker: () => void;
   onSelectDate: (value: Date) => void;
@@ -37,6 +46,8 @@ type JournalScreenProps = {
 
 const DESKTOP_FILTER_INPUT_CLASS =
   'h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#b7c0cd]';
+const JOURNAL_PAGE_SIZE = 25;
+const JOURNAL_LIST_SKELETON_ROWS = 8;
 
 function normalizeJournalStatus(value: string) {
   if (value === 'ARRIVED' || value === 'NO_SHOW' || value === 'CONFIRMED') {
@@ -71,16 +82,52 @@ function journalStatusClass(value: string) {
   return 'bg-[#fff3d4] text-[#8d6700]';
 }
 
-export function JournalScreen({
+function JournalListSkeletonRow() {
+  return (
+    <div className="grid w-full gap-4 px-6 py-5 md:grid-cols-[120px_repeat(2,minmax(0,1fr))] xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]">
+      <div className="animate-pulse">
+        <div className="h-8 w-16 rounded-full bg-[#e8edf3]" />
+        <div className="mt-3 h-4 w-20 rounded-full bg-[#eef2f6]" />
+      </div>
+
+      <div className="animate-pulse">
+        <div className="h-7 w-40 rounded-full bg-[#e8edf3]" />
+        <div className="mt-3 h-4 w-28 rounded-full bg-[#eef2f6]" />
+      </div>
+
+      <div className="animate-pulse">
+        <div className="h-6 w-44 rounded-full bg-[#e8edf3]" />
+        <div className="mt-3 h-4 w-24 rounded-full bg-[#eef2f6]" />
+      </div>
+
+      <div className="animate-pulse">
+        <div className="h-6 w-28 rounded-full bg-[#e8edf3]" />
+        <div className="mt-3 h-4 w-20 rounded-full bg-[#eef2f6]" />
+      </div>
+
+      <div className="animate-pulse">
+        <div className="h-10 w-28 rounded-full bg-[#eef2f6]" />
+      </div>
+
+      <div className="animate-pulse">
+        <div className="h-6 w-16 rounded-full bg-[#e8edf3]" />
+      </div>
+    </div>
+  );
+}
+
+export function JournalTabScreen({
   selectedDate,
   staff,
   journalHours,
   cards,
+  listAppointments,
   loading,
   datePickerOpen,
   markedDates,
   visibleTabs,
   activeTab,
+  showOwnerDaySummary,
   onSetDate,
   onCloseDatePicker,
   onSelectDate,
@@ -90,11 +137,12 @@ export function JournalScreen({
   onTabChange,
   onStaffClick,
   onCardClick,
-}: JournalScreenProps) {
+}: JournalTabScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceQuery, setServiceQuery] = useState('');
   const [staffFilterId, setStaffFilterId] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const columnsCount = Math.max(1, staff.length);
   const gridTemplateColumns = `${JOURNAL_TIME_COLUMN_WIDTH}px repeat(${columnsCount}, ${JOURNAL_CARD_COLUMN_WIDTH}px)`;
@@ -107,13 +155,13 @@ export function JournalScreen({
   const normalizedServiceQuery = serviceQuery.trim().toLowerCase();
   const filteredCards = useMemo(
     () =>
-      [...cards]
+      [...listAppointments]
         .sort((left, right) => {
-          const startDiff = left.startAt.getTime() - right.startAt.getTime();
-          if (startDiff !== 0) {
-            return startDiff;
+          const createdDiff = right.createdAt.getTime() - left.createdAt.getTime();
+          if (createdDiff !== 0) {
+            return createdDiff;
           }
-          return left.staffName.localeCompare(right.staffName, 'ru');
+          return right.startAt.getTime() - left.startAt.getTime();
         })
         .filter((item) => {
           const normalizedStatus = normalizeJournalStatus(item.status);
@@ -134,25 +182,27 @@ export function JournalScreen({
           const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
           return matchesSearch && matchesService && matchesStaff && matchesStatus;
         }),
-    [cards, normalizedSearchQuery, normalizedServiceQuery, staffFilterId, statusFilter],
+    [listAppointments, normalizedSearchQuery, normalizedServiceQuery, staffFilterId, statusFilter],
   );
 
-  const totalRevenue = useMemo(
-    () =>
-      filteredCards.reduce((sum, item) => {
-        const amount = item.amountAfterDiscount ?? item.amountBeforeDiscount ?? 0;
-        return sum + amount;
-      }, 0),
-    [filteredCards],
-  );
-  const confirmedCount = useMemo(
-    () =>
-      filteredCards.filter((item) => {
-        const status = normalizeJournalStatus(item.status);
-        return status === 'CONFIRMED' || status === 'ARRIVED';
-      }).length,
-    [filteredCards],
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredCards.length / JOURNAL_PAGE_SIZE));
+  const paginatedCards = useMemo(() => {
+    const start = (currentPage - 1) * JOURNAL_PAGE_SIZE;
+    return filteredCards.slice(start, start + JOURNAL_PAGE_SIZE);
+  }, [currentPage, filteredCards]);
+  const visiblePaginationPages = useMemo(() => {
+    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+    const end = Math.min(totalPages, start + 4);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDate, normalizedSearchQuery, normalizedServiceQuery, staffFilterId, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
 
   return (
     <>
@@ -258,41 +308,7 @@ export function JournalScreen({
         ) : null}
       </div>
 
-      <div className="hidden gap-6 pb-6 pt-6 md:grid md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[304px_minmax(0,1fr)]">
-        <div className="space-y-5">
-          <DesktopTabSidebar active={activeTab} items={visibleTabs} onChange={onTabChange} />
-          <JournalMiniCalendar
-            selectedDate={selectedDate}
-            markedDates={markedDates}
-            onSelectDate={onSelectDate}
-          />
-          <section className="rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
-              Сводка дня
-            </p>
-            <div className="mt-4 grid gap-3">
-              <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
-                <p className="text-sm font-semibold text-[#7b8390]">Всего записей</p>
-                <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
-                  {filteredCards.length}
-                </p>
-              </div>
-              <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
-                <p className="text-sm font-semibold text-[#7b8390]">Подтверждены</p>
-                <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
-                  {confirmedCount}
-                </p>
-              </div>
-              <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
-                <p className="text-sm font-semibold text-[#7b8390]">Оборот дня</p>
-                <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
-                  {totalRevenue > 0 ? formatRub(totalRevenue) : '—'}
-                </p>
-              </div>
-            </div>
-          </section>
-        </div>
-
+      <div className="hidden pb-6 md:block">
         <section className="min-w-0">
           <div className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)] lg:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -304,8 +320,7 @@ export function JournalScreen({
                   Записи
                 </h1>
                 <p className="mt-3 text-base font-semibold text-[#717986]">
-                  Список визитов за {formatDateLabel(selectedDate)} с быстрыми фильтрами вместо
-                  календарной сетки.
+                  Полный список записей за все дни. Сверху новые, ниже более ранние.
                 </p>
               </div>
 
@@ -389,13 +404,12 @@ export function JournalScreen({
                   Список записей
                 </p>
                 <p className="mt-2 text-[28px] font-extrabold leading-none text-ink">
-                  {filteredCards.length}
+                  {loading && filteredCards.length === 0 ? '—' : filteredCards.length}
                 </p>
               </div>
-              {loading ? (
-                <div className="inline-flex items-center gap-2 text-sm font-semibold text-muted">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Синхронизация с сервером...
+              {!loading && filteredCards.length > 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#f5f7fa] px-4 py-2 text-sm font-semibold text-[#6f7784]">
+                  {`Страница ${currentPage} из ${totalPages}`}
                 </div>
               ) : null}
             </div>
@@ -409,79 +423,139 @@ export function JournalScreen({
               <span>Сумма</span>
             </div>
 
-            {filteredCards.length === 0 ? (
+            {loading ? (
+              <div className="divide-y divide-[#eef2f6]">
+                {Array.from({ length: JOURNAL_LIST_SKELETON_ROWS }).map((_, index) => (
+                  <JournalListSkeletonRow key={`journal-skeleton-${index}`} />
+                ))}
+              </div>
+            ) : filteredCards.length === 0 ? (
               <div className="px-6 py-14 text-center">
                 <p className="text-[28px] font-extrabold text-ink">Записей не найдено</p>
                 <p className="mt-3 text-base font-semibold text-[#7d8693]">
-                  Измените фильтры или выберите другую дату в календаре слева.
+                  Измените фильтры поиска или дождитесь загрузки списка.
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-[#eef2f6]">
-                {filteredCards.map((card) => {
-                  const normalizedStatus = normalizeJournalStatus(card.status);
-                  const amount = card.amountAfterDiscount ?? card.amountBeforeDiscount;
-                  return (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => onCardClick(card)}
-                      className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-[#f7f9fc] md:grid-cols-[120px_repeat(2,minmax(0,1fr))] xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]"
-                    >
-                      <div>
-                        <p className="text-[28px] font-extrabold leading-none text-ink">
-                          {formatTime(card.startAt)}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                          {formatDateLabel(card.startAt)}
-                        </p>
+              <>
+                <div className="divide-y divide-[#eef2f6]">
+                  {paginatedCards.map((card) => {
+                    const normalizedStatus = normalizeJournalStatus(card.status);
+                    const amount = card.amountAfterDiscount ?? card.amountBeforeDiscount;
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => onCardClick(card)}
+                        className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-[#f7f9fc] md:grid-cols-[120px_repeat(2,minmax(0,1fr))] xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]"
+                      >
+                        <div>
+                          <p className="text-[28px] font-extrabold leading-none text-ink">
+                            {formatTime(card.startAt)}
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
+                            {formatDateLabel(card.startAt)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[20px] font-extrabold leading-tight text-ink">
+                            {card.clientName || 'Клиент'}
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
+                            {card.clientPhone || 'Телефон не указан'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[18px] font-bold leading-tight text-ink">
+                            {card.serviceName || 'Без услуги'}
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
+                            {`${formatTime(card.startAt)}-${formatTime(card.endAt)}`}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[18px] font-bold leading-tight text-ink">{card.staffName}</p>
+                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
+                            {card.createdAt.toLocaleDateString('ru-RU', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })}
+                          </p>
+                        </div>
+
+                        <div>
+                          <span
+                            className={clsx(
+                              'inline-flex rounded-full px-3 py-2 text-sm font-extrabold',
+                              journalStatusClass(normalizedStatus),
+                            )}
+                          >
+                            {journalStatusLabel(normalizedStatus)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-[18px] font-extrabold text-ink">
+                            {amount !== null ? formatRub(amount) : '—'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {totalPages > 1 ? (
+                  <div className="flex items-center justify-between gap-4 border-t border-[#eef2f6] px-6 py-4">
+                    <p className="text-sm font-semibold text-[#7a8290]">
+                      {`Показаны ${paginatedCards.length} из ${filteredCards.length}`}
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-3 text-sm font-semibold text-ink transition hover:border-[#c8d0db] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Назад
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {visiblePaginationPages.map((page) => (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            className={clsx(
+                              'inline-flex h-10 min-w-10 items-center justify-center rounded-2xl px-3 text-sm font-extrabold transition',
+                              page === currentPage
+                                ? 'bg-[#222b33] text-white shadow-[0_10px_24px_rgba(34,43,51,0.16)]'
+                                : 'border border-[#dde3eb] bg-white text-ink hover:border-[#c8d0db]',
+                            )}
+                          >
+                            {page}
+                          </button>
+                        ))}
                       </div>
 
-                      <div>
-                        <p className="text-[20px] font-extrabold leading-tight text-ink">
-                          {card.clientName || 'Клиент'}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                          {card.clientPhone || 'Телефон не указан'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[18px] font-bold leading-tight text-ink">
-                          {card.serviceName || 'Без услуги'}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                          {`${formatTime(card.startAt)}-${formatTime(card.endAt)}`}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[18px] font-bold leading-tight text-ink">{card.staffName}</p>
-                        <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                          {card.topTone === 'green' ? 'Свободный слот' : 'Плотная загрузка'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <span
-                          className={clsx(
-                            'inline-flex rounded-full px-3 py-2 text-sm font-extrabold',
-                            journalStatusClass(normalizedStatus),
-                          )}
-                        >
-                          {journalStatusLabel(normalizedStatus)}
-                        </span>
-                      </div>
-
-                      <div>
-                        <p className="text-[18px] font-extrabold text-ink">
-                          {amount !== null ? formatRub(amount) : '—'}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-3 text-sm font-semibold text-ink transition hover:border-[#c8d0db] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        Вперед
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </section>

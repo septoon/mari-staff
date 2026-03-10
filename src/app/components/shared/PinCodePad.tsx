@@ -16,8 +16,8 @@ export function PinCodePad({
   disabled = false,
 }: PinCodePadProps) {
   return (
-    <div className="mt-8">
-      <div className="mx-auto flex w-full max-w-[280px] items-center justify-center gap-5">
+    <div className="mt-8 md:mt-0">
+      <div className="mx-auto flex w-full max-w-[280px] items-center justify-center gap-5 md:max-w-[320px] md:gap-6">
         {Array.from({ length: maxLength }).map((_, index) => {
           const isFilled = index < value.length;
           return (
@@ -31,7 +31,7 @@ export function PinCodePad({
         })}
       </div>
 
-      <div className="mx-auto mt-10 grid w-full max-w-[360px] grid-cols-3 gap-y-7">
+      <div className="mx-auto mt-10 grid w-full max-w-[360px] grid-cols-3 gap-y-7 md:mt-8 md:max-w-[348px] md:gap-y-5">
         {DIGITS_LAYOUT.map((item, index) => {
           if (item === '') {
             return <div key={`empty-${index}`} aria-hidden="true" />;
@@ -45,7 +45,7 @@ export function PinCodePad({
                 aria-label="Удалить цифру"
                 onClick={onDeleteDigit}
                 disabled={disabled || value.length === 0}
-                className="mx-auto inline-flex h-20 w-20 items-center justify-center rounded-full text-[36px] font-light leading-none text-ink transition active:scale-95 active:bg-[#e4e6eb] disabled:opacity-35"
+                className="mx-auto inline-flex h-20 w-20 items-center justify-center rounded-full text-[36px] font-light leading-none text-ink transition active:scale-95 active:bg-[#e4e6eb] disabled:opacity-35 md:h-[72px] md:w-[72px] md:text-[30px] md:hover:bg-[#eceef3]"
               >
                 ⌫
               </button>
@@ -58,7 +58,7 @@ export function PinCodePad({
               type="button"
               onClick={() => onAppendDigit(item)}
               disabled={disabled || value.length >= maxLength}
-              className="mx-auto inline-flex h-20 w-20 items-center justify-center rounded-full text-[64px] font-light leading-none text-ink transition active:scale-95 active:bg-[#e4e6eb] disabled:opacity-35"
+              className="mx-auto inline-flex h-20 w-20 items-center justify-center rounded-full text-[64px] font-light leading-none text-ink transition active:scale-95 active:bg-[#e4e6eb] disabled:opacity-35 md:h-[72px] md:w-[72px] md:text-[56px] md:hover:bg-[#eceef3]"
             >
               {item}
             </button>

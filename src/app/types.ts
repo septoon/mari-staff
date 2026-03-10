@@ -4,7 +4,7 @@ import type { StaffPermissionCatalogItem, StaffRole, StaffSession } from '../api
 
 export type { StaffPermissionCatalogItem, StaffRole, StaffSession };
 
-export type TabKey = 'journal' | 'schedule' | 'clients' | 'notifications' | 'more';
+export type TabKey = 'journal' | 'schedule' | 'clients' | 'analytics' | 'notifications' | 'more';
 export type AppPage =
   | 'tabs'
   | 'scheduleEditor'
@@ -68,6 +68,9 @@ export type ClientItem = {
   id: string;
   name: string;
   phone: string;
+  email?: string;
+  comment?: string;
+  avatarUrl?: string | null;
 };
 
 export type ServiceItem = {
@@ -117,6 +120,7 @@ export type AppointmentItem = {
   amountBeforeDiscount: number | null;
   discountPercent: number | null;
   amountAfterDiscount: number | null;
+  paidAmount: number | null;
   createdAt: Date;
 };
 
@@ -202,6 +206,7 @@ export type ControllerState = {
   scheduleEditorStart: string;
   scheduleEditorEnd: string;
   appointments: AppointmentItem[];
+  journalListAppointments: AppointmentItem[];
   journalCards: JournalCard[];
   notifications: NotificationItem[];
   workingHoursByStaff: WorkingHoursMap;
@@ -361,8 +366,10 @@ export type ControllerActions = {
   saveServiceCategoryEditor: () => Promise<void>;
   deleteServiceCategoryEditor: () => Promise<void>;
   openServiceEditor: (serviceId: string | null) => void;
+  openServiceCreateForCategory: (categoryId: string) => void;
   closeServiceEditor: () => void;
   setServiceDraft: Dispatch<SetStateAction<ServiceDraft>>;
+  toggleServiceActiveInline: (serviceId: string, enabled: boolean) => Promise<void>;
   syncServiceProvidersForCurrentService: (staffIds: string[]) => Promise<void>;
   removeServiceProviderFromCurrentService: (staffId: string) => Promise<void>;
   saveServiceEditor: () => Promise<void>;

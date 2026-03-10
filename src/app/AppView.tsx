@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { useLocation } from 'react-router-dom';
 import { BottomNav } from './components/shared/BottomNav';
@@ -6,8 +6,10 @@ import { ClientActionsSheet } from './components/shared/ClientActionsSheet';
 import { ClientsExportSheet } from './components/shared/ClientsExportSheet';
 import { ClientsSmsBroadcastSheet } from './components/shared/ClientsSmsBroadcastSheet';
 import { ClientsToolsSheet } from './components/shared/ClientsToolsSheet';
+import { DesktopTabSidebar } from './components/shared/DesktopTabSidebar';
 import { GlobalLoaderOverlay } from './components/shared/GlobalLoaderOverlay';
 import { InfoPanel } from './components/shared/InfoPanel';
+import { JournalMiniCalendar } from './components/shared/JournalMiniCalendar';
 import { JournalStaffActionsSheet } from './components/shared/JournalStaffActionsSheet';
 import { JournalWeekStrip } from './components/shared/JournalWeekStrip';
 import { LoaderScreen } from './components/shared/LoaderScreen';
@@ -19,11 +21,12 @@ import { StaffPermissionsSheet } from './components/shared/StaffPermissionsSheet
 import { ClientHistoryScreen } from './screens/ClientHistoryScreen';
 import { ClientSiteEditorScreen } from './screens/ClientSiteEditorScreen';
 import { ClientsScreen } from './screens/ClientsScreen';
+import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { JournalDayEditScreen } from './screens/JournalDayEditScreen';
 import { JournalDayRemoveScreen } from './screens/JournalDayRemoveScreen';
 import { JournalAppointmentScreen } from './screens/JournalAppointmentScreen';
 import { JournalClientScreen } from './screens/JournalClientScreen';
-import { JournalScreen } from './screens/JournalScreen';
+import { JournalTabScreen } from './screens/JournalTabScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { NotificationsScreen } from './screens/NotificationsScreen';
 import { OwnerEditScreen } from './screens/OwnerEditScreen';
@@ -37,7 +40,13 @@ import { ServicesCategoryScreen } from './screens/ServicesCategoryScreen';
 import { StaffEditorScreen } from './screens/StaffEditorScreen';
 import { StaffManagementScreen } from './screens/StaffManagementScreen';
 import { StaffServicesEditorScreen } from './screens/StaffServicesEditorScreen';
-import { normalizePhoneForLink, normalizePhoneForWhatsApp } from './helpers';
+import {
+  appointmentMatchesClient,
+  formatRub,
+  normalizePhoneForLink,
+  toISODate,
+  toISODay,
+} from './helpers';
 import type { AppController, ClientItem, StaffItem } from './types';
 
 type AppViewProps = {
@@ -97,10 +106,12 @@ export function AppView({ controller }: AppViewProps) {
 
   const isJournalMainPage = state.page === 'tabs' && state.tab === 'journal';
   const isScheduleMainPage = state.page === 'tabs' && state.tab === 'schedule';
+  const isJournalDesktopOverlayPage =
+    state.tab === 'journal' && state.page === 'journalAppointment';
   const showGlobalLoader =
     state.clientHistoryLoading ||
     Object.entries(state.loading).some(
-      ([key, isLoading]) => key !== 'boot' && Boolean(isLoading),
+      ([key, isLoading]) => key !== 'boot' && key !== 'appointments' && Boolean(isLoading),
     );
   const normalizedClientsQuery = state.clientsQuery.trim().toLowerCase();
   const normalizedClientsDigits = state.clientsQuery.replace(/\D/g, '');
@@ -114,6 +125,7 @@ export function AppView({ controller }: AppViewProps) {
           return (
             name.includes(normalizedClientsQuery) ||
             phone.includes(normalizedClientsQuery) ||
+            (item.email || '').toLowerCase().includes(normalizedClientsQuery) ||
             (normalizedClientsDigits.length > 0 &&
               phoneDigits.includes(normalizedClientsDigits))
           );
@@ -123,29 +135,79 @@ export function AppView({ controller }: AppViewProps) {
   const [clientsSmsOpen, setClientsSmsOpen] = useState(false);
   const [clientsToolsLoading, setClientsToolsLoading] = useState(false);
   const [clientsToolsError, setClientsToolsError] = useState('');
+  const scheduleMarkedDates = useMemo(() => {
+    const daysWithHours = new Set<number>();
+
+    Object.values(state.workingHoursByStaff).forEach((byDay) => {
+      Object.entries(byDay).forEach(([day, slots]) => {
+        const isoDay = Number(day);
+        if (Number.isFinite(isoDay) && slots.length > 0) {
+          daysWithHours.add(isoDay);
+        }
+      });
+    });
+
+    if (daysWithHours.size === 0) {
+      return [] as string[];
+    }
+
+    const from = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth(), 1);
+    const to = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth() + 4, 0);
+    const items: string[] = [];
+
+    for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
+      if (daysWithHours.has(toISODay(date))) {
+        items.push(toISODate(date));
+      }
+    }
+
+    return items;
+  }, [state.selectedDate, state.workingHoursByStaff]);
   const activeJournalAppointment = state.journalAppointmentTarget;
   const activeJournalHistory = activeJournalAppointment
-    ? state.journalClientHistory.filter((item) => {
-        if (activeJournalAppointment.clientId && item.clientId) {
-          return item.clientId === activeJournalAppointment.clientId;
-        }
-        const samePhone =
-          normalizePhoneForWhatsApp(item.clientPhone) ===
-          normalizePhoneForWhatsApp(activeJournalAppointment.clientPhone);
-        const sameName =
-          item.clientName.trim().toLowerCase() ===
-          activeJournalAppointment.clientName.trim().toLowerCase();
-        return samePhone || sameName;
-      })
+    ? state.journalClientHistory.filter((item) =>
+        appointmentMatchesClient(item, {
+          id: activeJournalAppointment.clientId,
+          name: activeJournalAppointment.clientName,
+          phone: activeJournalAppointment.clientPhone,
+        }),
+      )
     : [];
   const activeJournalNoShows = activeJournalHistory.filter((item) => item.status === 'NO_SHOW').length;
 
   const clientsWithPhone = state.clients.filter((item) => item.phone.trim().length > 0);
+  const mobileVisibleTabs = useMemo(
+    () => state.visibleTabs.filter((item) => item.key !== 'analytics'),
+    [state.visibleTabs],
+  );
   const smsRecipients = Array.from(
     new Set(
       clientsWithPhone.map((item) => normalizePhoneForLink(item.phone)).filter((value) => Boolean(value)),
     ),
   );
+  const showDesktopRail = Boolean(state.session) && !isPinEntryRoute;
+  const desktopRailMarkedDates = state.tab === 'schedule' ? scheduleMarkedDates : state.journalMarkedDates;
+  const showOwnerDaySummary = state.session?.staff.role === 'OWNER';
+  const desktopRailTodaySummary = useMemo(() => {
+    const todayIso = toISODate(new Date());
+    const todayAppointments = state.journalListAppointments.filter(
+      (item) => toISODate(item.startAt) === todayIso,
+    );
+    const confirmed = todayAppointments.filter((item) => {
+      const status = item.status;
+      return status === 'CONFIRMED' || status === 'ARRIVED';
+    }).length;
+    const revenue = todayAppointments.reduce((sum, item) => {
+      const amount = item.amountAfterDiscount ?? item.amountBeforeDiscount ?? 0;
+      return sum + amount;
+    }, 0);
+
+    return {
+      total: todayAppointments.length,
+      confirmed,
+      revenue,
+    };
+  }, [state.journalListAppointments]);
   const currentStaff = state.session
     ? state.staff.find((item) => item.id === state.session?.staff.id) ?? null
     : null;
@@ -345,10 +407,63 @@ export function AppView({ controller }: AppViewProps) {
         </div>
       ) : null}
 
+      {showDesktopRail ? (
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-20 hidden w-[420px] md:block">
+          <div className="pointer-events-auto flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain bg-[#f3f5f8] px-6 pb-6">
+            <DesktopTabSidebar
+              active={state.tab}
+              items={state.visibleTabs}
+              onChange={actions.handleTabChange}
+            />
+            <div className="mt-5">
+              <JournalMiniCalendar
+                selectedDate={state.selectedDate}
+                markedDates={desktopRailMarkedDates}
+                onSelectDate={actions.setSelectedDate}
+              />
+            </div>
+            {showOwnerDaySummary ? (
+              <section className="mt-5 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
+                  Сводка дня
+                </p>
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#7b8390]">Всего записей</p>
+                    <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
+                      {desktopRailTodaySummary.total}
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#7b8390]">Подтверждены</p>
+                    <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
+                      {desktopRailTodaySummary.confirmed}
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#7b8390]">Оборот дня</p>
+                    <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
+                      {desktopRailTodaySummary.revenue > 0
+                        ? formatRub(desktopRailTodaySummary.revenue)
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <main
         className={clsx(
-          'scrollbar-hidden flex-1 overflow-y-auto px-6',
-          isJournalMainPage ? 'pb-[192px]' : isScheduleMainPage ? 'pb-[94px]' : 'pb-[106px]',
+          'scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6',
+          showDesktopRail ? 'md:pl-[444px] md:pr-6' : undefined,
+          isJournalMainPage
+            ? 'pb-[192px] md:pb-6'
+            : isScheduleMainPage
+              ? 'pb-[94px] md:pb-6'
+              : 'pb-[106px] md:pb-6',
         )}
       >
         {state.page === 'staff' ? (
@@ -379,6 +494,9 @@ export function AppView({ controller }: AppViewProps) {
                 ? `${state.editorPermissionCodes.length} прав`
                 : 'Нет выданных прав'
             }
+            permissionCatalog={state.editorPermissionCatalog}
+            permissionCodes={state.editorPermissionCodes}
+            permissionBusyCode={state.editorPermissionBusyCode}
             hasAccess={state.editorAccessEnabled}
             canDelete={state.staffFormMode === 'edit'}
             onBack={actions.backFromStaffEditor}
@@ -398,6 +516,9 @@ export function AppView({ controller }: AppViewProps) {
             }}
             onOpenServices={actions.openEditorServicesPanel}
             onOpenPermissions={actions.openEditorPermissionsPanel}
+            onTogglePermission={(code, enabled) => {
+              void actions.toggleEditorPermission(code, enabled);
+            }}
             avatarUrl={state.staffAvatarPreviewUrl}
             canDeleteAvatar={Boolean(state.staffAvatarPreviewUrl)}
             onAvatarFilePick={(file) => {
@@ -446,14 +567,18 @@ export function AppView({ controller }: AppViewProps) {
           />
         ) : null}
         {state.page === 'tabs' && state.tab === 'journal' ? (
-          <JournalScreen
+          <JournalTabScreen
             selectedDate={state.selectedDate}
             staff={state.journalStaff}
             journalHours={state.journalHours}
             cards={state.journalCards}
-            loading={state.loading.appointments || state.loading.action}
+            listAppointments={state.journalListAppointments}
+            loading={state.loading.appointments}
             datePickerOpen={state.journalDatePickerOpen}
             markedDates={state.journalMarkedDates}
+            visibleTabs={state.visibleTabs}
+            activeTab={state.tab}
+            showOwnerDaySummary={false}
             onSetDate={actions.handleSetDate}
             onCloseDatePicker={actions.closeJournalDatePicker}
             onSelectDate={actions.selectJournalDate}
@@ -466,30 +591,74 @@ export function AppView({ controller }: AppViewProps) {
             onSettings={() => {
               void actions.refreshAll();
             }}
+            onTabChange={actions.handleTabChange}
             onStaffClick={actions.handleOpenJournalStaffActions}
             onCardClick={actions.handleOpenJournalAppointment}
           />
         ) : null}
-        {state.page === 'journalAppointment' ? (
-          <JournalAppointmentScreen
-            appointment={state.journalAppointmentTarget}
-            loading={state.loading.action}
-            canEdit={state.canEditJournal}
-            visitsCount={activeJournalHistory.length}
-            noShowCount={activeJournalNoShows}
-            onBack={actions.handleCloseJournalAppointment}
-            onStatusChange={(status) => {
-              void actions.handleUpdateJournalAppointmentStatus(status);
-            }}
-            onOpenClient={() => {
-              void actions.handleOpenJournalClient();
-            }}
-            onCall={actions.handleCallJournalClient}
-            onSms={actions.handleSmsJournalClient}
-            onWhatsApp={actions.handleWhatsAppJournalClient}
-          />
+        {isJournalDesktopOverlayPage ? (
+          <div className="hidden md:block">
+            <JournalTabScreen
+              selectedDate={state.selectedDate}
+              staff={state.journalStaff}
+              journalHours={state.journalHours}
+              cards={state.journalCards}
+            listAppointments={state.journalListAppointments}
+            loading={state.loading.appointments}
+            datePickerOpen={state.journalDatePickerOpen}
+            markedDates={state.journalMarkedDates}
+            visibleTabs={state.visibleTabs}
+            activeTab={state.tab}
+            showOwnerDaySummary={false}
+            onSetDate={actions.handleSetDate}
+            onCloseDatePicker={actions.closeJournalDatePicker}
+            onSelectDate={actions.selectJournalDate}
+              onCreate={() => {
+                void actions.handleCreateAppointment();
+              }}
+              onReload={() => {
+                void actions.loadAppointmentsForSelectedDate();
+              }}
+              onSettings={() => {
+                void actions.refreshAll();
+              }}
+              onTabChange={actions.handleTabChange}
+              onStaffClick={actions.handleOpenJournalStaffActions}
+              onCardClick={actions.handleOpenJournalAppointment}
+            />
+          </div>
+        ) : null}
+        {state.page === 'journalAppointment' || state.page === 'journalClient' ? (
+          <div className={state.page === 'journalClient' ? 'hidden md:block' : undefined}>
+            <JournalAppointmentScreen
+              appointment={state.journalAppointmentTarget}
+              client={state.journalClientTarget}
+              clientDraft={state.journalClientDraft}
+              staff={state.staff}
+              history={activeJournalHistory}
+              historyLoading={state.journalClientLoading}
+              historyOpen={state.page === 'journalClient'}
+              loading={state.loading.action}
+              canEdit={state.canEditJournal}
+              visitsCount={activeJournalHistory.length}
+              noShowCount={activeJournalNoShows}
+              onBack={actions.handleCloseJournalAppointment}
+              onCloseHistory={actions.handleCloseJournalClient}
+              onStatusChange={(status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED') => {
+                void actions.handleUpdateJournalAppointmentStatus(status);
+              }}
+              onOpenClient={() => {
+                void actions.handleOpenJournalClient();
+              }}
+              onOpenAppointment={actions.handleOpenJournalAppointment}
+              onCall={actions.handleCallJournalClient}
+              onSms={actions.handleSmsJournalClient}
+              onWhatsApp={actions.handleWhatsAppJournalClient}
+            />
+          </div>
         ) : null}
         {state.page === 'journalClient' ? (
+          <div className="md:hidden">
           <JournalClientScreen
             client={state.journalClientTarget}
             draft={state.journalClientDraft}
@@ -504,6 +673,7 @@ export function AppView({ controller }: AppViewProps) {
             }}
             onOpenAppointment={actions.handleOpenJournalAppointment}
           />
+          </div>
         ) : null}
         {state.page === 'journalDayEdit' ? (
           <JournalDayEditScreen
@@ -573,14 +743,27 @@ export function AppView({ controller }: AppViewProps) {
         {state.page === 'tabs' && state.tab === 'clients' ? (
           <ClientsScreen
             clients={visibleClients}
+            appointments={state.journalListAppointments}
             query={state.clientsQuery}
             loading={state.loading.clients || state.loading.action}
+            canEdit={state.canEditClients}
             onQueryChange={actions.setClientsQuery}
             onOpenTools={openClientsTools}
-            onAdd={() => {
+            onReload={() => {
               void actions.resetAndLoadClients();
             }}
             onOpenClientActions={actions.handleOpenClientActions}
+          />
+        ) : null}
+        {state.page === 'tabs' && state.tab === 'analytics' ? (
+          <AnalyticsScreen
+            selectedDate={state.selectedDate}
+            staff={state.staff}
+            appointments={state.journalListAppointments}
+            loading={state.loading.appointments || state.loading.reports}
+            onReload={() => {
+              void actions.loadAppointmentsForSelectedDate();
+            }}
           />
         ) : null}
         {state.page === 'clientHistory' ? (
@@ -638,13 +821,20 @@ export function AppView({ controller }: AppViewProps) {
         ) : null}
         {state.page === 'servicesCategories' ? (
           <ServicesCategoriesScreen
-            categories={state.filteredServiceCategories}
+            categories={state.serviceCategories}
+            services={state.services}
             search={state.servicesCategorySearch}
+            loading={state.loading.services}
             onSearchChange={actions.setServicesCategorySearch}
             onBack={actions.closeServicesPage}
             onCreateCategory={() => actions.openServiceCategoryEditor(null)}
+            onCreateServiceInCategory={actions.openServiceCreateForCategory}
             onOpenCategory={actions.openServiceCategory}
+            onOpenService={actions.openServiceEditor}
             onEditCategory={actions.openServiceCategoryEditor}
+            onToggleServiceActive={(serviceId, enabled) =>
+              actions.toggleServiceActiveInline(serviceId, enabled)
+            }
           />
         ) : null}
         {state.page === 'servicesCategory' ? (
@@ -709,7 +899,10 @@ export function AppView({ controller }: AppViewProps) {
       </main>
 
       {isJournalMainPage ? (
-        <div className="fixed left-1/2 z-40 w-full px-4 -translate-x-1/2" style={{ bottom: '94px' }}>
+        <div
+          className="fixed left-1/2 z-40 w-full px-4 -translate-x-1/2 md:hidden"
+          style={{ bottom: '94px' }}
+        >
           <JournalWeekStrip
             selectedDate={state.selectedDate}
             weekDates={state.weekDates}
@@ -717,8 +910,16 @@ export function AppView({ controller }: AppViewProps) {
           />
         </div>
       ) : null}
-      <div className="fixed left-1/2 z-[45] px-8 w-full -translate-x-1/2" style={{ bottom: '20px' }}>
-        <BottomNav active={state.tab} items={state.visibleTabs} onChange={actions.handleTabChange} />
+      <div
+        className={clsx(
+          'fixed left-1/2 z-[45] w-full -translate-x-1/2 px-8',
+          Boolean(state.session)
+            ? 'md:hidden'
+            : undefined,
+        )}
+        style={{ bottom: '20px' }}
+      >
+        <BottomNav active={state.tab} items={mobileVisibleTabs} onChange={actions.handleTabChange} />
       </div>
       {state.page === 'tabs' && state.tab === 'clients' ? (
         <>

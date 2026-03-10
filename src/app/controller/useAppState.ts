@@ -53,6 +53,7 @@ export function useAppState() {
   const [journalClientSaving, setJournalClientSaving] = useState(false);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [journalListAppointments, setJournalListAppointments] = useState<AppointmentItem[]>([]);
   const [workingHoursByStaff, setWorkingHoursByStaff] = useState<WorkingHoursMap>({});
   const [panel, setPanel] = useState<InfoPanelState>(null);
   const [toast, setToast] = useState('');
@@ -91,6 +92,9 @@ export function useAppState() {
   const [serviceCategoryEditorId, setServiceCategoryEditorId] = useState<string | null>(null);
   const [serviceCategoryEditorName, setServiceCategoryEditorName] = useState('');
   const [serviceDraft, setServiceDraft] = useState<ServiceDraft>(EMPTY_SERVICE_DRAFT);
+  const [serviceEditorReturnPage, setServiceEditorReturnPage] = useState<
+    'servicesCategories' | 'servicesCategory'
+  >('servicesCategory');
   const [serviceProviders, setServiceProviders] = useState<StaffItem[]>([]);
   const [serviceAssignableStaff, setServiceAssignableStaff] = useState<StaffItem[]>([]);
   const [serviceProvidersLoading, setServiceProvidersLoading] = useState(false);
@@ -170,6 +174,8 @@ export function useAppState() {
     setServices,
     appointments,
     setAppointments,
+    journalListAppointments,
+    setJournalListAppointments,
     workingHoursByStaff,
     setWorkingHoursByStaff,
     panel,
@@ -246,6 +252,8 @@ export function useAppState() {
     setServiceCategoryEditorName,
     serviceDraft,
     setServiceDraft,
+    serviceEditorReturnPage,
+    setServiceEditorReturnPage,
     serviceProviders,
     setServiceProviders,
     serviceAssignableStaff,

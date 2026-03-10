@@ -9,6 +9,7 @@ const TAB_ROUTE_MAP: Record<TabKey, string> = {
   journal: '/journal',
   schedule: '/schedule',
   clients: '/clients',
+  analytics: '/analytics',
   notifications: '/notifications',
   more: '/more',
 };
@@ -57,6 +58,8 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'scheduleEditor', tab: 'schedule' };
     case '/clients':
       return { page: 'tabs', tab: 'clients' };
+    case '/analytics':
+      return { page: 'tabs', tab: 'analytics' };
     case '/notifications':
       return { page: 'tabs', tab: 'notifications' };
     case '/more':

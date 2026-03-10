@@ -41,6 +41,14 @@ type RequestOptions = {
   allowRefresh?: boolean;
 };
 
+type AnalyticsOverviewParams = {
+  from: string;
+  to: string;
+  masterId?: string | null;
+  positionId?: string | null;
+  userId?: string | null;
+};
+
 export class ApiError extends Error {
   readonly code?: string;
   readonly status: number;
@@ -243,6 +251,54 @@ class ApiClient {
 
   async revokeStaffPermission(staffId: string, code: string) {
     await this.delete(`/staff/${staffId}/permissions/${encodeURIComponent(code)}`);
+  }
+
+  async getAnalyticsOverview({
+    from,
+    to,
+    masterId,
+    positionId,
+    userId,
+  }: AnalyticsOverviewParams) {
+    const variants = [
+      {
+        from,
+        to,
+        ...(masterId ? { masterId } : {}),
+        ...(positionId ? { positionId } : {}),
+        ...(userId ? { userId } : {}),
+      },
+      {
+        start_date: from,
+        end_date: to,
+        master_id: masterId || '0',
+        position_id: positionId || '0',
+        user_id: userId || '0',
+      },
+      {
+        from,
+        to,
+        master_id: masterId || '0',
+        position_id: positionId || '0',
+      },
+    ];
+    let lastError: unknown = null;
+
+    for (const variant of variants) {
+      const params = new URLSearchParams();
+      Object.entries(variant).forEach(([key, value]) => {
+        if (typeof value === 'string' && value.trim().length > 0) {
+          params.set(key, value);
+        }
+      });
+      try {
+        return await this.get<Record<string, unknown>>(`/reports/overview?${params.toString()}`);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new ApiError('Не удалось загрузить аналитику', 500);
   }
 
   private async request<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {

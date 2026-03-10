@@ -53,6 +53,7 @@ type UseDataLoadersParams = {
   setToast: (value: string) => void;
   setClients: (value: ClientItem[]) => void;
   setAppointments: (value: AppointmentItem[]) => void;
+  setJournalListAppointments: (value: AppointmentItem[]) => void;
   setJournalMarkedDates: (value: string[]) => void;
   setWorkingHoursByStaff: (value: WorkingHoursMap) => void;
   setSettingsClientCancelMinNoticeMinutes: (value: number | null) => void;
@@ -88,6 +89,7 @@ export function useDataLoaders({
   setToast,
   setClients,
   setAppointments,
+  setJournalListAppointments,
   setJournalMarkedDates,
   setWorkingHoursByStaff,
   setSettingsClientCancelMinNoticeMinutes,
@@ -233,7 +235,15 @@ export function useDataLoaders({
   const appointmentsBasePath = sessionRole === 'MASTER' ? '/master/appointments' : '/appointments';
 
   const fetchAppointmentsRange = useCallback(
-    async (from: string, to: string, maxPages = 20) => {
+    async ({
+      from,
+      to,
+      maxPages = 20,
+    }: {
+      from?: string;
+      to?: string;
+      maxPages?: number;
+    }) => {
       const limit = 100;
       const merged: AppointmentItem[] = [];
       let page = 1;
@@ -242,9 +252,13 @@ export function useDataLoaders({
         const params = new URLSearchParams({
           page: String(page),
           limit: String(limit),
-          from,
-          to,
         });
+        if (from) {
+          params.set('from', from);
+        }
+        if (to) {
+          params.set('to', to);
+        }
         const data = await api.get<unknown>(`${appointmentsBasePath}?${params.toString()}`);
         const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
         const normalized = parsed.map((item) => {
@@ -290,7 +304,7 @@ export function useDataLoaders({
       setLoadingKey(setLoading, 'appointments', true);
       try {
         const dayFrom = toISODate(date);
-        const parsed = await fetchAppointmentsRange(dayFrom, dayFrom, 10);
+        const parsed = await fetchAppointmentsRange({ from: dayFrom, to: dayFrom, maxPages: 10 });
         setAppointments(parsed);
       } catch (error) {
         setAppError(toErrorMessage(error));
@@ -301,6 +315,45 @@ export function useDataLoaders({
     [canViewJournal, fetchAppointmentsRange, isAuthorized, setAppError, setAppointments, setLoading],
   );
 
+  const loadJournalListAppointments = useCallback(async () => {
+    if (!isAuthorized || !canViewJournal) {
+      setJournalListAppointments([]);
+      return;
+    }
+    setLoadingKey(setLoading, 'appointments', true);
+    try {
+      // Backend can return 200 with an empty payload for `/appointments` without an explicit date range.
+      // For the journal list we always request a wide bounded range to keep desktop history stable.
+      const now = new Date();
+      const from = new Date(now.getFullYear() - 3, 0, 1);
+      const to = new Date(now.getFullYear() + 1, 11, 31);
+      const parsed = await fetchAppointmentsRange({
+        from: toISODate(from),
+        to: toISODate(to),
+        maxPages: 60,
+      });
+      parsed.sort((left, right) => {
+        const createdDiff = right.createdAt.getTime() - left.createdAt.getTime();
+        if (createdDiff !== 0) {
+          return createdDiff;
+        }
+        return right.startAt.getTime() - left.startAt.getTime();
+      });
+      setJournalListAppointments(parsed);
+    } catch (error) {
+      setAppError(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'appointments', false);
+    }
+  }, [
+    canViewJournal,
+    fetchAppointmentsRange,
+    isAuthorized,
+    setAppError,
+    setJournalListAppointments,
+    setLoading,
+  ]);
+
   const loadJournalMarkedDates = useCallback(
     async (date: Date) => {
       if (!isAuthorized || !canViewJournal) {
@@ -310,11 +363,11 @@ export function useDataLoaders({
       try {
         const from = new Date(date.getFullYear(), date.getMonth(), 1);
         const to = new Date(date.getFullYear(), date.getMonth() + 2, 0);
-        const parsed = await fetchAppointmentsRange(
-          toISODate(from),
-          toISODate(to),
-          40,
-        );
+        const parsed = await fetchAppointmentsRange({
+          from: toISODate(from),
+          to: toISODate(to),
+          maxPages: 40,
+        });
         const allowedStaffIds = new Set(
           journalVisibleStaffIdsKey
             .split('|')
@@ -368,14 +421,20 @@ export function useDataLoaders({
     }
   }, [isAuthorized, setAppError, setLoading, setPrivacyPolicyText, setSettingsClientCancelMinNoticeMinutes]);
 
-  const loadReports = useCallback(async () => {
+  const loadReports = useCallback(async (params?: { from?: string; to?: string; masterId?: string | null }) => {
     if (!isAuthorized || !canViewReports) {
       return null;
     }
     setLoadingKey(setLoading, 'reports', true);
     try {
-      const [from, to] = monthRange(selectedDate);
-      const data = await api.get<unknown>(`/reports/overview?from=${from}&to=${to}`);
+      const [defaultFrom, defaultTo] = monthRange(selectedDate);
+      const from = params?.from || defaultFrom;
+      const to = params?.to || defaultTo;
+      const data = await api.getAnalyticsOverview({
+        from,
+        to,
+        masterId: params?.masterId || null,
+      });
       return toRecord(data);
     } catch (error) {
       setAppError(toErrorMessage(error));
@@ -392,14 +451,16 @@ export function useDataLoaders({
         return;
       }
       let scheduleStaff = staffRows.filter((item) => item.role === 'MASTER' && item.isActive);
-      try {
-        const data = await api.get<unknown>('/staff?page=1&limit=200&role=MASTER&isActive=true');
-        const parsed = extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[];
-        if (parsed.length > 0) {
-          scheduleStaff = parsed;
+      if (scheduleStaff.length === 0) {
+        try {
+          const data = await api.get<unknown>('/staff?page=1&limit=200&role=MASTER&isActive=true');
+          const parsed = extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[];
+          if (parsed.length > 0) {
+            scheduleStaff = parsed;
+          }
+        } catch {
+          // fallback на уже загруженный список staff
         }
-      } catch {
-        // fallback на уже загруженный список staff
       }
       if (scheduleStaff.length === 0) {
         setWorkingHoursByStaff({});
@@ -415,23 +476,12 @@ export function useDataLoaders({
       try {
         const responses = await Promise.all(
           scheduleStaff.map(async (item) => {
-            const candidates = [
-              `/schedule/staff/${item.id}/working-hours?from=${from}&to=${to}`,
-              `/schedule/staff/${item.id}/working-hours`,
-            ];
             try {
-              for (const path of candidates) {
-                try {
-                  const data = await api.get<unknown>(path);
-                  const parsed = parseWorkingHours(data);
-                  if (hasSlots(parsed)) {
-                    return [item.id, parsed] as const;
-                  }
-                } catch {
-                  // пробуем следующий endpoint
-                }
-              }
-              return [item.id, {} as Record<number, string[]>] as const;
+              const data = await api.get<unknown>(
+                `/schedule/staff/${item.id}/working-hours?from=${from}&to=${to}`,
+              );
+              const parsed = parseWorkingHours(data);
+              return [item.id, hasSlots(parsed) ? parsed : {} as Record<number, string[]>] as const;
             } catch {
               return [item.id, {} as Record<number, string[]>] as const;
             }
@@ -460,18 +510,13 @@ export function useDataLoaders({
     }
     setAppError('');
     const rows = canUseStaffDirectory ? await loadStaff() : [];
-    if (canViewStaff) {
-      await loadStaffServiceMeta(rows);
-    } else {
-      setStaffServiceCounts({});
-    }
     await Promise.all([
       canViewClients ? loadClients(debouncedClientsQuery) : Promise.resolve(),
       canViewServices ? loadServices() : Promise.resolve([]),
       canViewJournal ? loadAppointments(selectedDate) : Promise.resolve(),
+      canViewJournal ? loadJournalListAppointments() : Promise.resolve(),
       canViewJournal ? loadJournalMarkedDates(selectedDate) : Promise.resolve(),
       loadSettings(),
-      canViewReports ? loadReports() : Promise.resolve(null),
     ]);
     if (canViewSchedule) {
       await loadWorkingHours(rows);
@@ -482,24 +527,20 @@ export function useDataLoaders({
     canUseStaffDirectory,
     canViewClients,
     canViewJournal,
-    canViewReports,
     canViewSchedule,
     canViewServices,
-    canViewStaff,
     debouncedClientsQuery,
     isAuthorized,
     loadAppointments,
     loadClients,
+    loadJournalListAppointments,
     loadJournalMarkedDates,
-    loadReports,
     loadServices,
-    loadStaffServiceMeta,
     loadSettings,
     loadStaff,
     loadWorkingHours,
     selectedDate,
     setAppError,
-    setStaffServiceCounts,
     setWorkingHoursByStaff,
   ]);
 
@@ -510,6 +551,7 @@ export function useDataLoaders({
     loadStaffServicesForEditor,
     loadClients,
     loadAppointments,
+    loadJournalListAppointments,
     loadJournalMarkedDates,
     loadSettings,
     loadReports,

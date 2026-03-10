@@ -523,6 +523,19 @@ function formatMoney(value: number | null | undefined) {
   return `${Math.round(value)} ₽`;
 }
 
+function bannerClassName(message: BannerMessage) {
+  if (!message) {
+    return '';
+  }
+  if (message.tone === 'success') {
+    return 'rounded-2xl border border-[#cfe6cf] bg-[#eef8ee] px-4 py-3 text-[15px] font-semibold text-[#2d6b34]';
+  }
+  if (message.tone === 'error') {
+    return 'rounded-2xl border border-[#f1d1d1] bg-[#fff0f0] px-4 py-3 text-[15px] font-semibold text-[#9d3333]';
+  }
+  return 'rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-3 text-[15px] font-semibold text-[#39516d]';
+}
+
 function formatDuration(durationSec: number | null | undefined) {
   if (typeof durationSec !== 'number' || Number.isNaN(durationSec)) {
     return '—';
@@ -956,7 +969,7 @@ function CategorySummaryCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)]"
+      className="w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)]"
     >
       <div className="flex items-start gap-4">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)]">
@@ -1215,6 +1228,16 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       void loadPreview();
     }
   }, [activeCategory, loadPreview]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia('(min-width: 768px)').matches) {
+      return;
+    }
+    if (previewState.data || previewState.error || busyKey === 'preview') {
+      return;
+    }
+    void loadPreview();
+  }, [busyKey, loadPreview, previewState.data, previewState.error]);
 
   useEffect(() => {
     if (!mediaPickerEntity) {
@@ -2817,7 +2840,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const renderOverview = () => (
     <>
-      <div className="mb-5 flex items-center gap-3 border-b border-line pb-3">
+      <div className="mb-5 flex items-center gap-3 border-b border-line pb-3 md:hidden">
         <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
           <ArrowLeft className="h-6 w-6" />
         </button>
@@ -2864,7 +2887,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
       </section>
 
-      <section className="mt-6 space-y-4">
+      <section className="mt-6 grid gap-4 md:grid-cols-2">
         {categorySnapshots.map((item) => (
           <CategorySummaryCard key={item.key} item={item} onOpen={() => setActiveCategory(item.key)} />
         ))}
@@ -3623,7 +3646,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
     return (
       <>
-        <div className="mb-5 flex items-center gap-3 border-b border-line pb-3">
+        <div className="mb-5 flex items-center gap-3 border-b border-line pb-3 md:hidden">
           <button type="button" onClick={() => setActiveCategory(null)} className="rounded-lg p-2 text-ink">
             <ArrowLeft className="h-6 w-6" />
           </button>
@@ -3656,23 +3679,288 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
-  return (
-    <div className="pb-7 pt-4">
-      {message ? (
-        <div
-          className={
-            message.tone === 'success'
-              ? 'mb-4 rounded-2xl border border-[#cfe6cf] bg-[#eef8ee] px-4 py-3 text-[15px] font-semibold text-[#2d6b34]'
-              : message.tone === 'error'
-                ? 'mb-4 rounded-2xl border border-[#f1d1d1] bg-[#fff0f0] px-4 py-3 text-[15px] font-semibold text-[#9d3333]'
-                : 'mb-4 rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-3 text-[15px] font-semibold text-[#39516d]'
-          }
-        >
-          {message.text}
-        </div>
-      ) : null}
+  const renderDesktopSidebar = () => {
+    const quickItems = activeCategory
+      ? categorySnapshots.filter((item) => item.key !== activeCategory).slice(0, 3)
+      : categorySnapshots.slice(0, 4);
 
-      {activeCategory ? renderDetail() : renderOverview()}
+    return (
+      <div className="space-y-5 xl:sticky xl:top-6">
+        <section className="relative overflow-hidden rounded-[32px] bg-[linear-gradient(135deg,#1d2a37_0%,#20384a_46%,#f4c900_160%)] px-5 py-5 text-white shadow-[0_22px_50px_rgba(29,42,55,0.24)]">
+          <div className="absolute -right-10 top-0 h-32 w-32 rounded-full bg-[rgba(244,201,0,0.28)] blur-2xl" />
+          <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-[rgba(127,204,255,0.16)] blur-2xl" />
+          <div className="relative">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f4c900]">Online booking</p>
+            <h2 className="mt-3 text-[32px] font-extrabold leading-[0.95] tracking-[-0.04em] text-white">
+              {config?.brandName || 'Онлайн-запись'}
+            </h2>
+            <p className="mt-3 text-[15px] font-medium leading-relaxed text-[rgba(255,255,255,0.82)]">
+              {activeMeta
+                ? activeMeta.note
+                : 'Редактор клиентского сайта, витрины записи и публикации. На desktop основные действия и состояние видны сразу.'}
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Версия</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">v{config?.publishedVersion ?? 0}</p>
+              </div>
+              <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Блоков</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">{blocks.length}</p>
+              </div>
+              <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Специалистов</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">{specialists.filter((item) => item.isVisible).length}</p>
+              </div>
+              <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Контактов</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">{contacts.length}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleRefresh();
+                }}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-[14px] font-extrabold text-[#1f2d39] disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Обновить
+              </button>
+              <button
+                type="button"
+                onClick={onOpenServices}
+                className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.08)] px-4 py-3 text-[14px] font-extrabold text-white"
+              >
+                Услуги
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-line bg-[linear-gradient(180deg,#ffffff,#f7fafc)] p-5 shadow-[0_14px_32px_rgba(42,49,56,0.08)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
+                {activeCategory ? 'Следом удобно проверить' : 'Быстрый путь'}
+              </p>
+              <h3 className="mt-2 text-[24px] font-extrabold leading-none text-ink">
+                {activeCategory ? activeMeta?.title : 'Основные разделы'}
+              </h3>
+            </div>
+            {activeCategory ? (
+              <button
+                type="button"
+                onClick={() => setActiveCategory(null)}
+                className="inline-flex h-11 items-center rounded-2xl border border-line bg-white px-4 text-[13px] font-extrabold text-ink"
+              >
+                Обзор
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {quickItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveCategory(item.key)}
+                  className="flex w-full items-start gap-4 rounded-[22px] border border-[#dde3eb] bg-white px-4 py-4 text-left transition hover:border-[#cbd3de] hover:bg-[#fbfcfe]"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f4c900] text-[#1f2d39] shadow-[0_10px_22px_rgba(244,201,0,0.22)]">
+                    <Icon className="h-5 w-5" strokeWidth={2.2} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[17px] font-extrabold text-ink">{item.title}</p>
+                      <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#97a0ad]">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">{item.description}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-line bg-[#fffaf0] p-5 shadow-[0_14px_32px_rgba(42,49,56,0.08)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b08927]">Preview web</p>
+              <h3 className="mt-2 text-[24px] font-extrabold leading-none text-ink">Быстрая проверка</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void loadPreview();
+              }}
+              disabled={busyKey === 'preview'}
+              className="inline-flex h-11 items-center rounded-2xl border border-[#ead8a8] bg-white px-4 text-[13px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Обновить'}
+            </button>
+          </div>
+
+          {previewState.error ? (
+            <div className="mt-4 rounded-2xl border border-[#efd6b5] bg-white px-4 py-4 text-[14px] font-semibold text-[#8a5f1d]">
+              {previewState.error}
+            </div>
+          ) : previewState.data ? (
+            <div className="mt-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Черновик</p>
+                  <p className="mt-1 text-[22px] font-extrabold text-ink">v{previewState.data.version}</p>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Блоков</p>
+                  <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.blocks.length}</p>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Специалистов</p>
+                  <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.specialists.length}</p>
+                </div>
+              </div>
+
+              <div className="rounded-[22px] bg-white px-4 py-4">
+                <p className="text-[18px] font-extrabold text-ink">
+                  {previewState.data.config.brandName || 'Онлайн-запись'}
+                </p>
+                <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {previewState.data.blocks.length > 0
+                    ? `Первый блок: ${previewState.data.blocks[0]?.blockKey || previewState.data.blocks[0]?.blockType}`
+                    : 'В preview пока нет блоков. Можно быстро перейти в публикацию и проверить структуру.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveCategory('publish')}
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#1f2d39] px-4 py-3 text-[14px] font-extrabold text-white"
+                >
+                  Открыть публикацию
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-[22px] bg-white px-4 py-4">
+              <p className="text-[16px] font-extrabold text-ink">Preview ещё не загружен</p>
+              <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                Подтянем web-preview и покажем черновую версию сайта прямо в боковой панели.
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div className="pb-7 pt-4 md:hidden">
+        {message ? <div className={`mb-4 ${bannerClassName(message)}`}>{message.text}</div> : null}
+        {activeCategory ? renderDetail() : renderOverview()}
+      </div>
+
+      <div className="hidden pb-8 pt-6 md:block">
+        {message ? <div className={`mb-5 ${bannerClassName(message)}`}>{message.text}</div> : null}
+
+        <section className="relative overflow-hidden rounded-[36px] border border-[#dfe6ef] bg-[linear-gradient(135deg,#fff7df_0%,#f7fbff_38%,#eef5ff_100%)] px-7 py-7 shadow-[0_22px_52px_rgba(42,49,56,0.1)]">
+          <div className="absolute -right-8 top-0 h-40 w-40 rounded-full bg-[rgba(244,201,0,0.22)] blur-3xl" />
+          <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-[rgba(112,182,255,0.16)] blur-3xl" />
+          <div className="relative">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeCategory) {
+                        setActiveCategory(null);
+                        return;
+                      }
+                      onBack();
+                    }}
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/90 text-ink shadow-[0_10px_24px_rgba(42,49,56,0.08)]"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
+                      {activeCategory ? 'Раздел редактора' : 'Конструктор сайта'}
+                    </p>
+                    <h1 className="mt-2 text-[48px] font-extrabold leading-[0.92] tracking-[-0.05em] text-ink">
+                      {activeMeta ? activeMeta.title : 'Онлайн-запись'}
+                    </h1>
+                  </div>
+                </div>
+                <p className="mt-5 max-w-[760px] text-[17px] font-medium leading-relaxed text-[#55606e]">
+                  {activeMeta
+                    ? activeMeta.description
+                    : 'Desktop-режим собран как рабочая панель: слева редактор сущностей, справа контекст, preview и быстрые переходы. Так проще понять, что именно видит клиент и что правится сейчас.'}
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {(activeMeta?.tags ?? ['контент', 'preview', 'публикация']).slice(0, 4).map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-white/80 bg-white/90 px-4 py-2 text-[13px] font-bold text-[#495463] shadow-[0_8px_20px_rgba(42,49,56,0.05)]"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleRefresh();
+                  }}
+                  disabled={loading}
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/80 bg-white/90 px-4 text-sm font-extrabold text-ink shadow-[0_10px_24px_rgba(42,49,56,0.08)] disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Обновить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadPreview();
+                  }}
+                  disabled={busyKey === 'preview'}
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#e9d79f] bg-[#fff9e5] px-4 text-sm font-extrabold text-[#3f3a24] shadow-[0_10px_24px_rgba(244,201,0,0.12)] disabled:opacity-50"
+                >
+                  {busyKey === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenServices}
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#1f2d39] px-5 text-sm font-extrabold text-white shadow-[0_14px_28px_rgba(31,45,57,0.18)]"
+                >
+                  Открыть услуги
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0">{activeCategory ? renderDetail() : renderOverview()}</div>
+          <div className="min-w-0">{renderDesktopSidebar()}</div>
+        </div>
+      </div>
 
       <PageSheet
         open={Boolean(contactEditor)}
@@ -4472,6 +4760,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </div>
         ) : null}
       </PageSheet>
-    </div>
+
+    </>
   );
 }

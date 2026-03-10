@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { ApiError } from '../api';
 import { MONTHS_RU, MONTHS_RU_GENITIVE, ROLE_LABELS } from './constants';
-import type { AppointmentItem, LoadingState, StaffCreateRole, StaffRole } from './types';
+import type { AppointmentItem, ClientItem, LoadingState, StaffCreateRole, StaffRole } from './types';
 
 export function monthRange(date: Date): [string, string] {
   const from = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -54,6 +54,18 @@ export function formatRub(amount: number): string {
   return `${Math.round(amount)}₽`;
 }
 
+export function formatGroupedNumber(value: number): string {
+  return new Intl.NumberFormat('ru-RU', {
+    maximumFractionDigits: 0,
+  })
+    .format(Math.round(value))
+    .replace(/[\u00A0\u202F]/g, ' ');
+}
+
+export function formatGroupedRub(amount: number): string {
+  return `${formatGroupedNumber(amount)}₽`;
+}
+
 export function formatAppointmentPrice(item: AppointmentItem): string {
   const base = item.amountBeforeDiscount ?? item.amountAfterDiscount;
   const finalAmount = item.amountAfterDiscount ?? item.amountBeforeDiscount;
@@ -65,6 +77,41 @@ export function formatAppointmentPrice(item: AppointmentItem): string {
       ? Math.max(0, item.discountPercent)
       : Math.max(0, Math.round(((base - finalAmount) / base) * 100));
   return `${formatRub(base)}- ${discount}%= ${formatRub(finalAmount)}`;
+}
+
+export function appointmentMatchesClient(
+  appointment: AppointmentItem,
+  client: Pick<ClientItem, 'id' | 'name' | 'phone'>,
+): boolean {
+  const normalizedClientId = client.id.trim();
+  const normalizedAppointmentId = appointment.clientId.trim();
+  const normalizedClientPhone = normalizePhoneForWhatsApp(client.phone);
+  const normalizedAppointmentPhone = normalizePhoneForWhatsApp(appointment.clientPhone);
+  const normalizedClientName = client.name.trim().toLowerCase();
+  const normalizedAppointmentName = appointment.clientName.trim().toLowerCase();
+
+  const sameClientId =
+    normalizedClientId.length > 0 &&
+    normalizedAppointmentId.length > 0 &&
+    normalizedAppointmentId === normalizedClientId;
+  const samePhone =
+    normalizedClientPhone.length > 0 &&
+    normalizedAppointmentPhone.length > 0 &&
+    normalizedAppointmentPhone === normalizedClientPhone;
+  const sameName =
+    normalizedClientName.length > 0 &&
+    normalizedAppointmentName.length > 0 &&
+    normalizedAppointmentName === normalizedClientName;
+
+  if (sameClientId || samePhone) {
+    return true;
+  }
+
+  if (normalizedClientId.length === 0 && normalizedClientPhone.length === 0) {
+    return sameName;
+  }
+
+  return false;
 }
 
 export function toISODate(date: Date): string {
@@ -218,6 +265,9 @@ export function buildRuPhoneValue(localValue: string): string {
 
 export function normalizePhoneForWhatsApp(phone: string): string {
   const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `7${digits}`;
+  }
   if (digits.startsWith('8') && digits.length === 11) {
     return `7${digits.slice(1)}`;
   }

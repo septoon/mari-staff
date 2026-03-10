@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { PinAuthLayout } from './PinAuthLayout';
 import { PinCodePad } from './PinCodePad';
 
 type SetPinScreenProps = {
@@ -83,15 +84,44 @@ export function SetPinScreen({ token, loading, error, onSubmit }: SetPinScreenPr
   };
 
   return (
-    <section className="flex h-full min-h-full flex-1 flex-col px-6 pb-8 pt-8">
-      <div>
-        <h1 className="text-2xl my-6 font-extrabold text-ink">Установка код-пароля</h1>
-        <p className="mb-20 text-sm font-semibold text-muted">
-          {isCreateStep
-            ? 'Введите код-пароль сотрудника (4 цифры)'
-            : 'Повторите код-пароль для подтверждения'}
-        </p>
+    <PinAuthLayout
+      title="Установка код-пароля"
+      description={
+        isCreateStep
+          ? 'Введите код-пароль сотрудника (4 цифры)'
+          : 'Повторите код-пароль для подтверждения'
+      }
+      heroKicker="Настройка доступа"
+      heroTitle="Создайте пин-код для входа сотрудника"
+      heroDescription="Придумайте пин, который будете использовать для входа в админ-панель"
+      heroNote="Используйте 4 цифры, которые удобно набрать сотруднику и сложно угадать постороннему."
+      footer={
+        <>
+          {step === 'confirm' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setLocalError('');
+                setStep('create');
+                setPin('');
+                setPinConfirm('');
+              }}
+              className="rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-muted md:h-14 md:text-base"
+            >
+              Изменить код-пароль
+            </button>
+          ) : null}
 
+          <a
+            href="/login"
+            className="mt-4 text-center text-sm font-semibold text-muted underline md:text-base"
+          >
+            Перейти к входу
+          </a>
+        </>
+      }
+    >
+      <div className="md:max-w-[420px]">
         <PinCodePad
           value={activeValue}
           maxLength={PIN_LENGTH}
@@ -101,48 +131,24 @@ export function SetPinScreen({ token, loading, error, onSubmit }: SetPinScreenPr
         />
 
         {loading ? (
-          <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-muted">
+          <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-muted md:text-base">
             <Loader2 className="h-4 w-4 animate-spin" />
             Сохраняю код-пароль...
           </div>
         ) : null}
 
         {localError ? (
-          <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
+          <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030] md:text-base">
             {localError}
           </div>
         ) : null}
 
         {!localError && error ? (
-          <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030]">
+          <div className="mt-4 rounded-xl border border-[#efc0c0] bg-[#fdf0f0] px-4 py-2 text-sm font-semibold text-[#b73030] md:text-base">
             {error}
           </div>
         ) : null}
       </div>
-
-      <div className="mt-auto flex flex-col">
-        {step === 'confirm' ? (
-          <button
-            type="button"
-            onClick={() => {
-              setLocalError('');
-              setStep('create');
-              setPin('');
-              setPinConfirm('');
-            }}
-            className="rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-muted"
-          >
-            Изменить код-пароль
-          </button>
-        ) : null}
-
-        <a
-          href="/login"
-          className="mt-4 text-center text-sm font-semibold text-muted underline"
-        >
-          Перейти к входу
-        </a>
-      </div>
-    </section>
+    </PinAuthLayout>
   );
 }

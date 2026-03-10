@@ -47,6 +47,7 @@ export const TAB_ITEMS: TabItem[] = [
   { key: 'journal', title: 'Журнал', icon: CalendarDays },
   { key: 'schedule', title: 'График', icon: CalendarRange },
   { key: 'clients', title: 'Клиенты', icon: Users },
+  { key: 'analytics', title: 'Аналитика', icon: ChartPie },
   { key: 'notifications', title: 'Уведомл...', icon: Bell },
   { key: 'more', title: 'Еще', icon: Menu },
 ];
