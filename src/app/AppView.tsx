@@ -114,6 +114,12 @@ export function AppView({ controller }: AppViewProps) {
     );
   const normalizedClientsQuery = state.clientsQuery.trim().toLowerCase();
   const normalizedClientsDigits = state.clientsQuery.replace(/\D/g, '');
+  const rawSessionPermissions = state.session?.staff.permissions;
+  const sessionPermissions: string[] = Array.isArray(rawSessionPermissions) ? rawSessionPermissions : [];
+  const canManageClientDiscounts =
+    state.session?.staff.role === 'OWNER' || sessionPermissions.includes('MANAGE_CLIENT_DISCOUNTS');
+  const canManagePromocodes =
+    state.session?.staff.role === 'OWNER' || sessionPermissions.includes('MANAGE_PROMOCODES');
   const visibleClients =
     normalizedClientsQuery.length === 0
       ? state.clients
@@ -746,6 +752,8 @@ export function AppView({ controller }: AppViewProps) {
             query={state.clientsQuery}
             loading={state.loading.clients || state.loading.action}
             canEdit={state.canEditClients}
+            canManageDiscounts={canManageClientDiscounts}
+            canManagePromocodes={canManagePromocodes}
             onQueryChange={actions.setClientsQuery}
             onOpenTools={openClientsTools}
             onReload={() => {
@@ -890,7 +898,7 @@ export function AppView({ controller }: AppViewProps) {
       {isJournalMainPage ? (
         <div
           className="fixed left-1/2 z-40 w-full px-4 -translate-x-1/2 md:hidden"
-          style={{ bottom: '94px' }}
+          style={{ bottom: '110px' }}
         >
           <JournalWeekStrip
             selectedDate={state.selectedDate}

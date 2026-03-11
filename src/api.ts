@@ -49,6 +49,49 @@ type AnalyticsOverviewParams = {
   userId?: string | null;
 };
 
+type CreatePromoCodePayload = {
+  code?: string;
+  generate?: boolean;
+  prefix?: string;
+  length?: number;
+  name?: string;
+  description?: string;
+  discountType: 'FIXED' | 'PERCENT';
+  discountValue: number;
+  startsAt?: string;
+  endsAt?: string;
+  maxUsages?: number;
+  perClientUsageLimit?: number;
+  isActive?: boolean;
+};
+
+type PromoCodeResponse = {
+  promo: {
+    id: string;
+    code: string;
+    endsAt: string | null;
+  };
+};
+
+type SendPromoCodePayload = {
+  email?: string;
+  phone?: string;
+  clientId?: string;
+  subject?: string;
+  message?: string;
+};
+
+type SendPromoCodeResponse = {
+  sent: boolean;
+  email: string;
+  promo: {
+    id: string;
+    code: string;
+    endsAt: string | null;
+  };
+  preview?: string | null;
+};
+
 export class ApiError extends Error {
   readonly code?: string;
   readonly status: number;
@@ -299,6 +342,24 @@ class ApiClient {
     }
 
     throw lastError instanceof Error ? lastError : new ApiError('Не удалось загрузить аналитику', 500);
+  }
+
+  async updateClientPermanentDiscount(clientId: string, percent: number | null) {
+    return this.patch<{ client: Record<string, unknown> }>(`/clients/${clientId}/discount`, {
+      discount: {
+        mode: 'PERMANENT',
+        type: percent === null ? 'NONE' : 'PERCENT',
+        ...(percent === null ? null : { value: percent }),
+      },
+    });
+  }
+
+  async createPromoCode(payload: CreatePromoCodePayload) {
+    return this.post<PromoCodeResponse>('/promocodes', payload);
+  }
+
+  async sendPromoCode(promoId: string, payload: SendPromoCodePayload) {
+    return this.post<SendPromoCodeResponse>(`/promocodes/${promoId}/send`, payload);
   }
 
   private async request<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {

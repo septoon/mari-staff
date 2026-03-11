@@ -609,7 +609,7 @@ export function ScheduleScreen({
           </div>
         </div>
 
-        <div className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-6" style={{ bottom: '94px' }}>
+        <div className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-6" style={{ bottom: '110px' }}>
           <button
             type="button"
             onClick={onEdit}

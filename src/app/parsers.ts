@@ -44,6 +44,8 @@ export function parseClient(value: unknown): ClientItem | null {
   if (!record) {
     return null;
   }
+  const discountRecord = toRecord(record.discount);
+  const permanentDiscountRecord = toRecord(discountRecord?.permanent);
   const id = toString(record.id);
   const phone =
     toString(record.phoneE164) ||
@@ -68,6 +70,14 @@ export function parseClient(value: unknown): ClientItem | null {
       toNullableString(record.avatarUrl) ||
       toNullableString(record.photoUrl) ||
       toNullableString(record.imageUrl),
+    permanentDiscountType:
+      toString(permanentDiscountRecord?.type) ||
+      toString(record.discountType) ||
+      'NONE',
+    permanentDiscountValue:
+      toNumber(permanentDiscountRecord?.value) ??
+      toNumber(record.discountValue) ??
+      null,
   };
 }
 

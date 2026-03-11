@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { api } from '../../api';
 import {
+  BadgePercent,
   ChartPie,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   History,
   Loader2,
+  Mail,
   MessageCircle,
   MessageSquare,
   MoreVertical,
@@ -16,14 +18,16 @@ import {
   RefreshCcw,
   Save,
   Search,
+  SendHorizontal,
   UserRound,
   X,
 } from 'lucide-react';
 import {
+  formatGroupedRub,
   formatHistoryDate,
-  formatRub,
   formatTime,
   normalizePhoneForLink,
+  toNumber,
   normalizePhoneForWhatsApp,
   toISODate,
   toRecord,
@@ -37,6 +41,8 @@ type ClientsScreenProps = {
   query: string;
   loading: boolean;
   canEdit: boolean;
+  canManageDiscounts: boolean;
+  canManagePromocodes: boolean;
   onQueryChange: (value: string) => void;
   onOpenTools: () => void;
   onReload: () => void;
@@ -55,6 +61,13 @@ type ClientDraft = {
   email: string;
   comment: string;
   avatarUrl: string | null;
+  permanentDiscountPercent: string;
+};
+
+type PromoSendResult = {
+  code: string;
+  email: string;
+  expiresAt: string | null;
 };
 
 type DistributionItem = {
@@ -104,7 +117,23 @@ function mapClientToDraft(client: ClientItem): ClientDraft {
     email: client.email || '',
     comment: client.comment || '',
     avatarUrl: client.avatarUrl || null,
+    permanentDiscountPercent:
+      client.permanentDiscountType === 'PERCENT' && client.permanentDiscountValue !== null
+        ? String(client.permanentDiscountValue)
+        : '',
   };
+}
+
+function parsePercentInput(value: string) {
+  const normalized = value.replace(',', '.').trim();
+  if (!normalized) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
 }
 
 function isDesktopViewport() {
@@ -512,6 +541,8 @@ export function ClientsScreen({
   query,
   loading,
   canEdit,
+  canManageDiscounts,
+  canManagePromocodes,
   onQueryChange,
   onOpenTools,
   onReload,
@@ -530,9 +561,15 @@ export function ClientsScreen({
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftError, setDraftError] = useState('');
   const [editMode, setEditMode] = useState(false);
+  const [discountDirty, setDiscountDirty] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
   const [statsFrom, setStatsFrom] = useState('');
   const [statsTo, setStatsTo] = useState('');
+  const [promoDiscountPercent, setPromoDiscountPercent] = useState('');
+  const [promoExpiresOn, setPromoExpiresOn] = useState('');
+  const [promoSending, setPromoSending] = useState(false);
+  const [promoError, setPromoError] = useState('');
+  const [promoResult, setPromoResult] = useState<PromoSendResult | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -729,13 +766,20 @@ export function ClientsScreen({
       setDraftSaving(false);
       setDraftError('');
       setEditMode(false);
+      setDiscountDirty(false);
       setHistoryFilter('all');
+      setPromoDiscountPercent('');
+      setPromoExpiresOn('');
+      setPromoSending(false);
+      setPromoError('');
+      setPromoResult(null);
       return;
     }
 
     setDesktopTab('card');
     setHistoryFilter('all');
     setEditMode(false);
+    setDiscountDirty(false);
     setDraftError('');
     setDraft({
       name: activeClientName,
@@ -743,7 +787,16 @@ export function ClientsScreen({
       email: activeClientEmail,
       comment: activeClientComment,
       avatarUrl: activeClientAvatarUrl,
+      permanentDiscountPercent:
+        activeClient?.permanentDiscountType === 'PERCENT' && activeClient.permanentDiscountValue !== null
+          ? String(activeClient.permanentDiscountValue)
+          : '',
     });
+    setPromoDiscountPercent('');
+    setPromoExpiresOn('');
+    setPromoSending(false);
+    setPromoError('');
+    setPromoResult(null);
 
     const firstDate = activeSummary?.firstVisit ? toISODate(activeSummary.firstVisit) : toISODate(new Date());
     const lastDate = activeSummary?.lastVisit ? toISODate(activeSummary.lastVisit) : toISODate(new Date());
@@ -771,6 +824,16 @@ export function ClientsScreen({
             toString(details?.imageUrl) ||
             activeClientAvatarUrl ||
             null,
+          permanentDiscountType:
+            toString(toRecord(toRecord(details?.discount)?.permanent)?.type) ||
+            toString(details?.discountType) ||
+            activeClient?.permanentDiscountType ||
+            'NONE',
+          permanentDiscountValue:
+            toNumber(toRecord(toRecord(details?.discount)?.permanent)?.value) ??
+            toNumber(details?.discountValue) ??
+            activeClient?.permanentDiscountValue ??
+            null,
         };
         setClientOverrides((prev) => ({
           ...prev,
@@ -785,6 +848,11 @@ export function ClientsScreen({
           email: nextClient.email || '',
           comment: nextClient.comment || '',
           avatarUrl: nextClient.avatarUrl || null,
+          permanentDiscountPercent:
+            nextClient.permanentDiscountType === 'PERCENT' &&
+            typeof nextClient.permanentDiscountValue === 'number'
+              ? String(nextClient.permanentDiscountValue)
+              : '',
         });
       } catch {
         if (!cancelled) {
@@ -794,6 +862,11 @@ export function ClientsScreen({
             email: activeClientEmail,
             comment: activeClientComment,
             avatarUrl: activeClientAvatarUrl,
+            permanentDiscountPercent:
+              activeClient?.permanentDiscountType === 'PERCENT' &&
+              activeClient.permanentDiscountValue !== null
+                ? String(activeClient.permanentDiscountValue)
+                : '',
           });
         }
       } finally {
@@ -809,6 +882,8 @@ export function ClientsScreen({
   }, [
     activeClientAvatarUrl,
     activeClientComment,
+    activeClient?.permanentDiscountType,
+    activeClient?.permanentDiscountValue,
     activeClientEmail,
     activeClientId,
     activeClientName,
@@ -840,6 +915,11 @@ export function ClientsScreen({
     );
   };
 
+  const handlePermanentDiscountChange = (value: string) => {
+    setDiscountDirty(true);
+    handleDraftChange('permanentDiscountPercent', value);
+  };
+
   const handleSaveClient = async () => {
     if (!activeClient || !draft) {
       return;
@@ -856,6 +936,20 @@ export function ClientsScreen({
     };
     if (!payload.name || !payload.phone) {
       setDraftError('Имя и телефон обязательны');
+      return;
+    }
+
+    const nextDiscountPercent = parsePercentInput(draft.permanentDiscountPercent);
+    if (draft.permanentDiscountPercent.trim() && nextDiscountPercent === null) {
+      setDraftError('Постоянная скидка должна быть числом');
+      return;
+    }
+    if (nextDiscountPercent !== null && (nextDiscountPercent < 0 || nextDiscountPercent > 100)) {
+      setDraftError('Постоянная скидка должна быть в диапазоне 0–100%');
+      return;
+    }
+    if (discountDirty && !canManageDiscounts) {
+      setDraftError('Нет прав на управление скидками клиента');
       return;
     }
 
@@ -880,7 +974,24 @@ export function ClientsScreen({
           toString(updated?.photoUrl) ||
           toString(updated?.imageUrl) ||
           draft.avatarUrl,
+        permanentDiscountType: activeClient.permanentDiscountType || 'NONE',
+        permanentDiscountValue: activeClient.permanentDiscountValue ?? null,
       };
+
+      if (discountDirty) {
+        const discountResponse = await api.updateClientPermanentDiscount(activeClient.id, nextDiscountPercent);
+        const discountRoot = toRecord(discountResponse);
+        const discountClient = toRecord(discountRoot?.client) ?? discountRoot;
+        nextClient.permanentDiscountType =
+          toString(toRecord(toRecord(discountClient?.discount)?.permanent)?.type) ||
+          toString(discountClient?.discountType) ||
+          (nextDiscountPercent === null ? 'NONE' : 'PERCENT');
+        nextClient.permanentDiscountValue =
+          toNumber(toRecord(toRecord(discountClient?.discount)?.permanent)?.value) ??
+          toNumber(discountClient?.discountValue) ??
+          nextDiscountPercent;
+      }
+
       setClientOverrides((prev) => ({
         ...prev,
         [activeClient.id]: {
@@ -894,12 +1005,79 @@ export function ClientsScreen({
         email: nextClient.email || '',
         comment: nextClient.comment || '',
         avatarUrl: nextClient.avatarUrl || null,
+        permanentDiscountPercent:
+          nextClient.permanentDiscountType === 'PERCENT' &&
+          typeof nextClient.permanentDiscountValue === 'number'
+            ? String(nextClient.permanentDiscountValue)
+            : '',
       });
+      setDiscountDirty(false);
       setEditMode(false);
     } catch (error) {
       setDraftError(error instanceof Error ? error.message : 'Не удалось сохранить клиента');
     } finally {
       setDraftSaving(false);
+    }
+  };
+
+  const handleSendPromocode = async () => {
+    if (!activeClient) {
+      return;
+    }
+    if (!canManagePromocodes) {
+      setPromoError('Нет прав на отправку промокодов');
+      return;
+    }
+
+    const percent = parsePercentInput(promoDiscountPercent);
+    if (percent === null || percent <= 0 || percent > 100) {
+      setPromoError('Промокод должен быть в процентах от 1 до 100');
+      return;
+    }
+
+    const targetEmail = draft?.email.trim() || activeClient.email || '';
+    if (!targetEmail) {
+      setPromoError('У клиента нет email для отправки промокода');
+      return;
+    }
+
+    setPromoSending(true);
+    setPromoError('');
+    setPromoResult(null);
+    try {
+      const endsAt = promoExpiresOn
+        ? new Date(`${promoExpiresOn}T23:59:59.999`).toISOString()
+        : undefined;
+      const created = await api.createPromoCode({
+        generate: true,
+        prefix: 'MARI',
+        length: 8,
+        name: `Клиентский промокод для ${activeClient.name}`,
+        description: `One-time промокод для клиента ${activeClient.name} (${activeClient.phone})`,
+        discountType: 'PERCENT',
+        discountValue: percent,
+        startsAt: new Date().toISOString(),
+        ...(endsAt ? { endsAt } : {}),
+        maxUsages: 1,
+        perClientUsageLimit: 1,
+        isActive: true,
+      });
+      const promo = created.promo;
+      const sent = await api.sendPromoCode(promo.id, {
+        clientId: activeClient.id,
+        email: targetEmail,
+      });
+      setPromoResult({
+        code: sent.promo.code,
+        email: sent.email,
+        expiresAt: sent.promo.endsAt,
+      });
+      setPromoDiscountPercent('');
+      setPromoExpiresOn('');
+    } catch (error) {
+      setPromoError(error instanceof Error ? error.message : 'Не удалось отправить промокод');
+    } finally {
+      setPromoSending(false);
     }
   };
 
@@ -917,11 +1095,11 @@ export function ClientsScreen({
     window.location.href = `sms:${normalizePhoneForLink(activeClient.phone)}`;
   };
 
-  const handleWhatsAppClient = () => {
+  const handleTelegramClient = () => {
     if (!activeClient?.phone) {
       return;
     }
-    window.open(`https://wa.me/${normalizePhoneForLink(activeClient.phone).replace(/[^\d]/g, '')}`, '_blank');
+    window.open(`https://t.me/${normalizePhoneForLink(activeClient.phone)}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -1068,7 +1246,7 @@ export function ClientsScreen({
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Выручка</p>
-              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{formatRub(totalRevenue)}</p>
+              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{formatGroupedRub(totalRevenue)}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Повторные</p>
@@ -1168,7 +1346,7 @@ export function ClientsScreen({
                           </td>
                           <td className="px-5 py-5">{summary.client.phone || '—'}</td>
                           <td className="px-5 py-5">{summary.client.email || '—'}</td>
-                          <td className="px-5 py-5 text-ink">{formatRub(summary.totalRevenue)}</td>
+                          <td className="px-5 py-5 text-ink">{formatGroupedRub(summary.totalRevenue)}</td>
                           <td className="px-5 py-5">{summary.totalVisits}</td>
                           <td className="px-5 py-5">{Math.round(summary.averageDiscount)}%</td>
                           <td className="px-5 py-5">{formatDateTime(summary.lastVisit)}</td>
@@ -1315,7 +1493,7 @@ export function ClientsScreen({
                 <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-4 py-4">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Выручка</p>
                   <p className="mt-3 text-[26px] font-extrabold leading-none text-ink">
-                    {activeSummary ? formatRub(activeSummary.totalRevenue) : '—'}
+                    {activeSummary ? formatGroupedRub(activeSummary.totalRevenue) : '—'}
                   </p>
                 </div>
                 <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-4 py-4">
@@ -1358,12 +1536,12 @@ export function ClientsScreen({
                       </button>
                       <button
                         type="button"
-                        onClick={handleWhatsAppClient}
+                        onClick={handleTelegramClient}
                         disabled={!activeClient.phone}
                         className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#222b33] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <MessageCircle className="h-4 w-4" />
-                        WhatsApp
+                        Телеграмм
                       </button>
                     </div>
                   </div>
@@ -1387,6 +1565,7 @@ export function ClientsScreen({
                                   type="button"
                                   onClick={() => {
                                     setEditMode(false);
+                                    setDiscountDirty(false);
                                     setDraft(mapClientToDraft(activeClient));
                                     setDraftError('');
                                   }}
@@ -1426,7 +1605,7 @@ export function ClientsScreen({
                           </div>
                         ) : null}
 
-                        <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_340px]">
+                        <div className="mt-6 grid gap-5 2xl:grid-cols-[minmax(0,1.28fr)_320px]">
                           <div className="grid gap-4 md:grid-cols-2">
                             <label className="block">
                               <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Имя</span>
@@ -1461,8 +1640,113 @@ export function ClientsScreen({
                             <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-4 py-4">
                               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Средний чек</p>
                               <p className="mt-3 text-[28px] font-extrabold leading-none text-ink">
-                                {activeSummary ? formatRub(activeSummary.averageCheck) : '—'}
+                                {activeSummary ? formatGroupedRub(activeSummary.averageCheck) : '—'}
                               </p>
+                            </div>
+                            <div className="rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-5 md:col-span-2">
+                              <div className="grid gap-4 2xl:grid-cols-2">
+                                <div className="min-w-0 rounded-[24px] border border-[#e5e9f0] bg-white p-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fff5cf] text-[#9b7322]">
+                                      <BadgePercent className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Постоянная скидка</p>
+                                      <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                                        Процент скидки, который клиент увидит на сайте при оформлении записи.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 flex items-center gap-3">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      value={draft?.permanentDiscountPercent || ''}
+                                      onChange={(event) => handlePermanentDiscountChange(event.target.value)}
+                                      disabled={!editMode || draftLoading || !canManageDiscounts}
+                                      placeholder="Например, 10"
+                                      className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                                    />
+                                    <span className="text-sm font-extrabold text-[#738094]">%</span>
+                                  </div>
+                                  <p className="mt-3 text-xs font-semibold text-[#98a1ae]">
+                                    Очистите поле, чтобы убрать постоянную скидку.
+                                  </p>
+                                </div>
+
+                                <div className="min-w-0 rounded-[24px] border border-[#e5e9f0] bg-white p-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#2d5fd6]">
+                                      <Mail className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Отправить промокод</p>
+                                      <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                                        Одноразовый промокод в процентах, отправляется клиенту на email.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 grid gap-3">
+                                    <div>
+                                      <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">Скидка</p>
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max="100"
+                                          step="1"
+                                          value={promoDiscountPercent}
+                                          onChange={(event) => setPromoDiscountPercent(event.target.value)}
+                                          disabled={promoSending || !canManagePromocodes}
+                                          placeholder="15"
+                                          className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                                        />
+                                        <span className="text-sm font-extrabold text-[#738094]">%</span>
+                                      </div>
+                                    </div>
+                                    <label className="block">
+                                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">Действует до</span>
+                                      <input
+                                        type="date"
+                                        value={promoExpiresOn}
+                                        onChange={(event) => setPromoExpiresOn(event.target.value)}
+                                        disabled={promoSending || !canManagePromocodes}
+                                        className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-sm font-semibold text-ink outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                                      />
+                                    </label>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void handleSendPromocode();
+                                    }}
+                                    disabled={promoSending || !canManagePromocodes}
+                                    className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#222b33] disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {promoSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
+                                    Отправить
+                                  </button>
+                                  <p className="mt-3 text-xs font-semibold text-[#98a1ae]">
+                                    Email отправки: {draft?.email.trim() || activeClient.email || 'не указан'}
+                                  </p>
+                                  {promoError ? (
+                                    <div className="mt-3 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 py-3 text-sm font-semibold text-[#bc5941]">
+                                      {promoError}
+                                    </div>
+                                  ) : null}
+                                  {promoResult ? (
+                                    <div className="mt-3 rounded-2xl border border-[#d7eadf] bg-[#eef8f2] px-4 py-3 text-sm font-semibold text-[#2e7a4a]">
+                                      Промокод <span className="font-extrabold">{promoResult.code}</span> отправлен на {promoResult.email}
+                                      {promoResult.expiresAt
+                                        ? `, действует до ${formatHistoryDate(new Date(promoResult.expiresAt))}`
+                                        : ', без ограничения по дате'}
+                                      .
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
                             </div>
                           </div>
 
@@ -1497,7 +1781,7 @@ export function ClientsScreen({
                         <div className="rounded-[28px] border border-[#e3e8ef] bg-white px-5 py-5">
                           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Оплачено</p>
                           <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">
-                            {formatRub(activeSummary?.totalPaid ?? 0)}
+                            {formatGroupedRub(activeSummary?.totalPaid ?? 0)}
                           </p>
                         </div>
                         <div className="rounded-[28px] border border-[#e3e8ef] bg-white px-5 py-5">
@@ -1564,8 +1848,8 @@ export function ClientsScreen({
                                     </span>
                                   </div>
                                   <div>{item.serviceName || '—'}</div>
-                                  <div className="text-ink">{formatRub(getAppointmentAmount(item))}</div>
-                                  <div className="text-ink">{formatRub(item.paidAmount ?? 0)}</div>
+                                  <div className="text-ink">{formatGroupedRub(getAppointmentAmount(item))}</div>
+                                  <div className="text-ink">{formatGroupedRub(item.paidAmount ?? 0)}</div>
                                 </div>
                               );
                             })
@@ -1620,13 +1904,13 @@ export function ClientsScreen({
                           <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-5 py-4">
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Выручка</p>
                             <p className="mt-3 text-[30px] font-extrabold leading-none text-ink">
-                              {formatRub(statsHistory.reduce((sum, item) => sum + getAppointmentAmount(item), 0))}
+                              {formatGroupedRub(statsHistory.reduce((sum, item) => sum + getAppointmentAmount(item), 0))}
                             </p>
                           </div>
                           <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-5 py-4">
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Оплачено</p>
                             <p className="mt-3 text-[30px] font-extrabold leading-none text-ink">
-                              {formatRub(statsHistory.reduce((sum, item) => sum + Math.max(item.paidAmount ?? 0, 0), 0))}
+                              {formatGroupedRub(statsHistory.reduce((sum, item) => sum + Math.max(item.paidAmount ?? 0, 0), 0))}
                             </p>
                           </div>
                           <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-5 py-4">
@@ -1636,7 +1920,7 @@ export function ClientsScreen({
                           <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-5 py-4">
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Средний чек</p>
                             <p className="mt-3 text-[30px] font-extrabold leading-none text-ink">
-                              {formatRub(
+                              {formatGroupedRub(
                                 statsHistory.length > 0
                                   ? statsHistory.reduce((sum, item) => sum + getAppointmentAmount(item), 0) / statsHistory.length
                                   : 0,
@@ -1660,7 +1944,7 @@ export function ClientsScreen({
                               </p>
                             </div>
                             <p className="text-sm font-extrabold text-ink">
-                              {formatRub(statsSeries.reduce((sum, item) => sum + item.value, 0))}
+                              {formatGroupedRub(statsSeries.reduce((sum, item) => sum + item.value, 0))}
                             </p>
                           </div>
 
@@ -1692,7 +1976,7 @@ export function ClientsScreen({
                                   {statsSeries.map((item) => (
                                     <div key={item.label} className="rounded-2xl border border-[#eef2f6] bg-[#f9fbfd] px-3 py-3">
                                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">{item.label}</p>
-                                      <p className="mt-2 text-sm font-extrabold text-ink">{formatRub(item.value)}</p>
+                                      <p className="mt-2 text-sm font-extrabold text-ink">{formatGroupedRub(item.value)}</p>
                                     </div>
                                   ))}
                                 </div>
@@ -1708,7 +1992,7 @@ export function ClientsScreen({
                         <DonutCard
                           title="Услуги"
                           items={buildClientSummary(activeClient, statsHistory).topServices}
-                          valueFormatter={(value) => formatRub(value)}
+                          valueFormatter={(value) => formatGroupedRub(value)}
                         />
                         <DonutCard
                           title="Сотрудники"

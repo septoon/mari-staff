@@ -71,6 +71,8 @@ export type ClientItem = {
   email?: string;
   comment?: string;
   avatarUrl?: string | null;
+  permanentDiscountType?: string;
+  permanentDiscountValue?: number | null;
 };
 
 export type ServiceItem = {
