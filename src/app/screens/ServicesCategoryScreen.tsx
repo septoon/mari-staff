@@ -46,7 +46,7 @@ export function ServicesCategoryScreen({
             <ArrowLeft className="h-6 w-6" />
           </button>
           <button type="button" onClick={onEditCategory} className="min-w-0 flex-1 text-left">
-            <h1 className="truncate text-[26px] font-extrabold text-ink">{categoryName}</h1>
+            <h1 className="truncate text-[24px] font-extrabold text-ink">{categoryName}</h1>
           </button>
           <button type="button" onClick={onCreateService} className="rounded-lg p-2 text-ink">
             <Plus className="h-7 w-7" />
@@ -74,8 +74,8 @@ export function ServicesCategoryScreen({
               className="flex w-full items-center justify-between gap-3 text-left"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[20px] font-semibold text-ink">{item.name}</p>
-                <div className="mt-2 flex items-center gap-6 text-[18px] font-medium text-[#6f7682]">
+                <p className="truncate text-[18px] font-semibold text-ink">{item.name}</p>
+                <div className="mt-2 flex items-center gap-5 text-[16px] font-medium text-[#6f7682]">
                   <span className="inline-flex items-center gap-2">
                     <Banknote className="h-6 w-6" />
                     {item.priceMin}₽

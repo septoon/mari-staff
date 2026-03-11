@@ -13,7 +13,7 @@ const TAB_ROUTES: Record<TabKey, string> = {
   schedule: '/schedule',
   clients: '/clients',
   analytics: '/analytics',
-  notifications: '/notifications',
+  services: '/services',
   more: '/more',
 };
 

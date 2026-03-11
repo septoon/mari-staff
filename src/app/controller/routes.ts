@@ -10,7 +10,7 @@ const TAB_ROUTE_MAP: Record<TabKey, string> = {
   schedule: '/schedule',
   clients: '/clients',
   analytics: '/analytics',
-  notifications: '/notifications',
+  services: '/services',
   more: '/more',
 };
 
@@ -61,7 +61,7 @@ export function routeToState(pathname: string): RouteState | null {
     case '/analytics':
       return { page: 'tabs', tab: 'analytics' };
     case '/notifications':
-      return { page: 'tabs', tab: 'notifications' };
+      return { page: 'servicesCategories', tab: 'services' };
     case '/more':
       return { page: 'tabs', tab: 'more' };
     case '/staff':
@@ -87,13 +87,13 @@ export function routeToState(pathname: string): RouteState | null {
     case '/online-booking':
       return { page: 'clientSiteEditor', tab: 'more' };
     case '/services':
-      return { page: 'servicesCategories', tab: 'more' };
+      return { page: 'servicesCategories', tab: 'services' };
     case '/services/category':
-      return { page: 'servicesCategory', tab: 'more' };
+      return { page: 'servicesCategory', tab: 'services' };
     case '/services/editor':
-      return { page: 'serviceEditor', tab: 'more' };
+      return { page: 'serviceEditor', tab: 'services' };
     case '/services/category/editor':
-      return { page: 'serviceCategoryEditor', tab: 'more' };
+      return { page: 'serviceCategoryEditor', tab: 'services' };
     default:
       return null;
   }

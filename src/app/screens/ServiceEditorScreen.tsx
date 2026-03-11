@@ -99,7 +99,7 @@ export function ServiceEditorScreen({
           <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
             <ArrowLeft className="h-6 w-6" />
           </button>
-          <h1 className="text-[26px] font-extrabold text-ink">Услуга</h1>
+          <h1 className="text-[24px] font-extrabold text-ink">Услуга</h1>
           <button
             type="button"
             onClick={onDelete}
@@ -116,7 +116,7 @@ export function ServiceEditorScreen({
             <input
               value={draft.name}
               onChange={(event) => onDraftChange((prev) => ({ ...prev, name: event.target.value }))}
-              className="w-full rounded-3xl border-[2px] border-line bg-screen px-4 py-3 text-[22px] font-medium text-ink outline-none"
+              className="w-full rounded-3xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
             />
           </label>
 
@@ -134,7 +134,7 @@ export function ServiceEditorScreen({
                     categoryName: nextCategory?.name || '',
                   }));
                 }}
-                className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-4 py-3 text-[22px] font-medium text-ink outline-none"
+                className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
               >
                 <option value="">Выберите категорию</option>
                 {categories.map((item) => (
@@ -165,7 +165,7 @@ export function ServiceEditorScreen({
                 }
               />
             </button>
-            <span className="text-[22px] font-medium text-ink">Доступна для онлайн-записи</span>
+            <span className="text-[20px] font-medium text-ink">Доступна для онлайн-записи</span>
           </div>
 
           <label className="block">
@@ -175,12 +175,12 @@ export function ServiceEditorScreen({
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, description: event.target.value }))
               }
-              className="h-40 w-full rounded-3xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
+              className="h-40 w-full rounded-3xl border-[2px] border-line bg-screen px-4 py-3 text-[18px] font-medium text-ink outline-none"
             />
           </label>
 
           <section className="space-y-4">
-            <h2 className="text-[22px] font-extrabold text-ink">Параметры услуги</h2>
+            <h2 className="text-[20px] font-extrabold text-ink">Параметры услуги</h2>
             <label className="block">
               <span className="mb-1 block text-[14px] font-semibold text-muted">Базовая цена, ₽</span>
               <input
@@ -190,7 +190,7 @@ export function ServiceEditorScreen({
                   const next = Math.max(0, Number(event.target.value) || 0);
                   onDraftChange((prev) => ({ ...prev, priceMin: next, priceMax: next }));
                 }}
-                className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
+                className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[18px] font-medium text-ink outline-none"
               />
             </label>
             <label className="block">
@@ -204,7 +204,7 @@ export function ServiceEditorScreen({
                     durationSec: Math.max(300, (Number(event.target.value) || 5) * 60),
                   }))
                 }
-                className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
+                className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[18px] font-medium text-ink outline-none"
               />
             </label>
           </section>
@@ -221,7 +221,7 @@ export function ServiceEditorScreen({
             ) : (
               <div className="text-center">
                 <ImagePlus className="mx-auto h-10 w-10" />
-                <div className="mt-1 text-[18px] font-semibold">Загрузить изображение</div>
+                <div className="mt-1 text-[16px] font-semibold">Загрузить изображение</div>
                 <div className="text-[14px] font-medium">Размер до 12 МБ</div>
               </div>
             )}
@@ -230,7 +230,7 @@ export function ServiceEditorScreen({
           {draft.id ? (
             <section className="space-y-4 border-t border-line pt-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-[22px] font-extrabold text-ink">Услугу оказывают</h2>
+                <h2 className="text-[20px] font-extrabold text-ink">Услугу оказывают</h2>
                 {providersLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted" /> : null}
               </div>
 
@@ -248,7 +248,7 @@ export function ServiceEditorScreen({
                         <UserRound className="h-6 w-6 text-[#68768a]" />
                       )}
                     </div>
-                    <div className="min-w-0 flex-1 text-[22px] font-semibold text-ink">{person.name}</div>
+                    <div className="min-w-0 flex-1 text-[20px] font-semibold text-ink">{person.name}</div>
                     <button
                       type="button"
                       onClick={() => onRemoveProvider(person.id)}
@@ -264,7 +264,7 @@ export function ServiceEditorScreen({
                       <input
                         readOnly
                         value={draft.priceMin}
-                        className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
+                        className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[18px] font-medium text-ink outline-none"
                       />
                     </label>
                     <label className="block">
@@ -272,7 +272,7 @@ export function ServiceEditorScreen({
                       <input
                         readOnly
                         value={`${durationMin} мин`}
-                        className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[20px] font-medium text-ink outline-none"
+                        className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[18px] font-medium text-ink outline-none"
                       />
                     </label>
                   </div>
@@ -282,7 +282,7 @@ export function ServiceEditorScreen({
               <button
                 type="button"
                 onClick={() => setAssignSheetOpen(true)}
-                className="w-full rounded-3xl border-2 border-accent bg-screen py-4 text-[20px] font-semibold text-[#3b4048]"
+                className="w-full rounded-3xl border-2 border-accent bg-screen py-4 text-[18px] font-semibold text-[#3b4048]"
               >
                 Назначить сотрудников
               </button>
@@ -293,7 +293,7 @@ export function ServiceEditorScreen({
             type="button"
             onClick={onSave}
             disabled={loading}
-            className="w-full rounded-3xl bg-accent py-4 text-[22px] font-extrabold text-[#222b33] disabled:opacity-50"
+            className="w-full rounded-3xl bg-accent py-4 text-[20px] font-extrabold text-[#222b33] disabled:opacity-50"
           >
             Сохранить
           </button>
@@ -628,7 +628,7 @@ export function ServiceEditorScreen({
         snapPoints={({ maxHeight }) => [Math.min(540, maxHeight - 48)]}
       >
         <div className="space-y-4 pb-4 md:hidden">
-          <h3 className="text-[24px] font-extrabold text-ink">Назначить сотрудников</h3>
+          <h3 className="text-[22px] font-extrabold text-ink">Назначить сотрудников</h3>
           <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
             {assignableStaff.map((person) => {
               const checked = selectedProviderIds.includes(person.id);
@@ -646,7 +646,7 @@ export function ServiceEditorScreen({
                       <UserRound className="h-5 w-5 text-[#68768a]" />
                     )}
                   </div>
-                  <div className="min-w-0 flex-1 truncate text-[18px] font-semibold text-ink">{person.name}</div>
+                  <div className="min-w-0 flex-1 truncate text-[16px] font-semibold text-ink">{person.name}</div>
                   <div
                     className={
                       checked
@@ -664,7 +664,7 @@ export function ServiceEditorScreen({
             type="button"
             onClick={applyProviders}
             disabled={loading}
-            className="w-full rounded-3xl bg-accent py-4 text-[20px] font-extrabold text-[#222b33] disabled:opacity-50"
+            className="w-full rounded-3xl bg-accent py-4 text-[18px] font-extrabold text-[#222b33] disabled:opacity-50"
           >
             Применить
           </button>

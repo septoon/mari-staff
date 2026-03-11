@@ -105,7 +105,7 @@ export function StaffEditorScreen({
           <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
             <ArrowLeft className="h-6 w-6" />
           </button>
-          <h1 className="text-[24px] font-extrabold text-ink">Сотрудник</h1>
+          <h1 className="text-[22px] font-extrabold text-ink">Сотрудник</h1>
           <button
             type="button"
             onClick={onDelete}
@@ -128,7 +128,7 @@ export function StaffEditorScreen({
               <UserRound className="h-12 w-12" />
             )}
           </button>
-          <button type="button" onClick={pickAvatar} className="mt-3 text-[20px] font-semibold text-muted">
+          <button type="button" onClick={pickAvatar} className="mt-3 text-[18px] font-semibold text-muted">
             Изменить фото
           </button>
           {canDeleteAvatar ? (
@@ -144,18 +144,18 @@ export function StaffEditorScreen({
 
         <div className="space-y-4">
           <label className="block">
-            <span className="mb-2 block text-[18px] font-medium text-muted">Имя</span>
+            <span className="mb-2 block text-[16px] font-medium text-muted">Имя</span>
             <input
               value={draft.name}
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, name: event.target.value }))
               }
-              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none"
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[18px] font-medium text-muted">Должность</span>
+            <span className="mb-2 block text-[16px] font-medium text-muted">Должность</span>
             <div className="relative">
               <select
                 value={draft.role}
@@ -165,7 +165,7 @@ export function StaffEditorScreen({
                     role: event.target.value as StaffCreateRole,
                   }))
                 }
-                className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+                className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none"
               >
                 <option value="MASTER">{roleLabel('MASTER')}</option>
                 <option value="DEVELOPER">{roleLabel('DEVELOPER')}</option>
@@ -177,13 +177,13 @@ export function StaffEditorScreen({
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[18px] font-medium text-muted">Специализация</span>
+            <span className="mb-2 block text-[16px] font-medium text-muted">Специализация</span>
             <input
               value={draft.positionName}
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, positionName: event.target.value }))
               }
-              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[22px] font-medium text-ink outline-none"
+              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none"
             />
           </label>
 
@@ -193,8 +193,8 @@ export function StaffEditorScreen({
             className="flex w-full items-center justify-between border-b border-line pb-4 pt-1 text-left"
           >
             <div>
-              <p className="text-[22px] font-medium text-ink">Оказываемые услуги</p>
-              <p className="text-[18px] font-medium text-muted">{serviceCount} услуг</p>
+              <p className="text-[20px] font-medium text-ink">Оказываемые услуги</p>
+              <p className="text-[16px] font-medium text-muted">{serviceCount} услуг</p>
             </div>
             <ChevronRight className="h-7 w-7 text-muted" />
           </button>
@@ -205,16 +205,16 @@ export function StaffEditorScreen({
             className="flex w-full items-center justify-between border-b border-line pb-4 pt-1 text-left"
           >
             <div>
-              <p className="text-[22px] font-medium text-ink">Права доступа</p>
-              <p className="text-[18px] font-medium text-muted">{permissionSummary}</p>
+              <p className="text-[20px] font-medium text-ink">Права доступа</p>
+              <p className="text-[16px] font-medium text-muted">{permissionSummary}</p>
             </div>
             <ChevronRight className="h-7 w-7 text-muted" />
           </button>
 
           <div className="flex items-center justify-between pt-1">
             <div>
-              <p className="text-[22px] font-medium text-ink">Доступ к сервису</p>
-              <p className="max-w-[260px] text-[16px] font-medium text-muted">
+              <p className="text-[20px] font-medium text-ink">Доступ к сервису</p>
+              <p className="max-w-[260px] text-[14px] font-medium text-muted">
                 Сотрудник сможет пользоваться системой в соответствии с установленной ролью
               </p>
             </div>
@@ -236,9 +236,9 @@ export function StaffEditorScreen({
           </div>
 
           <label className="block">
-            <span className="mb-2 block text-[18px] font-medium text-muted">Номер телефона</span>
+            <span className="mb-2 block text-[16px] font-medium text-muted">Номер телефона</span>
             <div className="flex w-full items-center gap-3 rounded-3xl bg-[#e6e9ef] px-6 py-4">
-              <span className="shrink-0 text-[22px] font-medium text-muted">+7</span>
+              <span className="shrink-0 text-[20px] font-medium text-muted">+7</span>
               <input
                 value={getRuPhoneLocalDigits(draft.phone)}
                 onChange={(event) =>
@@ -248,19 +248,19 @@ export function StaffEditorScreen({
                 inputMode="numeric"
                 pattern="[0-9]*"
                 autoComplete="tel-national"
-                className="min-w-0 w-full bg-transparent text-[22px] font-medium text-muted outline-none"
+                className="min-w-0 w-full bg-transparent text-[20px] font-medium text-muted outline-none"
               />
             </div>
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[18px] font-medium text-muted">Email</span>
+            <span className="mb-2 block text-[16px] font-medium text-muted">Email</span>
             <input
               value={draft.email}
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, email: event.target.value }))
               }
-              className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[22px] font-medium text-muted outline-none"
+              className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[20px] font-medium text-muted outline-none"
             />
           </label>
 
@@ -269,7 +269,7 @@ export function StaffEditorScreen({
               type="button"
               onClick={onDelete}
               disabled={loading}
-              className="mt-1 w-full rounded-3xl border-[2px] border-line py-4 text-[22px] font-medium text-ink"
+              className="mt-1 w-full rounded-3xl border-[2px] border-line py-4 text-[20px] font-medium text-ink"
             >
               Уволить сотрудника
             </button>
@@ -279,7 +279,7 @@ export function StaffEditorScreen({
             type="button"
             onClick={onSave}
             disabled={loading}
-            className="mt-2 w-full rounded-3xl bg-[#f4c900] py-4 text-[22px] font-bold text-black disabled:opacity-60"
+            className="mt-2 w-full rounded-3xl bg-[#f4c900] py-4 text-[20px] font-bold text-black disabled:opacity-60"
           >
             {loading ? 'Сохранение...' : mode === 'create' ? 'Добавить' : 'Сохранить'}
           </button>

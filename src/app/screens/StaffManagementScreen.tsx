@@ -42,7 +42,7 @@ export function StaffManagementScreen({
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-[26px] font-extrabold text-ink">Сотрудники</h1>
+            <h1 className="text-[24px] font-extrabold text-ink">Сотрудники</h1>
             <div className="flex items-center gap-1 text-muted">
               <button type="button" onClick={onRefresh} className="rounded-lg p-2 text-ink">
                 <RefreshCcw className="h-6 w-6" />
@@ -72,7 +72,7 @@ export function StaffManagementScreen({
               onFilterChange((prev) => ({ ...prev, withServices: !prev.withServices }))
             }
             className={clsx(
-              'rounded-full px-5 py-2 text-[16px] font-semibold',
+              'rounded-full px-5 py-2 text-[14px] font-semibold',
               filters.withServices ? 'bg-[#f2dc7e] text-ink' : 'bg-[#dde2ea] text-ink',
             )}
           >
@@ -98,19 +98,19 @@ export function StaffManagementScreen({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[44px] font-medium leading-none text-ink">
-                      <span className="text-[18px]">{item.name}</span>
+                    <p className="truncate text-[40px] font-medium leading-none text-ink">
+                      <span className="text-[16px]">{item.name}</span>
                     </p>
-                    <p className="mt-1 truncate text-[18px] font-medium text-muted">
+                    <p className="mt-1 truncate text-[16px] font-medium text-muted">
                       {item.positionName || roleLabel(item.role)}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {servicesCount > 0 ? (
-                        <span className="rounded-full bg-[#f2dc7e] px-4 py-1 text-[14px] font-medium text-ink">
+                        <span className="rounded-full bg-[#f2dc7e] px-4 py-1 text-[13px] font-medium text-ink">
                           Оказывает услуги
                         </span>
                       ) : null}
-                      <span className="rounded-full bg-[#dde2ea] px-4 py-1 text-[16px] font-medium text-ink">
+                      <span className="rounded-full bg-[#dde2ea] px-4 py-1 text-[14px] font-medium text-ink">
                         {servicesCount} услуг
                       </span>
                     </div>

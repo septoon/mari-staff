@@ -1,5 +1,4 @@
 import {
-  Bell,
   CalendarDays,
   CalendarRange,
   ChartPie,
@@ -48,13 +47,12 @@ export const TAB_ITEMS: TabItem[] = [
   { key: 'schedule', title: 'График', icon: CalendarRange },
   { key: 'clients', title: 'Клиенты', icon: Users },
   { key: 'analytics', title: 'Аналитика', icon: ChartPie },
-  { key: 'notifications', title: 'Уведомл...', icon: Bell },
+  { key: 'services', title: 'Услуги', icon: Sparkles },
   { key: 'more', title: 'Еще', icon: Menu },
 ];
 
 export const MORE_MENU: MoreActionItem[] = [
   { title: 'Сотрудники', icon: UserRound },
-  { title: 'Услуги', icon: Sparkles },
   { title: 'Аналитика', icon: ChartPie },
   { title: 'Онлайн-запись', icon: Clock3 },
   { title: 'Политика конфиденциальности', icon: Shield },

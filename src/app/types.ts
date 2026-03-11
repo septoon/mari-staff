@@ -4,7 +4,7 @@ import type { StaffPermissionCatalogItem, StaffRole, StaffSession } from '../api
 
 export type { StaffPermissionCatalogItem, StaffRole, StaffSession };
 
-export type TabKey = 'journal' | 'schedule' | 'clients' | 'analytics' | 'notifications' | 'more';
+export type TabKey = 'journal' | 'schedule' | 'clients' | 'analytics' | 'services' | 'more';
 export type AppPage =
   | 'tabs'
   | 'scheduleEditor'

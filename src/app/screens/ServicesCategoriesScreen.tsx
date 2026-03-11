@@ -265,7 +265,7 @@ export function ServicesCategoriesScreen({
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <h1 className="text-[26px] font-extrabold text-ink">Услуги</h1>
+            <h1 className="text-[24px] font-extrabold text-ink">Услуги</h1>
             <button type="button" onClick={onCreateCategory} className="rounded-lg p-2 text-ink">
               <Plus className="h-7 w-7" />
             </button>
@@ -292,9 +292,9 @@ export function ServicesCategoriesScreen({
                   onClick={() => onOpenCategory(group.category.id)}
                   className="flex min-w-0 flex-1 items-center justify-between text-left"
                 >
-                  <span className="truncate text-[22px] font-medium text-ink">{group.category.name}</span>
+                  <span className="truncate text-[20px] font-medium text-ink">{group.category.name}</span>
                   <div className="ml-3 flex items-center gap-2">
-                    <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-[#e6e9ef] px-2 text-[18px] font-medium text-[#7a828f]">
+                    <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-[#e6e9ef] px-2 text-[16px] font-medium text-[#7a828f]">
                       {group.totalCount}
                     </span>
                     <ChevronRight className="h-6 w-6 text-[#9ca5b2]" />
@@ -312,7 +312,7 @@ export function ServicesCategoriesScreen({
           ))}
         </ul>
 
-        <span>Всего услуг: {totalCount}</span>
+        <span className="mt-4 block text-sm font-semibold text-[#6f7682]">Всего услуг: {totalCount}</span>
 
         {loading ? (
           <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-muted">

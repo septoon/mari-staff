@@ -14,7 +14,7 @@ export function BottomNav({ active, items, onChange }: BottomNavProps) {
     schedule: '/schedule',
     clients: '/clients',
     analytics: '/analytics',
-    notifications: '/notifications',
+    services: '/services',
     more: '/more',
   };
 

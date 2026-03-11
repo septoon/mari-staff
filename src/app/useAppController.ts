@@ -68,7 +68,7 @@ const TAB_PERMISSION_CODE: Partial<Record<TabKey, string>> = {
   schedule: 'VIEW_SCHEDULE',
   clients: 'VIEW_CLIENTS',
   analytics: 'VIEW_FINANCIAL_STATS',
-  notifications: 'VIEW_JOURNAL',
+  services: 'VIEW_SERVICES',
 };
 const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
   Сотрудники: 'VIEW_STAFF',
@@ -2394,8 +2394,9 @@ export function useAppController(): AppController {
     setServicesItemsSearch('');
     setSelectedServiceCategoryId(null);
     setSelectedServiceCategoryName('');
-    await loadServices();
+    setTab('services');
     setPage('servicesCategories');
+    await loadServices();
   };
 
   const closeClientSiteEditor = () => {
@@ -3552,6 +3553,10 @@ export function useAppController(): AppController {
     if (next !== 'clients') {
       setClientHistoryTarget(null);
       setClientHistoryAppointments([]);
+    }
+    if (next === 'services') {
+      void openServicesPage();
+      return;
     }
     setPage('tabs');
     setTab(next);

@@ -28,7 +28,6 @@ import { JournalAppointmentScreen } from './screens/JournalAppointmentScreen';
 import { JournalClientScreen } from './screens/JournalClientScreen';
 import { JournalTabScreen } from './screens/JournalTabScreen';
 import { MoreScreen } from './screens/MoreScreen';
-import { NotificationsScreen } from './screens/NotificationsScreen';
 import { OwnerEditScreen } from './screens/OwnerEditScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
@@ -774,16 +773,6 @@ export function AppView({ controller }: AppViewProps) {
             onBack={actions.handleCloseClientHistory}
           />
         ) : null}
-        {state.page === 'tabs' && state.tab === 'notifications' ? (
-          <NotificationsScreen
-            notifications={state.notifications}
-            loading={state.loading.appointments}
-            onReload={() => {
-              void actions.loadAppointmentsForSelectedDate();
-            }}
-            onOpenAll={() => actions.setTab('journal')}
-          />
-        ) : null}
         {state.page === 'tabs' && state.tab === 'more' ? (
           <MoreScreen
             session={state.session}
@@ -819,7 +808,7 @@ export function AppView({ controller }: AppViewProps) {
             }}
           />
         ) : null}
-        {state.page === 'servicesCategories' ? (
+        {state.page === 'servicesCategories' || (state.page === 'tabs' && state.tab === 'services') ? (
           <ServicesCategoriesScreen
             categories={state.serviceCategories}
             services={state.services}
