@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { api } from '../../api';
 import {
-  getWeekDates,
   monthRange,
   setLoadingKey,
   toErrorMessage,
@@ -15,14 +14,15 @@ import {
   extractItems,
   parseAppointment,
   parseClient,
+  parseScheduleCalendar,
   parseService,
   parseStaff,
-  parseWorkingHours,
 } from '../parsers';
 import type {
   AppointmentItem,
   ClientItem,
   LoadingState,
+  SettingsNotificationSection,
   ServiceItem,
   StaffItem,
   StaffRole,
@@ -57,11 +57,15 @@ type UseDataLoadersParams = {
   setJournalMarkedDates: (value: string[]) => void;
   setWorkingHoursByStaff: (value: WorkingHoursMap) => void;
   setSettingsClientCancelMinNoticeMinutes: (value: number | null) => void;
+  setSettingsNotificationMinNoticeMinutes: (value: number | null) => void;
+  setSettingsNotificationSections: (value: SettingsNotificationSection[]) => void;
   setPrivacyPolicyText: (value: string) => void;
 };
 
 type SettingsPayload = {
   clientCancelMinNoticeMinutes: number | null;
+  notificationMinNoticeMinutes: number | null;
+  notificationSections: SettingsNotificationSection[];
   privacyPolicyText: string;
 };
 
@@ -93,9 +97,19 @@ export function useDataLoaders({
   setJournalMarkedDates,
   setWorkingHoursByStaff,
   setSettingsClientCancelMinNoticeMinutes,
+  setSettingsNotificationMinNoticeMinutes,
+  setSettingsNotificationSections,
   setPrivacyPolicyText,
 }: UseDataLoadersParams) {
   const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
+  const buildScheduleRange = (anchor: Date) => {
+    const from = new Date(anchor.getFullYear(), anchor.getMonth() - 4, 1);
+    const to = new Date(anchor.getFullYear(), anchor.getMonth() + 6, 0);
+    return {
+      from: toISODate(from),
+      to: toISODate(to),
+    };
+  };
 
   const loadStaff = useCallback(async () => {
     if (!isAuthorized || !canUseStaffDirectory) {
@@ -395,6 +409,8 @@ export function useDataLoaders({
   const loadSettings = useCallback(async () => {
     if (!isAuthorized) {
       setSettingsClientCancelMinNoticeMinutes(null);
+      setSettingsNotificationMinNoticeMinutes(null);
+      setSettingsNotificationSections([]);
       setPrivacyPolicyText('');
       return null;
     }
@@ -404,13 +420,76 @@ export function useDataLoaders({
       const asRecord = toRecord(data);
       const policyRecord = toRecord(asRecord?.clientCancelPolicy) ?? toRecord(asRecord?.cancelPolicy);
       const minNotice = toNumber(policyRecord?.minNoticeMinutes);
+      const notificationsRecord = toRecord(asRecord?.notifications);
+      const notificationMinNotice = toNumber(
+        notificationsRecord?.minNoticeMinutes ?? asRecord?.notificationMinNoticeMinutes,
+      );
+      const rawSections = Array.isArray(notificationsRecord?.sections)
+        ? (notificationsRecord?.sections as unknown[])
+        : [];
+      const notificationSections = rawSections
+        .map((section) => {
+          const sectionRecord = toRecord(section);
+          const rawGroups = Array.isArray(sectionRecord?.groups)
+            ? (sectionRecord?.groups as unknown[])
+            : [];
+          const groups = rawGroups
+            .map((group) => {
+              const groupRecord = toRecord(group);
+              const rawItems = Array.isArray(groupRecord?.items)
+                ? (groupRecord?.items as unknown[])
+                : [];
+              const items = rawItems
+                .map((item) => {
+                  const itemRecord = toRecord(item);
+                  const id = toString(itemRecord?.id);
+                  const title = toString(itemRecord?.title);
+                  if (!id || !title) {
+                    return null;
+                  }
+                  return {
+                    id,
+                    title,
+                    enabled: Boolean(itemRecord?.enabled),
+                    channel: 'email' as const,
+                    channelLabel: toString(itemRecord?.channelLabel) || 'Эл. почта',
+                  };
+                })
+                .filter(Boolean);
+              const id = toString(groupRecord?.id);
+              if (!id || items.length === 0) {
+                return null;
+              }
+              return {
+                id,
+                title: toString(groupRecord?.title),
+                items,
+              };
+            })
+            .filter(Boolean);
+          const id = toString(sectionRecord?.id);
+          const title = toString(sectionRecord?.title);
+          if (!id || !title || groups.length === 0) {
+            return null;
+          }
+          return {
+            id,
+            title,
+            groups,
+          };
+        })
+        .filter(Boolean) as SettingsNotificationSection[];
       const privacyPolicyRecord = toRecord(asRecord?.privacyPolicy);
       const privacyPolicyText = toString(privacyPolicyRecord?.content) || toString(asRecord?.privacyPolicy);
       const nextSettings: SettingsPayload = {
         clientCancelMinNoticeMinutes: minNotice ?? null,
+        notificationMinNoticeMinutes: notificationMinNotice ?? null,
+        notificationSections,
         privacyPolicyText,
       };
       setSettingsClientCancelMinNoticeMinutes(nextSettings.clientCancelMinNoticeMinutes);
+      setSettingsNotificationMinNoticeMinutes(nextSettings.notificationMinNoticeMinutes);
+      setSettingsNotificationSections(nextSettings.notificationSections);
       setPrivacyPolicyText(nextSettings.privacyPolicyText);
       return nextSettings;
     } catch (error) {
@@ -419,7 +498,15 @@ export function useDataLoaders({
     } finally {
       setLoadingKey(setLoading, 'settings', false);
     }
-  }, [isAuthorized, setAppError, setLoading, setPrivacyPolicyText, setSettingsClientCancelMinNoticeMinutes]);
+  }, [
+    isAuthorized,
+    setAppError,
+    setLoading,
+    setPrivacyPolicyText,
+    setSettingsClientCancelMinNoticeMinutes,
+    setSettingsNotificationMinNoticeMinutes,
+    setSettingsNotificationSections,
+  ]);
 
   const loadReports = useCallback(async (params?: { from?: string; to?: string; masterId?: string | null }) => {
     if (!isAuthorized || !canViewReports) {
@@ -466,10 +553,8 @@ export function useDataLoaders({
         setWorkingHoursByStaff({});
         return;
       }
-      const week = getWeekDates(selectedDate);
-      const from = toISODate(week[0]);
-      const to = toISODate(week[week.length - 1]);
-      const hasSlots = (hours: Record<number, string[]>) =>
+      const { from, to } = buildScheduleRange(selectedDate);
+      const hasSlots = (hours: Record<string, string[]>) =>
         Object.values(hours).some((slots) => slots.length > 0);
 
       setLoadingKey(setLoading, 'schedule', true);
@@ -480,10 +565,10 @@ export function useDataLoaders({
               const data = await api.get<unknown>(
                 `/schedule/staff/${item.id}/working-hours?from=${from}&to=${to}`,
               );
-              const parsed = parseWorkingHours(data);
-              return [item.id, hasSlots(parsed) ? parsed : {} as Record<number, string[]>] as const;
+              const parsed = parseScheduleCalendar(data);
+              return [item.id, hasSlots(parsed) ? parsed : {} as Record<string, string[]>] as const;
             } catch {
-              return [item.id, {} as Record<number, string[]>] as const;
+              return [item.id, {} as Record<string, string[]>] as const;
             }
           }),
         );

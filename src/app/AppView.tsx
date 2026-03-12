@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useLocation } from 'react-router-dom';
 import { BottomNav } from './components/shared/BottomNav';
@@ -30,6 +30,8 @@ import { JournalTabScreen } from './screens/JournalTabScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { OwnerEditScreen } from './screens/OwnerEditScreen';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
+import { SettingsNotificationsScreen } from './screens/SettingsNotificationsScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { ScheduleEditorScreen } from './screens/ScheduleEditorScreen';
 import { ServiceCategoryEditorScreen } from './screens/ServiceCategoryEditorScreen';
@@ -44,7 +46,6 @@ import {
   formatRub,
   normalizePhoneForLink,
   toISODate,
-  toISODay,
 } from './helpers';
 import type { AppController, ClientItem, StaffItem } from './types';
 
@@ -85,9 +86,21 @@ function escapeVCardText(value: string) {
 export function AppView({ controller }: AppViewProps) {
   const { state, actions } = controller;
   const location = useLocation();
+  const mainScrollRef = useRef<HTMLElement | null>(null);
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
   const setPinToken = new URLSearchParams(location.search).get('token') || '';
   const isPinEntryRoute = pathname === '/staff/set-pin' || pathname === '/staff/reset-pin';
+
+  useEffect(() => {
+    if (!('scrollRestoration' in window.history)) {
+      return;
+    }
+    const previousValue = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => {
+      window.history.scrollRestoration = previousValue;
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -102,6 +115,22 @@ export function AppView({ controller }: AppViewProps) {
       root.style.removeProperty('--ui-scale');
     };
   }, [isPinEntryRoute]);
+
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    } catch {
+      // jsdom and embedded webviews may not implement scrollTo.
+    }
+
+    try {
+      document.documentElement.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+      document.body.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+      mainScrollRef.current?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    } catch {
+      // Ignore environments without element scrolling support.
+    }
+  }, [pathname]);
 
   const isJournalMainPage = state.page === 'tabs' && state.tab === 'journal';
   const isScheduleMainPage = state.page === 'tabs' && state.tab === 'schedule';
@@ -118,6 +147,8 @@ export function AppView({ controller }: AppViewProps) {
   const sessionPermissions: string[] = Array.isArray(rawSessionPermissions) ? rawSessionPermissions : [];
   const canManageClientDiscounts =
     state.session?.staff.role === 'OWNER' || sessionPermissions.includes('MANAGE_CLIENT_DISCOUNTS');
+  const canManageClientAvatars =
+    Boolean(state.canEditClients) || sessionPermissions.includes('MANAGE_CLIENT_AVATARS');
   const canManagePromocodes =
     state.session?.staff.role === 'OWNER' || sessionPermissions.includes('MANAGE_PROMOCODES');
   const visibleClients =
@@ -141,33 +172,21 @@ export function AppView({ controller }: AppViewProps) {
   const [clientsToolsLoading, setClientsToolsLoading] = useState(false);
   const [clientsToolsError, setClientsToolsError] = useState('');
   const scheduleMarkedDates = useMemo(() => {
-    const daysWithHours = new Set<number>();
-
+    const datesWithHours = new Set<string>();
     Object.values(state.workingHoursByStaff).forEach((byDay) => {
-      Object.entries(byDay).forEach(([day, slots]) => {
-        const isoDay = Number(day);
-        if (Number.isFinite(isoDay) && slots.length > 0) {
-          daysWithHours.add(isoDay);
+      Object.entries(byDay).forEach(([date, slots]) => {
+        if (slots.length > 0) {
+          datesWithHours.add(date);
         }
       });
     });
 
-    if (daysWithHours.size === 0) {
+    if (datesWithHours.size === 0) {
       return [] as string[];
     }
 
-    const from = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth(), 1);
-    const to = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth() + 4, 0);
-    const items: string[] = [];
-
-    for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
-      if (daysWithHours.has(toISODay(date))) {
-        items.push(toISODate(date));
-      }
-    }
-
-    return items;
-  }, [state.selectedDate, state.workingHoursByStaff]);
+    return Array.from(datesWithHours).sort((left, right) => left.localeCompare(right));
+  }, [state.workingHoursByStaff]);
   const activeJournalAppointment = state.journalAppointmentTarget;
   const activeJournalHistory = activeJournalAppointment
     ? state.journalClientHistory.filter((item) =>
@@ -461,6 +480,7 @@ export function AppView({ controller }: AppViewProps) {
       ) : null}
 
       <main
+        ref={mainScrollRef}
         className={clsx(
           'scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6',
           showDesktopRail ? 'md:pl-[444px] md:pr-6' : undefined,
@@ -711,6 +731,10 @@ export function AppView({ controller }: AppViewProps) {
             selectedDate={state.selectedDate}
             staff={state.visibleStaff}
             hoursByStaff={state.workingHoursByStaff}
+            editorStaff={state.scheduleEditorStaff}
+            editorSelectedDays={state.scheduleEditorDays}
+            editorStart={state.scheduleEditorStart}
+            editorEnd={state.scheduleEditorEnd}
             loading={state.loading.schedule || state.loading.staff || state.loading.action}
             onReload={() => {
               void actions.refreshAll();
@@ -720,6 +744,24 @@ export function AppView({ controller }: AppViewProps) {
             }}
             onEditStaff={(item: StaffItem) => {
               void actions.openScheduleEditorForStaff(item);
+            }}
+            onOpenDesktopEditor={(item: StaffItem, date: Date) => {
+              actions.setSelectedDate(date);
+              void actions.openScheduleEditorForStaff(item, {
+                presentation: 'panel',
+                focusDate: date,
+              });
+            }}
+            onCloseDesktopEditor={actions.closeScheduleEditor}
+            onToggleEditorDay={actions.toggleScheduleEditorDay}
+            onEditorStartChange={actions.setScheduleEditorStart}
+            onEditorEndChange={actions.setScheduleEditorEnd}
+            onEditorPresetSelect={actions.applyScheduleEditorPreset}
+            onSaveEditor={() => {
+              void actions.saveScheduleEditor();
+            }}
+            onClearEditor={() => {
+              void actions.clearScheduleEditor();
             }}
             onSelectDate={actions.setSelectedDate}
           />
@@ -752,6 +794,7 @@ export function AppView({ controller }: AppViewProps) {
             query={state.clientsQuery}
             loading={state.loading.clients || state.loading.action}
             canEdit={state.canEditClients}
+            canManageAvatars={canManageClientAvatars}
             canManageDiscounts={canManageClientDiscounts}
             canManagePromocodes={canManagePromocodes}
             onQueryChange={actions.setClientsQuery}
@@ -796,6 +839,29 @@ export function AppView({ controller }: AppViewProps) {
             onLogout={() => {
               void actions.handleLogout();
             }}
+          />
+        ) : null}
+        {state.page === 'settings' ? (
+          <SettingsScreen
+            notificationCount={state.settingsNotificationSections.reduce(
+              (count, section) =>
+                count + section.groups.reduce((groupCount, group) => groupCount + group.items.length, 0),
+              0,
+            )}
+            canEdit={state.canEditSettings}
+            onBack={actions.closeSettingsPage}
+            onOpenNotifications={actions.openSettingsNotificationsPage}
+          />
+        ) : null}
+        {state.page === 'settingsNotifications' ? (
+          <SettingsNotificationsScreen
+            sections={state.settingsNotificationSections}
+            minNoticeMinutes={state.settingsNotificationMinNoticeMinutes}
+            canEdit={state.canEditSettings}
+            loading={state.loading.settings || state.loading.action}
+            onBack={actions.closeSettingsNotificationsPage}
+            onSaveMinNotice={actions.saveNotificationMinNoticeMinutes}
+            onToggle={actions.toggleNotificationSetting}
           />
         ) : null}
         {state.page === 'privacyPolicy' ? (

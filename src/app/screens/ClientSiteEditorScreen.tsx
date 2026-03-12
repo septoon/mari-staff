@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   BadgePercent,
@@ -267,6 +268,19 @@ type CategorySnapshot = CategoryMeta & {
   warning?: string;
 };
 
+const CLIENT_SITE_EDITOR_BASE_ROUTE = '/online-booking';
+
+const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
+  general: 'osnovnoe',
+  services: 'uslugi',
+  specialists: 'specialisty',
+  contacts: 'kontakty',
+  page: 'stranica',
+  promo: 'akcii',
+  advanced: 'sluzhebnye-nastroyki',
+  publish: 'publikatsiya',
+};
+
 type GeneralDraft = {
   brandName: string;
   legalName: string;
@@ -360,23 +374,23 @@ const categories: CategoryMeta[] = [
     title: 'Основное',
     description: 'Бренд, техработы и базовые параметры клиентского сайта.',
     note: 'Базовые настройки приложения и сайта без смешивания с контентом страницы.',
-    tags: ['бренд', 'техработы', 'версии iOS/Android'],
+    tags: ['бренд', 'техработы', 'версии приложения'],
     icon: Settings2,
   },
   {
     key: 'services',
     title: 'Услуги',
     description: 'Витрина онлайн-записи: как существующие услуги выглядят для клиента.',
-    note: 'Полный редактор услуги остаётся в отдельном разделе «Услуги», а здесь только витрина для клиента.',
-    tags: ['категории', 'nameOnline', 'цены и длительность', 'активность'],
+    note: 'Здесь видно, как услуги показаны клиенту. Полное редактирование самих услуг остаётся в разделе «Услуги».',
+    tags: ['категории', 'название для клиента', 'цены', 'длительность'],
     icon: Wrench,
   },
   {
     key: 'specialists',
     title: 'Специалисты',
     description: 'Карточки мастеров для клиентского сайта и записи.',
-    note: 'Фото, специализация, CTA, видимость и порядок карточек для клиента.',
-    tags: ['фото', 'специализация', 'видимость', 'CTA'],
+    note: 'Фото, специализация, текст кнопки записи, видимость и порядок карточек для клиента.',
+    tags: ['фото', 'специализация', 'видимость', 'кнопка записи'],
     icon: Users,
   },
   {
@@ -390,33 +404,33 @@ const categories: CategoryMeta[] = [
   {
     key: 'page',
     title: 'Блоки страницы',
-    description: 'Обычное содержимое страницы: баннеры, тексты, кнопки и FAQ.',
+    description: 'Обычное содержимое страницы: баннеры, тексты, кнопки и раздел «Вопросы и ответы».',
     note: 'Это основной конструктор страницы записи без промо и технастроек.',
-    tags: ['banner', 'text', 'buttons', 'faq'],
+    tags: ['баннеры', 'текстовые блоки', 'кнопки', 'вопросы и ответы'],
     icon: FileText,
   },
   {
     key: 'promo',
     title: 'Акции и предложения',
-    description: 'Промо-контент, подборки офферов и специальные предложения.',
-    note: 'Маркетинговые блоки отдельно от основной структуры страницы.',
-    tags: ['promo', 'offers', 'офферы', 'спецпредложения'],
+    description: 'Рекламные блоки, подборки предложений и специальные акции.',
+    note: 'Маркетинговые блоки вынесены отдельно от основной структуры страницы.',
+    tags: ['акции', 'предложения', 'скидки', 'спецпредложения'],
     icon: BadgePercent,
   },
   {
     key: 'advanced',
-    title: 'Дополнительно',
+    title: 'Служебные настройки',
     description: 'Технические настройки, которые не стоит смешивать с обычным контентом.',
-    note: 'Feature flags, custom blocks, extra-данные и служебные условия показа.',
-    tags: ['feature flags', 'custom', 'extra', 'служебное'],
+    note: 'Служебные переключатели, дополнительные данные, нестандартные блоки и условия показа.',
+    tags: ['служебные переключатели', 'дополнительные данные', 'нестандартные блоки', 'условия показа'],
     icon: SlidersHorizontal,
   },
   {
     key: 'publish',
     title: 'Публикация',
     description: 'Предпросмотр, выпуск черновика и история опубликованных версий.',
-    note: 'Финальный этап: проверить черновик, опубликовать и смотреть историю релизов.',
-    tags: ['preview', 'publish', 'releases'],
+    note: 'Финальный этап: проверить черновик, опубликовать и смотреть историю публикаций.',
+    tags: ['предпросмотр', 'публикация', 'история изменений'],
     icon: Rocket,
   },
 ];
@@ -446,18 +460,18 @@ const PLATFORM_LABELS: Record<PlatformInput, string> = {
   all: 'Все',
   ios: 'iOS',
   android: 'Android',
-  web: 'Web',
+  web: 'Сайт',
 };
 
 const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
   BANNER: 'Баннер',
   TEXT: 'Текст',
   BUTTONS: 'Кнопки',
-  FAQ: 'FAQ',
-  PROMO: 'Промо',
-  OFFERS: 'Офферы',
+  FAQ: 'Вопросы и ответы',
+  PROMO: 'Рекламный блок',
+  OFFERS: 'Предложения',
   CONTACTS: 'Контакты',
-  CUSTOM: 'Custom',
+  CUSTOM: 'Нестандартный блок',
 };
 
 const DAYS_ORDERED = [
@@ -483,7 +497,7 @@ function getErrorMessage(error: unknown) {
       return 'Нет доступа';
     }
     if (error.status === 404) {
-      return 'Endpoint не найден';
+      return 'Раздел на сервере не найден';
     }
     return error.message || 'Ошибка API';
   }
@@ -521,6 +535,28 @@ function formatMoney(value: number | null | undefined) {
     return '—';
   }
   return `${Math.round(value)} ₽`;
+}
+
+function formatVersionNumber(value: number | null | undefined) {
+  return `Версия ${value ?? 0}`;
+}
+
+function buildCategoryRoute(category: CategoryKey) {
+  return `${CLIENT_SITE_EDITOR_BASE_ROUTE}/${CATEGORY_ROUTE_SEGMENTS[category]}`;
+}
+
+function resolveCategoryFromPath(pathname: string): CategoryKey | null {
+  const normalized = pathname.replace(/\/+$/, '') || '/';
+  if (normalized === CLIENT_SITE_EDITOR_BASE_ROUTE) {
+    return null;
+  }
+  if (!normalized.startsWith(`${CLIENT_SITE_EDITOR_BASE_ROUTE}/`)) {
+    return null;
+  }
+
+  const routeSegment = normalized.slice(CLIENT_SITE_EDITOR_BASE_ROUTE.length + 1);
+  const foundEntry = Object.entries(CATEGORY_ROUTE_SEGMENTS).find(([, segment]) => segment === routeSegment);
+  return (foundEntry?.[0] as CategoryKey | undefined) ?? null;
 }
 
 function bannerClassName(message: BannerMessage) {
@@ -711,7 +747,7 @@ function createDefaultBlockPayload(type: BlockType, contacts: ContactPointRecord
       };
     case 'BUTTONS':
       return {
-        title: 'Полезные ссылки',
+        title: 'Полезные кнопки',
         items: [
           {
             label: 'Открыть',
@@ -722,7 +758,7 @@ function createDefaultBlockPayload(type: BlockType, contacts: ContactPointRecord
       };
     case 'FAQ':
       return {
-        title: 'Вопросы и ответы',
+        title: 'Частые вопросы',
         items: [
           {
             question: 'Как записаться?',
@@ -732,7 +768,7 @@ function createDefaultBlockPayload(type: BlockType, contacts: ContactPointRecord
       };
     case 'PROMO':
       return {
-        title: 'Промо-блок',
+        title: 'Рекламный блок',
         description: 'Описание предложения',
         badge: 'Акция',
         ctaText: 'Получить',
@@ -741,7 +777,7 @@ function createDefaultBlockPayload(type: BlockType, contacts: ContactPointRecord
       };
     case 'OFFERS':
       return {
-        title: 'Спецпредложения',
+        title: 'Подборка предложений',
         items: [
           {
             id: `offer-${Date.now()}`,
@@ -925,7 +961,7 @@ function blockTitle(block: BlockRecord) {
   }
   if (block.blockType === 'FAQ') {
     const items = Array.isArray(block.payload.items) ? block.payload.items : [];
-    return items.length > 0 ? `FAQ (${items.length})` : block.blockKey;
+    return items.length > 0 ? `Вопросы и ответы (${items.length})` : block.blockKey;
   }
   return block.blockKey;
 }
@@ -938,7 +974,7 @@ function blockSubtitle(block: BlockRecord) {
   }
   if (block.blockType === 'OFFERS') {
     const items = Array.isArray(payload.items) ? payload.items : [];
-    return `Офферов: ${items.length}`;
+    return `Предложений: ${items.length}`;
   }
   if (block.blockType === 'CONTACTS') {
     const items = Array.isArray(payload.items) ? payload.items : [];
@@ -980,6 +1016,9 @@ function CategorySummaryCard({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-[22px] font-extrabold leading-tight text-ink">{item.title}</h2>
+              <p className="mt-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+                Отвечает за
+              </p>
               <p className="mt-2 text-[16px] font-medium leading-relaxed text-[#5f6773]">{item.description}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -1134,7 +1173,8 @@ function ToggleField({
 }
 
 export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEditorScreenProps) {
-  const [activeCategory, setActiveCategory] = useState<CategoryKey | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
@@ -1167,10 +1207,25 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const releases = useMemo(() => screenData.releases.data?.items ?? [], [screenData.releases.data]);
   const mediaPickerEntity = mediaPicker?.entity ?? null;
   const mediaPickerSearch = mediaPicker?.search ?? '';
+  const activeCategory = useMemo(
+    () => resolveCategoryFromPath(location.pathname),
+    [location.pathname],
+  );
 
   const setBanner = useCallback((tone: 'success' | 'error' | 'info', text: string) => {
     setMessage({ tone, text });
   }, []);
+
+  const openCategoryPage = useCallback(
+    (category: CategoryKey) => {
+      navigate(buildCategoryRoute(category));
+    },
+    [navigate],
+  );
+
+  const closeCategoryPage = useCallback(() => {
+    navigate(CLIENT_SITE_EDITOR_BASE_ROUTE);
+  }, [navigate]);
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -1204,6 +1259,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+    if (
+      activeCategory === null &&
+      normalizedPath !== CLIENT_SITE_EDITOR_BASE_ROUTE &&
+      normalizedPath.startsWith(`${CLIENT_SITE_EDITOR_BASE_ROUTE}/`)
+    ) {
+      navigate(CLIENT_SITE_EDITOR_BASE_ROUTE, { replace: true });
+    }
+  }, [activeCategory, location.pathname, navigate]);
 
   useEffect(() => {
     if (!config) {
@@ -1365,12 +1431,12 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         case 'general':
           return {
             ...category,
-            stat: screenData.config.error ? screenData.config.error : `v${config?.publishedVersion ?? 0}`,
+            stat: screenData.config.error ? screenData.config.error : formatVersionNumber(config?.publishedVersion),
             details: config
               ? [
                   `Бренд: ${config.brandName?.trim() || 'не задан'}`,
                   `Техработы: ${config.maintenanceMode ? 'включены' : 'выключены'}`,
-                  `Мин. версия iOS: ${config.minAppVersionIos || 'не задана'}`,
+                  `Минимальная версия iOS: ${config.minAppVersionIos || 'не задана'}`,
                 ]
               : ['Конфигурация пока недоступна.'],
             warning: config?.maintenanceMode ? config.maintenanceMessage || 'Техработы включены без текста.' : screenData.config.error || undefined,
@@ -1383,7 +1449,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               ? [
                   `Активных услуг: ${activeServices.length}`,
                   `Категорий в витрине: ${servicesCategoriesCount}`,
-                  `С отдельным online-name: ${services.filter((item) => item.nameOnline).length}`,
+                  `С отдельным названием для клиента: ${services.filter((item) => item.nameOnline).length}`,
                 ]
               : ['Услуги пока не загружены.'],
             warning: screenData.services.error || undefined,
@@ -1421,7 +1487,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             details: [
               `Баннеров: ${pageBlocks.filter((item) => item.blockType === 'BANNER').length}`,
               `Текстов: ${pageBlocks.filter((item) => item.blockType === 'TEXT').length}`,
-              `FAQ: ${pageBlocks.filter((item) => item.blockType === 'FAQ').length}`,
+              `Блоков «Вопросы и ответы»: ${pageBlocks.filter((item) => item.blockType === 'FAQ').length}`,
             ],
             warning: screenData.blocks.error || undefined,
           };
@@ -1430,8 +1496,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             ...category,
             stat: screenData.blocks.error ? screenData.blocks.error : `${promoBlocks.filter((item) => item.isEnabled).length}/${promoBlocks.length}`,
             details: [
-              `PROMO-блоков: ${promoBlocks.filter((item) => item.blockType === 'PROMO').length}`,
-              `OFFERS-блоков: ${promoBlocks.filter((item) => item.blockType === 'OFFERS').length}`,
+              `Рекламных блоков: ${promoBlocks.filter((item) => item.blockType === 'PROMO').length}`,
+              `Подборок предложений: ${promoBlocks.filter((item) => item.blockType === 'OFFERS').length}`,
               `Активных: ${promoBlocks.filter((item) => item.isEnabled).length}`,
             ],
             warning: screenData.blocks.error || undefined,
@@ -1441,9 +1507,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             ...category,
             stat: screenData.config.error || screenData.blocks.error ? 'частично' : `${featureFlags.length + customBlocks.length}`,
             details: [
-              `Feature flags: ${featureFlags.length}`,
-              `Правил flags: ${featureRules}`,
-              `Custom blocks: ${customBlocks.length}`,
+              `Служебных переключателей: ${featureFlags.length}`,
+              `Правил показа: ${featureRules}`,
+              `Нестандартных блоков: ${customBlocks.length}`,
               `Блоков с условиями: ${blocksWithConditions.length}`,
             ],
             warning: screenData.config.error || screenData.blocks.error ? 'Часть технических данных недоступна.' : undefined,
@@ -1451,10 +1517,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         case 'publish':
           return {
             ...category,
-            stat: `v${config?.publishedVersion ?? 0}`,
+            stat: formatVersionNumber(config?.publishedVersion),
             details: [
               `Последняя публикация: ${formatDate(config?.publishedAt)}`,
-              `Релизов в истории: ${releases.length}`,
+              `Публикаций в истории: ${releases.length}`,
               `Черновых блоков: ${blocks.length}`,
             ],
             warning: screenData.releases.error || undefined,
@@ -1566,8 +1632,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const saveAdvanced = async () => {
     try {
-      const featureFlags = parseJsonRecord(advancedDraft.featureFlagsJson, 'featureFlags');
-      const extra = parseJsonRecord(advancedDraft.extraJson, 'extra');
+      const featureFlags = parseJsonRecord(advancedDraft.featureFlagsJson, 'Служебные переключатели');
+      const extra = parseJsonRecord(advancedDraft.extraJson, 'Дополнительные данные');
       await saveConfigPatch(
         {
           featureFlags,
@@ -1881,7 +1947,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       return;
     }
     if (options?.offerIndex === undefined && !supportsRootImage(blockEditor.draft.blockType)) {
-      setBanner('info', 'Корневая картинка поддержана только для BANNER и PROMO.');
+      setBanner('info', 'Главное изображение доступно только для баннера и рекламного блока.');
       return;
     }
 
@@ -1980,7 +2046,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         open={blockEditor.draft.blockType === 'CUSTOM'}
         className="rounded-2xl border border-line bg-[#f4f6f9] px-4 py-4"
       >
-        <summary className="cursor-pointer list-none text-[16px] font-extrabold text-ink">Raw JSON</summary>
+        <summary className="cursor-pointer list-none text-[16px] font-extrabold text-ink">Технические данные (JSON)</summary>
         <textarea
           rows={blockEditor.draft.blockType === 'CUSTOM' ? 16 : 10}
           value={blockEditor.draft.payloadText}
@@ -2098,7 +2164,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <TextField
-                label="Текст CTA"
+                label="Текст кнопки"
                 value={asStringValue(payload.ctaText)}
                 onChange={(value) =>
                   updateBlockPayload((current) => ({
@@ -2108,7 +2174,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 }
               />
               <TextField
-                label="Ссылка CTA"
+                label="Ссылка кнопки"
                 value={asStringValue(payload.ctaUrl)}
                 onChange={(value) =>
                   updateBlockPayload((current) => ({
@@ -2371,7 +2437,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <TextField
-                label="Текст CTA"
+                label="Текст кнопки"
                 value={asStringValue(payload.ctaText)}
                 onChange={(value) =>
                   updateBlockPayload((current) => ({
@@ -2381,7 +2447,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 }
               />
               <TextField
-                label="Ссылка CTA"
+                label="Ссылка кнопки"
                 value={asStringValue(payload.ctaUrl)}
                 onChange={(value) =>
                   updateBlockPayload((current) => ({
@@ -2417,7 +2483,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 return (
                   <div key={`offer-${index}`} className="rounded-2xl border border-line bg-[#f4f6f9] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-[16px] font-extrabold text-ink">Оффер {index + 1}</p>
+                      <p className="text-[16px] font-extrabold text-ink">Предложение {index + 1}</p>
                       <button
                         type="button"
                         onClick={() =>
@@ -2529,7 +2595,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
                       <div className="grid gap-3 sm:grid-cols-2">
                         <TextField
-                          label="Текст CTA"
+                          label="Текст кнопки"
                           value={asStringValue(item.ctaText)}
                           onChange={(value) =>
                             updateBlockPayload((current) => {
@@ -2540,7 +2606,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                           }
                         />
                         <TextField
-                          label="Ссылка CTA"
+                          label="Ссылка кнопки"
                           value={asStringValue(item.ctaUrl)}
                           onChange={(value) =>
                             updateBlockPayload((current) => {
@@ -2557,13 +2623,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                         <div className="flex items-start gap-4">
                           <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f6f9]">
                             {previewUrl ? (
-                              <img src={previewUrl} alt={asStringValue(item.title) || `Оффер ${index + 1}`} className="h-full w-full object-cover" />
+                              <img src={previewUrl} alt={asStringValue(item.title) || `Предложение ${index + 1}`} className="h-full w-full object-cover" />
                             ) : (
                               <Image className="h-7 w-7 text-[#68768a]" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[15px] font-extrabold text-ink">Изображение оффера</p>
+                            <p className="text-[15px] font-extrabold text-ink">Изображение предложения</p>
                             <p className="mt-1 text-[13px] font-semibold text-[#8590a0]">
                               assetId: {imageAssetId || 'не выбран'}
                             </p>
@@ -2754,7 +2820,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         return (
           <div className="space-y-4">
             <div className="rounded-2xl border border-line bg-[#f4f6f9] px-4 py-4 text-[14px] font-semibold leading-relaxed text-[#5f6773]">
-              Для custom-блоков сохраняем прямое редактирование JSON.
+              Для нестандартных блоков сохраняем прямое редактирование данных в формате JSON.
             </div>
             {rawJsonEditor}
           </div>
@@ -2846,7 +2912,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="text-[26px] font-extrabold text-ink">Онлайн-запись</h1>
-          <p className="mt-1 text-[14px] font-semibold text-muted">Навигационный центр по клиентскому сайту и записи</p>
+          <p className="mt-1 text-[14px] font-semibold text-muted">Главная страница управления клиентским сайтом и онлайн-записью</p>
         </div>
         <button
           type="button"
@@ -2864,8 +2930,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       <section className="rounded-[30px] border border-line bg-gradient-to-br from-white via-[#f7f7fb] to-[#edf1f7] p-5 shadow-[0_14px_36px_rgba(42,49,56,0.08)]">
         <p className="text-[24px] font-extrabold leading-tight text-ink">Категории управления клиентским сайтом</p>
         <p className="mt-3 text-[16px] font-medium leading-relaxed text-[#5f6773]">
-          Здесь собраны все управляемые сущности клиентского сайта и онлайн-записи. Сводка строится по реальным
-          данным из `client-front`, услуг и истории публикаций.
+          Здесь собраны все разделы, которые влияют на то, что увидит клиент на сайте онлайн-записи.
+          Каждая карточка ниже открывает отдельную страницу нужного раздела.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-white/90 px-4 py-3">
@@ -2882,14 +2948,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </div>
         </div>
         <div className="mt-4 rounded-2xl bg-white/90 px-4 py-3 text-[15px] font-semibold leading-relaxed text-[#5f6773]">
-          Медиатека остаётся встроенным инструментом внутри тех мест, где выбираются изображения. Раздел `Услуги`
-          не дублирует редактор услуг, а связывает витрину записи с уже существующим разделом.
+          Здесь удобно сначала понять, за что отвечает каждый раздел, а потом перейти внутрь и изменить нужный блок.
+          Редактор услуг остаётся отдельным разделом, а здесь показано, как услуги выглядят для клиента.
         </div>
       </section>
 
-      <section className="mt-6 grid gap-4 md:grid-cols-2">
+      <section className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {categorySnapshots.map((item) => (
-          <CategorySummaryCard key={item.key} item={item} onOpen={() => setActiveCategory(item.key)} />
+          <CategorySummaryCard key={item.key} item={item} onOpen={() => openCategoryPage(item.key)} />
         ))}
       </section>
 
@@ -2916,7 +2982,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const renderGeneralDetail = () => (
     <div className="space-y-5">
-      <SectionCard title="Основные настройки" subtitle="Редактируются через `/client-front/staff/config`.">
+      <SectionCard title="Основные настройки" subtitle="Управляют базовыми данными клиентского сайта: названием, техработами и ограничениями по версиям приложения.">
         <div className="grid gap-4">
           <TextField label="Бренд" value={generalDraft.brandName} onChange={(value) => setGeneralDraft((prev) => ({ ...prev, brandName: value }))} />
           <TextField label="Юр. название" value={generalDraft.legalName} onChange={(value) => setGeneralDraft((prev) => ({ ...prev, legalName: value }))} />
@@ -2965,7 +3031,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       <div className="space-y-5">
         <SectionCard
           title="Витрина услуг"
-          subtitle="Здесь только сводка по тому, как услуги выглядят для клиента. Полное редактирование остаётся в отдельном разделе."
+          subtitle="Здесь видно, как услуги показаны клиенту. Полное редактирование самих услуг остаётся в отдельном разделе."
           action={
             <button
               type="button"
@@ -2987,13 +3053,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               <div className="mt-1 text-[24px] font-extrabold text-ink">{services.filter((item) => item.isActive).length}</div>
             </div>
             <div className="rounded-2xl bg-white px-4 py-3">
-              <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">С online-name</div>
+              <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">С названием для клиента</div>
               <div className="mt-1 text-[24px] font-extrabold text-ink">{services.filter((item) => item.nameOnline).length}</div>
             </div>
           </div>
         </SectionCard>
 
-        <SectionCard title="Что увидит клиент первым" subtitle="Первые активные услуги по данным staff-приложения.">
+        <SectionCard title="Что увидит клиент первым" subtitle="Первые активные услуги, которые попадут в витрину записи.">
           <div className="space-y-3">
             {visibleServices.length === 0 ? (
               <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Активных услуг пока нет.</div>
@@ -3050,7 +3116,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                           {item.specialty || 'Без специализации'} • {item.isVisible ? 'Виден клиенту' : 'Скрыт'}
                         </p>
                         <p className="mt-1 text-[13px] font-semibold text-[#8590a0]">
-                          CTA: {item.ctaText || 'Записаться'} • Услуг: {item.services.length}
+                          Кнопка записи: {item.ctaText || 'Записаться'} • Услуг: {item.services.length}
                         </p>
                       </div>
                       <button
@@ -3150,29 +3216,29 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       blocks.filter((block) => ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'].includes(block.blockType)),
       ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'],
       'Основные блоки страницы',
-      'Редактор баннеров, текстов, кнопок и FAQ для страницы записи.',
+      'Редактор баннеров, текстовых блоков, кнопок и раздела «Вопросы и ответы» для страницы записи.',
     );
 
   const renderPromoDetail = () =>
     renderBlockManager(
       blocks.filter((block) => ['PROMO', 'OFFERS'].includes(block.blockType)),
       ['PROMO', 'OFFERS'],
-      'Промо и офферы',
+      'Акции и предложения',
       'Редактор маркетинговых блоков и подборок предложений.',
     );
 
   const renderAdvancedDetail = () => (
     <div className="space-y-5">
-      <SectionCard title="Feature flags и extra" subtitle="Технические поля конфигурации храним как JSON.">
+      <SectionCard title="Служебные настройки" subtitle="Служебные данные сохраняются в техническом формате JSON.">
         <div className="space-y-4">
           <TextAreaField
-            label="featureFlags"
+            label="Служебные переключатели (JSON)"
             value={advancedDraft.featureFlagsJson}
             onChange={(value) => setAdvancedDraft((prev) => ({ ...prev, featureFlagsJson: value }))}
             rows={12}
           />
           <TextAreaField
-            label="extra"
+            label="Дополнительные данные (JSON)"
             value={advancedDraft.extraJson}
             onChange={(value) => setAdvancedDraft((prev) => ({ ...prev, extraJson: value }))}
             rows={10}
@@ -3187,15 +3253,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
         >
           {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Сохранить JSON
+          Сохранить служебные данные
         </button>
       </SectionCard>
 
       {renderBlockManager(
         blocks.filter((block) => block.blockType === 'CUSTOM'),
         ['CUSTOM'],
-        'Custom blocks',
-        'Служебные блоки для нестандартного клиентского поведения.',
+        'Нестандартные блоки',
+        'Служебные блоки для нестандартного поведения клиентского сайта.',
       )}
     </div>
   );
@@ -3370,13 +3436,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <div key={`preview-offer-${asStringValue(item.id) || index}`} className="overflow-hidden rounded-[24px] border border-line bg-[#fbfbfd]">
                   <div className="flex h-44 items-center justify-center bg-[#eef2f7]">
                     {imageUrl ? (
-                      <img src={imageUrl} alt={asStringValue(item.title) || `Оффер ${index + 1}`} className="h-full w-full object-cover" />
+                      <img src={imageUrl} alt={asStringValue(item.title) || `Предложение ${index + 1}`} className="h-full w-full object-cover" />
                     ) : (
                       <Image className="h-9 w-9 text-[#7d8795]" />
                     )}
                   </div>
                   <div className="px-4 py-4">
-                    <p className="text-[18px] font-extrabold text-ink">{asStringValue(item.title) || `Оффер ${index + 1}`}</p>
+                    <p className="text-[18px] font-extrabold text-ink">{asStringValue(item.title) || `Предложение ${index + 1}`}</p>
                     {asStringValue(item.subtitle) ? (
                       <p className="mt-1 text-[14px] font-semibold text-[#7d8795]">{asStringValue(item.subtitle)}</p>
                     ) : null}
@@ -3419,7 +3485,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
     return (
       <section key={block.id} className="rounded-[28px] border border-dashed border-line bg-white px-5 py-5">
-        <p className="text-[16px] font-extrabold text-ink">Custom block: {block.blockKey}</p>
+        <p className="text-[16px] font-extrabold text-ink">Нестандартный блок: {block.blockKey}</p>
         <pre className="mt-3 overflow-auto rounded-2xl bg-[#f4f6f9] px-4 py-4 text-[13px] font-medium text-[#5f6773]">
           {JSON.stringify(payload, null, 2)}
         </pre>
@@ -3443,7 +3509,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(42,49,56,0.05)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8a94a2]">Web preview</p>
+                <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8a94a2]">Предпросмотр сайта</p>
                 <h2 className="mt-1 text-[28px] font-extrabold text-ink">
                   {previewState.data.config.brandName || 'Онлайн-запись'}
                 </h2>
@@ -3452,7 +3518,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 ) : null}
               </div>
               <div className="rounded-full border border-line bg-[#f6f8fb] px-4 py-2 text-[13px] font-bold text-[#596373]">
-                Draft v{previewState.data.version}
+                Черновик, версия {previewState.data.version}
               </div>
             </div>
           </div>
@@ -3533,7 +3599,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
           {previewBlocks.length === 0 && previewSpecialists.length === 0 && previewContacts.length === 0 ? (
             <div className="mt-5 rounded-[24px] bg-white px-5 py-5 text-[15px] font-semibold text-[#5f6773]">
-              В preview пока нечего показывать.
+              В предпросмотре пока нечего показывать.
             </div>
           ) : null}
         </div>
@@ -3545,7 +3611,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     <div className="space-y-5">
       <SectionCard
         title="Предпросмотр черновика"
-        subtitle="Читается через `/client-front/staff/preview?platform=web`."
+        subtitle="Показывает, как клиент увидит сайт до публикации."
         action={
           <button
             type="button"
@@ -3556,7 +3622,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
           >
             {busyKey === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Обновить preview
+            Обновить предпросмотр
           </button>
         }
       >
@@ -3568,8 +3634,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl bg-white px-4 py-3">
-                <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Draft version</div>
-                <div className="mt-1 text-[24px] font-extrabold text-ink">v{previewState.data.version}</div>
+                <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Черновик</div>
+                <div className="mt-1 text-[24px] font-extrabold text-ink">{previewState.data.version}</div>
               </div>
               <div className="rounded-2xl bg-white px-4 py-3">
                 <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Блоков</div>
@@ -3584,13 +3650,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             {renderVisualPreview()}
           </div>
         ) : (
-          <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Preview ещё не загружен.</div>
+          <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Предпросмотр ещё не загружен.</div>
         )}
       </SectionCard>
 
       <SectionCard
         title="Публикация"
-        subtitle="Опубликованный релиз станет новым bootstrap для клиентского сайта."
+        subtitle="После публикации эта версия станет основной для клиентского сайта."
         action={
           <button
             type="button"
@@ -3606,21 +3672,21 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         }
       >
         <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold leading-relaxed text-[#5f6773]">
-          Текущая опубликованная версия: <span className="text-ink">v{config?.publishedVersion ?? 0}</span>. Последняя
+          Текущая опубликованная версия: <span className="text-ink">{config?.publishedVersion ?? 0}</span>. Последняя
           публикация: <span className="text-ink">{formatDate(config?.publishedAt)}</span>.
         </div>
       </SectionCard>
 
-      <SectionCard title="История релизов" subtitle="Последние публикации клиентского сайта.">
+      <SectionCard title="История публикаций" subtitle="Последние опубликованные версии клиентского сайта.">
         <div className="space-y-3">
           {releases.length === 0 ? (
-            <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Релизов пока нет.</div>
+            <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Публикаций пока нет.</div>
           ) : (
             releases.map((release) => (
               <div key={release.id} className="rounded-2xl bg-white px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[18px] font-extrabold text-ink">Версия v{release.version}</p>
+                    <p className="text-[18px] font-extrabold text-ink">Версия {release.version}</p>
                     <p className="mt-1 text-[14px] font-medium text-[#5f6773]">
                       {formatDate(release.publishedAt)} • Блоков: {release.blocksCount}
                     </p>
@@ -3647,7 +3713,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     return (
       <>
         <div className="mb-5 flex items-center gap-3 border-b border-line pb-3 md:hidden">
-          <button type="button" onClick={() => setActiveCategory(null)} className="rounded-lg p-2 text-ink">
+          <button type="button" onClick={closeCategoryPage} className="rounded-lg p-2 text-ink">
             <ArrowLeft className="h-6 w-6" />
           </button>
           <div className="min-w-0 flex-1">
@@ -3690,20 +3756,20 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           <div className="absolute -right-10 top-0 h-32 w-32 rounded-full bg-[rgba(244,201,0,0.28)] blur-2xl" />
           <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-[rgba(127,204,255,0.16)] blur-2xl" />
           <div className="relative">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f4c900]">Online booking</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f4c900]">Онлайн-запись</p>
             <h2 className="mt-3 text-[32px] font-extrabold leading-[0.95] tracking-[-0.04em] text-white">
               {config?.brandName || 'Онлайн-запись'}
             </h2>
             <p className="mt-3 text-[15px] font-medium leading-relaxed text-[rgba(255,255,255,0.82)]">
               {activeMeta
                 ? activeMeta.note
-                : 'Редактор клиентского сайта, витрины записи и публикации. На desktop основные действия и состояние видны сразу.'}
+                : 'Редактор клиентского сайта, витрины записи и публикации. На компьютере основные действия и текущее состояние видны сразу.'}
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Версия</p>
-                <p className="mt-2 text-[24px] font-extrabold text-white">v{config?.publishedVersion ?? 0}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Опубликовано</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">{config?.publishedVersion ?? 0}</p>
               </div>
               <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Блоков</p>
@@ -3756,7 +3822,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             {activeCategory ? (
               <button
                 type="button"
-                onClick={() => setActiveCategory(null)}
+                onClick={closeCategoryPage}
                 className="inline-flex h-11 items-center rounded-2xl border border-line bg-white px-4 text-[13px] font-extrabold text-ink"
               >
                 Обзор
@@ -3771,7 +3837,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setActiveCategory(item.key)}
+                  onClick={() => openCategoryPage(item.key)}
                   className="flex w-full items-start gap-4 rounded-[22px] border border-[#dde3eb] bg-white px-4 py-4 text-left transition hover:border-[#cbd3de] hover:bg-[#fbfcfe]"
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f4c900] text-[#1f2d39] shadow-[0_10px_22px_rgba(244,201,0,0.22)]">
@@ -3795,7 +3861,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         <section className="rounded-[28px] border border-line bg-[#fffaf0] p-5 shadow-[0_14px_32px_rgba(42,49,56,0.08)]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b08927]">Preview web</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b08927]">Предпросмотр сайта</p>
               <h3 className="mt-2 text-[24px] font-extrabold leading-none text-ink">Быстрая проверка</h3>
             </div>
             <button
@@ -3819,7 +3885,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
                 <div className="rounded-2xl bg-white px-4 py-3">
                   <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Черновик</p>
-                  <p className="mt-1 text-[22px] font-extrabold text-ink">v{previewState.data.version}</p>
+                  <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.version}</p>
                 </div>
                 <div className="rounded-2xl bg-white px-4 py-3">
                   <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Блоков</p>
@@ -3837,12 +3903,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 </p>
                 <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
                   {previewState.data.blocks.length > 0
-                    ? `Первый блок: ${previewState.data.blocks[0]?.blockKey || previewState.data.blocks[0]?.blockType}`
-                    : 'В preview пока нет блоков. Можно быстро перейти в публикацию и проверить структуру.'}
+                    ? `Первый блок: ${
+                        previewState.data.blocks[0]?.blockKey ||
+                        BLOCK_TYPE_LABELS[previewState.data.blocks[0]?.blockType ?? 'TEXT']
+                      }`
+                    : 'В предпросмотре пока нет блоков. Можно быстро перейти в публикацию и проверить структуру.'}
                 </p>
                 <button
                   type="button"
-                  onClick={() => setActiveCategory('publish')}
+                  onClick={() => openCategoryPage('publish')}
                   className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#1f2d39] px-4 py-3 text-[14px] font-extrabold text-white"
                 >
                   Открыть публикацию
@@ -3852,9 +3921,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
           ) : (
             <div className="mt-4 rounded-[22px] bg-white px-4 py-4">
-              <p className="text-[16px] font-extrabold text-ink">Preview ещё не загружен</p>
+              <p className="text-[16px] font-extrabold text-ink">Предпросмотр ещё не загружен</p>
               <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                Подтянем web-preview и покажем черновую версию сайта прямо в боковой панели.
+                Здесь появится быстрый черновой просмотр сайта прямо в боковой панели.
               </p>
             </div>
           )}
@@ -3884,7 +3953,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                     type="button"
                     onClick={() => {
                       if (activeCategory) {
-                        setActiveCategory(null);
+                        closeCategoryPage();
                         return;
                       }
                       onBack();
@@ -3905,11 +3974,11 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <p className="mt-5 max-w-[760px] text-[17px] font-medium leading-relaxed text-[#55606e]">
                   {activeMeta
                     ? activeMeta.description
-                    : 'Desktop-режим собран как рабочая панель: слева редактор сущностей, справа контекст, preview и быстрые переходы. Так проще понять, что именно видит клиент и что правится сейчас.'}
+                    : 'Версия для компьютера собрана как рабочая панель: слева основные разделы, справа подсказки, состояние сайта и быстрые переходы. Так проще понять, что именно видит клиент и что вы редактируете сейчас.'}
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  {(activeMeta?.tags ?? ['контент', 'preview', 'публикация']).slice(0, 4).map((tag) => (
+                  {(activeMeta?.tags ?? ['контент', 'предпросмотр', 'публикация']).slice(0, 4).map((tag) => (
                     <span
                       key={tag}
                       className="rounded-full border border-white/80 bg-white/90 px-4 py-2 text-[13px] font-bold text-[#495463] shadow-[0_8px_20px_rgba(42,49,56,0.05)]"
@@ -3941,7 +4010,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#e9d79f] bg-[#fff9e5] px-4 text-sm font-extrabold text-[#3f3a24] shadow-[0_10px_24px_rgba(244,201,0,0.12)] disabled:opacity-50"
                 >
                   {busyKey === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-                  Preview
+                  Предпросмотр
                 </button>
                 <button
                   type="button"
@@ -4425,7 +4494,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 rows={5}
               />
               <TextField
-                label="Текст CTA"
+                label="Текст кнопки"
                 value={specialistEditor.draft.ctaText}
                 onChange={(value) =>
                   setSpecialistEditor((prev) =>
@@ -4631,7 +4700,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   <div>
                     <p className="text-[16px] font-extrabold text-ink">Содержимое блока</p>
                     <p className="mt-1 text-[13px] font-semibold leading-relaxed text-[#7c8593]">
-                      Для стандартных типов доступны предметные формы. Raw JSON оставлен как fallback.
+                      Для стандартных типов доступны понятные формы. Прямое редактирование данных в формате JSON оставлено для сложных случаев.
                     </p>
                   </div>
                   <button

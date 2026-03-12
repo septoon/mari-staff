@@ -15,7 +15,7 @@ import {
   JOURNAL_GRID_GAP,
   JOURNAL_TIME_COLUMN_WIDTH,
 } from '../constants';
-import { formatDateLabel, formatRub, formatTime } from '../helpers';
+import { formatDateLabel, formatRub, formatTime, toISODate } from '../helpers';
 import type { AppointmentItem, JournalCard, StaffItem, TabItem, TabKey } from '../types';
 import { AppointmentCard } from '../components/shared/AppointmentCard';
 import { JournalDatePickerSheet } from '../components/shared/JournalDatePickerSheet';
@@ -142,6 +142,8 @@ export function JournalTabScreen({
   const [serviceQuery, setServiceQuery] = useState('');
   const [staffFilterId, setStaffFilterId] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   const columnsCount = Math.max(1, staff.length);
@@ -157,14 +159,15 @@ export function JournalTabScreen({
     () =>
       [...listAppointments]
         .sort((left, right) => {
-          const createdDiff = right.createdAt.getTime() - left.createdAt.getTime();
-          if (createdDiff !== 0) {
-            return createdDiff;
+          const startDiff = right.startAt.getTime() - left.startAt.getTime();
+          if (startDiff !== 0) {
+            return startDiff;
           }
-          return right.startAt.getTime() - left.startAt.getTime();
+          return right.createdAt.getTime() - left.createdAt.getTime();
         })
         .filter((item) => {
           const normalizedStatus = normalizeJournalStatus(item.status);
+          const itemDate = toISODate(item.startAt);
           const searchable = [
             item.clientName,
             item.clientPhone,
@@ -180,9 +183,26 @@ export function JournalTabScreen({
             (item.serviceName || '').toLowerCase().includes(normalizedServiceQuery);
           const matchesStaff = staffFilterId === 'all' || item.staffId === staffFilterId;
           const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
-          return matchesSearch && matchesService && matchesStaff && matchesStatus;
+          const matchesDateFrom = !dateFromFilter || itemDate >= dateFromFilter;
+          const matchesDateTo = !dateToFilter || itemDate <= dateToFilter;
+          return (
+            matchesSearch &&
+            matchesService &&
+            matchesStaff &&
+            matchesStatus &&
+            matchesDateFrom &&
+            matchesDateTo
+          );
         }),
-    [listAppointments, normalizedSearchQuery, normalizedServiceQuery, staffFilterId, statusFilter],
+    [
+      listAppointments,
+      normalizedSearchQuery,
+      normalizedServiceQuery,
+      staffFilterId,
+      statusFilter,
+      dateFromFilter,
+      dateToFilter,
+    ],
   );
 
   const totalPages = Math.max(1, Math.ceil(filteredCards.length / JOURNAL_PAGE_SIZE));
@@ -198,7 +218,15 @@ export function JournalTabScreen({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedDate, normalizedSearchQuery, normalizedServiceQuery, staffFilterId, statusFilter]);
+  }, [
+    selectedDate,
+    normalizedSearchQuery,
+    normalizedServiceQuery,
+    staffFilterId,
+    statusFilter,
+    dateFromFilter,
+    dateToFilter,
+  ]);
 
   useEffect(() => {
     setCurrentPage((prev) => Math.min(prev, totalPages));
@@ -395,16 +423,41 @@ export function JournalTabScreen({
                 className={DESKTOP_FILTER_INPUT_CLASS}
               />
             </div>
+
+            <div className="mt-3 grid gap-3 xl:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
+                  С даты записи
+                </span>
+                <input
+                  type="date"
+                  value={dateFromFilter}
+                  max={dateToFilter || undefined}
+                  onChange={(event) => setDateFromFilter(event.target.value)}
+                  className={DESKTOP_FILTER_INPUT_CLASS}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
+                  По дату записи
+                </span>
+                <input
+                  type="date"
+                  value={dateToFilter}
+                  min={dateFromFilter || undefined}
+                  onChange={(event) => setDateToFilter(event.target.value)}
+                  className={DESKTOP_FILTER_INPUT_CLASS}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="mt-5 rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
             <div className="flex items-center justify-between gap-4 border-b border-[#e7ebf0] px-6 py-5">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8d95a1]">
-                  Список записей
-                </p>
-                <p className="mt-2 text-[28px] font-extrabold leading-none text-ink">
-                  {loading && filteredCards.length === 0 ? '—' : filteredCards.length}
+                  {`Список записей: ${loading && filteredCards.length === 0 ? '—' : filteredCards.length}`}
                 </p>
               </div>
               {!loading && filteredCards.length > 0 ? (

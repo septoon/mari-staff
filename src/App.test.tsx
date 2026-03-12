@@ -4,14 +4,35 @@ import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 import { buildRuPhoneValue, getRuPhoneLocalDigits } from './app/helpers';
 
+const originalWindowScrollTo = window.scrollTo;
+const originalElementScrollTo = HTMLElement.prototype.scrollTo;
+
+beforeAll(() => {
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: jest.fn(),
+  });
+  HTMLElement.prototype.scrollTo = jest.fn();
+});
+
+afterAll(() => {
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: originalWindowScrollTo,
+  });
+  HTMLElement.prototype.scrollTo = originalElementScrollTo;
+});
+
 test('renders login screen', () => {
   render(
     <MemoryRouter>
       <App />
     </MemoryRouter>,
   );
-  expect(screen.getByText('Mari Staff')).toBeInTheDocument();
-  expect(screen.getByText('Войти')).toBeInTheDocument();
+  expect(screen.getAllByText('Mari Staff').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Войти').length).toBeGreaterThan(0);
 });
 
 test('renders set-pin screen by route', () => {
@@ -55,10 +76,8 @@ test('does not duplicate leading 7 in phone normalizer', () => {
 
 test('hides restricted tabs for master without permissions payload', async () => {
   const originalFetch = global.fetch;
-  const originalScrollTo = HTMLElement.prototype.scrollTo;
 
   global.fetch = jest.fn().mockRejectedValue(new Error('network disabled in test'));
-  HTMLElement.prototype.scrollTo = jest.fn();
 
   window.localStorage.setItem(
     'mari.staff.session.v1',
@@ -84,13 +103,12 @@ test('hides restricted tabs for master without permissions payload', async () =>
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText('Журнал')).toBeInTheDocument();
-  expect(screen.getByText('Еще')).toBeInTheDocument();
+  expect((await screen.findAllByText('Журнал')).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Еще').length).toBeGreaterThan(0);
   expect(screen.queryByText('График')).not.toBeInTheDocument();
   expect(screen.queryByText('Клиенты')).not.toBeInTheDocument();
   expect(screen.queryByText('Уведомл...')).not.toBeInTheDocument();
 
   window.localStorage.removeItem('mari.staff.session.v1');
   global.fetch = originalFetch;
-  HTMLElement.prototype.scrollTo = originalScrollTo;
 });

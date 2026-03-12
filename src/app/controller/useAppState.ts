@@ -20,6 +20,7 @@ import type {
   StaffDraft,
   StaffFilter,
   StaffItem,
+  SettingsNotificationSection,
   StaffPermissionCatalogItem,
   StaffSession,
   TabKey,
@@ -114,6 +115,8 @@ export function useAppState() {
   const [editorPermissionCodes, setEditorPermissionCodes] = useState<string[]>([]);
   const [editorPermissionBusyCode, setEditorPermissionBusyCode] = useState<string | null>(null);
   const [settingsClientCancelMinNoticeMinutes, setSettingsClientCancelMinNoticeMinutes] = useState<number | null>(null);
+  const [settingsNotificationMinNoticeMinutes, setSettingsNotificationMinNoticeMinutes] = useState<number | null>(null);
+  const [settingsNotificationSections, setSettingsNotificationSections] = useState<SettingsNotificationSection[]>([]);
   const [privacyPolicyText, setPrivacyPolicyText] = useState('');
 
   const routeSyncSourceRef = useRef<'idle' | 'state' | 'location'>('idle');
@@ -292,6 +295,10 @@ export function useAppState() {
     setEditorPermissionBusyCode,
     settingsClientCancelMinNoticeMinutes,
     setSettingsClientCancelMinNoticeMinutes,
+    settingsNotificationMinNoticeMinutes,
+    setSettingsNotificationMinNoticeMinutes,
+    settingsNotificationSections,
+    setSettingsNotificationSections,
     privacyPolicyText,
     setPrivacyPolicyText,
     routeSyncSourceRef,

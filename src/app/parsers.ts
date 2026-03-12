@@ -434,6 +434,157 @@ export function parseWorkingHours(value: unknown): Record<number, string[]> {
   return result;
 }
 
+export function parseScheduleCalendar(value: unknown): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+
+  const normalizeDateKey = (raw: string) => {
+    const clean = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+      return clean;
+    }
+    const parsed = new Date(clean);
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
+    }
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const normalizeTimeValue = (input: string) => {
+    const clean = input.trim();
+    const match = clean.match(/([01]\d|2[0-3]):([0-5]\d)/);
+    if (!match) {
+      return '';
+    }
+    return `${match[1]}:${match[2]}`;
+  };
+
+  const parseIntervalString = (input: string) => {
+    const normalized = input.replace(/[–—]/g, '-').replace(/\s+/g, '');
+    const tokens = normalized.match(/([01]\d|2[0-3]):([0-5]\d)/g);
+    if (!tokens || tokens.length < 2) {
+      return null;
+    }
+    const start = normalizeTimeValue(tokens[0]);
+    const end = normalizeTimeValue(tokens[1]);
+    if (!start || !end) {
+      return null;
+    }
+    return { start, end };
+  };
+
+  const pushRange = (dateKey: string, startRaw: string, endRaw: string) => {
+    if (!dateKey) {
+      return;
+    }
+    const start = normalizeTimeValue(startRaw);
+    const end = normalizeTimeValue(endRaw);
+    if (!start || !end) {
+      return;
+    }
+    if (!result[dateKey]) {
+      result[dateKey] = [];
+    }
+    const slot = `${start}-${end}`;
+    if (!result[dateKey].includes(slot)) {
+      result[dateKey].push(slot);
+    }
+  };
+
+  const appendIntervalsFromValue = (dateKey: string, source: unknown) => {
+    if (!dateKey) {
+      return;
+    }
+    if (typeof source === 'string') {
+      const parsed = parseIntervalString(source);
+      if (parsed) {
+        pushRange(dateKey, parsed.start, parsed.end);
+      }
+      return;
+    }
+
+    if (Array.isArray(source)) {
+      source.forEach((entry) => appendIntervalsFromValue(dateKey, entry));
+      return;
+    }
+
+    const record = toRecord(source);
+    if (!record) {
+      return;
+    }
+
+    const nestedIntervals =
+      asArray(record.intervals).length > 0
+        ? asArray(record.intervals)
+        : asArray(record.slots).length > 0
+          ? asArray(record.slots)
+          : asArray(record.ranges).length > 0
+            ? asArray(record.ranges)
+            : asArray(record.times);
+    if (nestedIntervals.length > 0) {
+      nestedIntervals.forEach((entry) => appendIntervalsFromValue(dateKey, entry));
+      return;
+    }
+
+    const start =
+      toString(record.startTime) ||
+      toString(record.from) ||
+      toString(record.start) ||
+      toString(record.begin);
+    const end =
+      toString(record.endTime) ||
+      toString(record.to) ||
+      toString(record.end) ||
+      toString(record.finish);
+
+    if (start && end) {
+      pushRange(dateKey, start, end);
+      return;
+    }
+
+    const slotText = toString(record.slot) || toString(record.interval) || toString(record.value);
+    if (!slotText) {
+      return;
+    }
+    const parsed = parseIntervalString(slotText);
+    if (parsed) {
+      pushRange(dateKey, parsed.start, parsed.end);
+    }
+  };
+
+  const appendRow = (row: unknown) => {
+    const record = toRecord(row);
+    if (!record) {
+      return;
+    }
+    const dateKey = normalizeDateKey(
+      toString(record.date) ||
+        toString(record.dayDate) ||
+        toString(record.workDate) ||
+        toString(record.startAt) ||
+        toString(record.start),
+    );
+    appendIntervalsFromValue(dateKey, record);
+  };
+
+  let rows = extractItems(value);
+  const valueRecord = toRecord(value);
+  if (rows.length === 0 && valueRecord) {
+    const scheduleRows = extractItems(valueRecord.schedule);
+    const daysRows = extractItems(valueRecord.days);
+    if (scheduleRows.length > 0) {
+      rows = scheduleRows;
+    } else if (daysRows.length > 0) {
+      rows = daysRows;
+    }
+  }
+  rows.forEach(appendRow);
+
+  return result;
+}
+
 export function extractItems(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     return value;

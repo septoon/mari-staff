@@ -1,4 +1,4 @@
-import { parseAppointment, parseClient } from './parsers';
+import { parseAppointment, parseClient, parseScheduleCalendar } from './parsers';
 
 test('parseAppointment reads nested prices from appointments list payload', () => {
   const appointment = parseAppointment({
@@ -51,4 +51,26 @@ test('parseClient reads phoneNumber when phoneE164 is absent', () => {
 
   expect(client).not.toBeNull();
   expect(client?.phone).toBe('9784733940');
+});
+
+test('parseScheduleCalendar groups slots by explicit date', () => {
+  const schedule = parseScheduleCalendar({
+    items: [
+      {
+        date: '2026-04-03',
+        startTime: '10:00',
+        endTime: '18:00',
+      },
+      {
+        date: '2026-04-04',
+        startTime: '11:00',
+        endTime: '17:00',
+      },
+    ],
+  });
+
+  expect(schedule).toEqual({
+    '2026-04-03': ['10:00-18:00'],
+    '2026-04-04': ['11:00-17:00'],
+  });
 });

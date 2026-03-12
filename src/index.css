@@ -12,6 +12,7 @@
   --line: #dfe3ea;
   --ui-scale: 0.8;
   --sheet-ui-scale: var(--ui-scale);
+  --app-min-height: calc(100vh / var(--ui-scale));
 }
 
 @media (max-width: 480px) {
@@ -26,12 +27,20 @@
   }
 }
 
+@supports (height: 100dvh) {
+  :root {
+    --app-min-height: calc(100dvh / var(--ui-scale));
+  }
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   background: var(--shell);
   color: var(--ink);
@@ -42,7 +51,7 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: var(--app-min-height);
   zoom: var(--ui-scale);
 }
 
@@ -51,8 +60,12 @@ body {
     transform: scale(var(--ui-scale));
     transform-origin: top left;
     width: calc(100% / var(--ui-scale));
-    min-height: calc(100vh / var(--ui-scale));
+    min-height: var(--app-min-height);
   }
+}
+
+.min-h-screen {
+  min-height: var(--app-min-height) !important;
 }
 
 .scrollbar-hidden::-webkit-scrollbar {

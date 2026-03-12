@@ -29,10 +29,22 @@ type ScheduleScreenProps = {
   selectedDate: Date;
   staff: StaffItem[];
   hoursByStaff: WorkingHoursMap;
+  editorStaff: StaffItem | null;
+  editorSelectedDays: number[];
+  editorStart: string;
+  editorEnd: string;
   loading: boolean;
   onReload: () => void;
   onEdit: () => void;
   onEditStaff: (item: StaffItem) => void;
+  onOpenDesktopEditor: (item: StaffItem, date: Date) => void;
+  onCloseDesktopEditor: () => void;
+  onToggleEditorDay: (day: number) => void;
+  onEditorStartChange: (value: string) => void;
+  onEditorEndChange: (value: string) => void;
+  onEditorPresetSelect: (value: string) => void;
+  onSaveEditor: () => void;
+  onClearEditor: () => void;
   onSelectDate: (value: Date) => void;
 };
 
@@ -107,14 +119,42 @@ function isWeekend(date: Date) {
   return isoDay === 6 || isoDay === 7;
 }
 
+const ISO_DAY_OPTIONS = [
+  { day: 1, short: 'Пн' },
+  { day: 2, short: 'Вт' },
+  { day: 3, short: 'Ср' },
+  { day: 4, short: 'Чт' },
+  { day: 5, short: 'Пт' },
+  { day: 6, short: 'Сб' },
+  { day: 7, short: 'Вс' },
+] as const;
+
+const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
+
+function formatPanelDateLabel(date: Date) {
+  return `${date.getDate()} ${MONTHS_RU_GENITIVE[date.getMonth()]} ${date.getFullYear()}`;
+}
+
 export function ScheduleScreen({
   selectedDate,
   staff,
   hoursByStaff,
+  editorStaff,
+  editorSelectedDays,
+  editorStart,
+  editorEnd,
   loading,
   onReload,
   onEdit,
   onEditStaff,
+  onOpenDesktopEditor,
+  onCloseDesktopEditor,
+  onToggleEditorDay,
+  onEditorStartChange,
+  onEditorEndChange,
+  onEditorPresetSelect,
+  onSaveEditor,
+  onClearEditor,
   onSelectDate,
 }: ScheduleScreenProps) {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -127,6 +167,7 @@ export function ScheduleScreen({
   const [desktopScheduleFilter, setDesktopScheduleFilter] = useState<'all' | 'with' | 'without'>('all');
   const [desktopInfoOpen, setDesktopInfoOpen] = useState(false);
   const [desktopFavorite, setDesktopFavorite] = useState(true);
+  const [hoveredCell, setHoveredCell] = useState<{ staffId: string; iso: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const desktopScrollRef = useRef<HTMLDivElement | null>(null);
   const monthStripRef = useRef<HTMLDivElement | null>(null);
@@ -192,30 +233,19 @@ export function ScheduleScreen({
   }, [CURRENT_DAY_GUTTER_PX, DAY_COLUMN_WIDTH, GRID_GAP, STAFF_COLUMN_WIDTH, monthDates, selectedDateIso]);
 
   const markedDates = useMemo(() => {
-    const daysWithHours = new Set<number>();
-    Object.values(hoursByStaff).forEach((byDay) => {
-      Object.entries(byDay).forEach(([day, slots]) => {
-        const key = Number(day);
-        if (Number.isFinite(key) && slots.length > 0) {
-          daysWithHours.add(key);
+    const datesWithHours = new Set<string>();
+    Object.values(hoursByStaff).forEach((byDate) => {
+      Object.entries(byDate).forEach(([date, slots]) => {
+        if (slots.length > 0) {
+          datesWithHours.add(date);
         }
       });
     });
-    if (daysWithHours.size === 0) {
+    if (datesWithHours.size === 0) {
       return [] as string[];
     }
-
-    const from = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    const to = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 4, 0);
-    const items: string[] = [];
-    for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
-      const day = toISODay(date);
-      if (daysWithHours.has(day)) {
-        items.push(toISODate(date));
-      }
-    }
-    return items;
-  }, [hoursByStaff, selectedDate]);
+    return Array.from(datesWithHours).sort((left, right) => left.localeCompare(right));
+  }, [hoursByStaff]);
   const monthTabs = useMemo(() => {
     const baseDay = selectedDate.getDate();
     return Array.from({ length: MONTH_LEFT_BUFFER + MONTH_RIGHT_BUFFER + 1 }).map((_, index) => {
@@ -394,10 +424,27 @@ export function ScheduleScreen({
   const desktopTrailingMonthLabel = formatShortMonthLabel(desktopNextMonthAnchor);
   const desktopShowTrailingSummary =
     desktopViewMode === 'month' && desktopNextMonthDates.length > 0;
+  const desktopMonthGroups = useMemo(() => {
+    const groups: Array<{ key: string; label: string; count: number }> = [];
+    desktopDates.forEach((date) => {
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const existing = groups[groups.length - 1];
+      if (!existing || existing.key !== key) {
+        groups.push({
+          key,
+          label: formatMonthLabel(date),
+          count: 1,
+        });
+        return;
+      }
+      existing.count += 1;
+    });
+    return groups;
+  }, [desktopDates]);
   const desktopDayStaffCounts = useMemo(() => {
     return desktopDates.map((date) =>
       desktopFilteredStaff.reduce((count, person) => {
-        const slots = hoursByStaff[person.id]?.[toISODay(date)] ?? [];
+        const slots = hoursByStaff[person.id]?.[toISODate(date)] ?? [];
         return count + (slots.length > 0 ? 1 : 0);
       }, 0),
     );
@@ -415,9 +462,11 @@ export function ScheduleScreen({
     () => desktopDates.findIndex((date) => toISODate(date) === desktopSelectedIso),
     [desktopDates, desktopSelectedIso],
   );
+  const desktopSelectedDaySet = useMemo(() => new Set(editorSelectedDays), [editorSelectedDays]);
+  const desktopPanelOpen = Boolean(editorStaff);
 
   const getSlotsForDate = (person: StaffItem, date: Date) =>
-    hoursByStaff[person.id]?.[toISODay(date)] ?? [];
+    hoursByStaff[person.id]?.[toISODate(date)] ?? [];
 
   const getSummaryForDates = (person: StaffItem, dates: Date[]) => {
     let shifts = 0;
@@ -581,7 +630,7 @@ export function ScheduleScreen({
                   </div>
 
                   {monthDates.map((day) => {
-                    const daySlots = hoursByStaff[person.id]?.[toISODay(day)] ?? [];
+                    const daySlots = hoursByStaff[person.id]?.[toISODate(day)] ?? [];
                     const slotText = daySlots.map((slot) => slot.replace('-', '-\n')).join('\n');
                     const tone = dayTone(day);
                     const isPast = tone === 'past';
@@ -906,187 +955,388 @@ export function ScheduleScreen({
               </button>
             </div>
           ) : (
-            <div ref={desktopScrollRef} className="scrollbar-hidden overflow-x-auto">
-              <div style={{ minWidth: desktopGridMinWidth }}>
-                <div
-                  className="grid border-b border-[#e6eaf0] bg-[#fcfcfd]"
-                  style={{ gridTemplateColumns: desktopGridColumns }}
-                >
-                  <div className="sticky left-0 z-30 flex items-end gap-2 border-r border-[#e6eaf0] bg-[#fcfcfd] px-4 py-5">
-                    <span className="text-[18px] font-medium text-[#303842]">Сотрудники</span>
-                    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#edf1f6] px-2 text-[12px] font-semibold text-[#7a8390]">
-                      {desktopFilteredStaff.length}
-                    </span>
-                  </div>
-
-                  <div
-                    className="sticky z-20 border-r border-[#e6eaf0] bg-[#fcfcfd] px-4 py-4"
-                    style={{ left: DESKTOP_STAFF_COLUMN_WIDTH }}
-                  >
-                    <div className="text-[16px] font-semibold text-[#303842]">Всего</div>
-                    <div className="text-[13px] text-[#8f98a4]">{desktopLeadingMonthLabel}</div>
-                  </div>
-
-                  {desktopDates.map((date, index) => {
-                    const iso = toISODate(date);
-                    const weekend = isWeekend(date);
-                    const selected = iso === desktopSelectedIso;
-                    return (
-                      <button
-                        key={iso}
-                        type="button"
-                        onClick={() => onSelectDate(date)}
-                        className={clsx(
-                          'border-r border-[#e6eaf0] px-1 py-3 text-center transition',
-                          selected ? 'bg-[#f8e28a]' : 'bg-[#fcfcfd] hover:bg-[#f6f8fb]',
-                        )}
-                      >
-                        <div className={clsx('text-[15px] font-semibold', weekend && !selected ? 'text-[#ff6c63]' : 'text-[#363e47]')}>
-                          {date.getDate()}
-                        </div>
-                        <div className={clsx('mt-1 text-[12px] font-medium', weekend && !selected ? 'text-[#ff6c63]' : 'text-[#7d8693]')}>
-                          {ISO_DAY_LABELS[toISODay(date)]}
-                        </div>
-                        <div className="mt-2 text-[11px] font-medium text-[#98a0ad]">
-                          {desktopDayStaffCounts[index] > 0 ? `${desktopDayStaffCounts[index]}` : '—'}
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {desktopShowTrailingSummary ? (
-                    <div className="border-l border-[#e6eaf0] px-4 py-4">
-                      <div className="text-[16px] font-semibold text-[#303842]">Всего</div>
-                      <div className="text-[13px] text-[#8f98a4]">{desktopTrailingMonthLabel}</div>
-                    </div>
-                  ) : null}
-                </div>
-
-                {desktopFilteredStaff.map((person, index) => {
-                  const leadingSummary = getSummaryForDates(
-                    person,
-                    desktopCurrentMonthDates.length > 0 ? desktopCurrentMonthDates : desktopDates,
-                  );
-                  const trailingSummary = desktopShowTrailingSummary
-                    ? getSummaryForDates(person, desktopNextMonthDates)
-                    : null;
-                  const positionLabel = person.positionName?.trim() || ROLE_LABELS[person.role] || 'Без должности';
-                  const rowSurface = index % 2 === 0 ? 'bg-white' : 'bg-[#fcfcfd]';
-                  return (
+            <div className="flex min-h-[720px]">
+              <div className={clsx('min-w-0 flex-1', desktopPanelOpen ? 'border-r border-[#e6eaf0]' : undefined)}>
+                <div ref={desktopScrollRef} className="scrollbar-hidden overflow-x-auto">
+                  <div style={{ minWidth: desktopGridMinWidth }}>
                     <div
-                      key={person.id}
-                      className="grid border-b border-[#eef1f5] last:border-b-0"
+                      className="grid border-b border-[#e6eaf0] bg-[#f8fafc]"
                       style={{ gridTemplateColumns: desktopGridColumns }}
                     >
-                      <div className={clsx('sticky left-0 z-20 border-r border-[#e6eaf0] px-4 py-4', rowSurface)}>
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => onEditStaff(person)}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef1f6] text-[#7c8592]"
-                            aria-label={`Открыть график сотрудника ${person.name}`}
-                          >
-                            {person.avatarUrl ? (
-                              <img src={person.avatarUrl} alt={person.name} className="h-full w-full object-cover" />
-                            ) : (
-                              <UserRound className="h-4 w-4" />
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => onEditStaff(person)}
-                            className="min-w-0 flex-1 text-left"
-                          >
-                            <div className="truncate text-[18px] font-medium text-[#313943]">{person.name}</div>
-                            <div className="truncate text-[14px] text-[#7f8895]">{positionLabel}</div>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => onEditStaff(person)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#8f97a2] transition hover:bg-[#eef2f7]"
-                            aria-label={`Дополнительные действия для ${person.name}`}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                      <div className="sticky left-0 z-30 border-r border-[#e6eaf0] bg-[#f8fafc] px-4 py-3" />
+                      <div
+                        className="sticky z-20 border-r border-[#e6eaf0] bg-[#f8fafc] px-4 py-3"
+                        style={{ left: DESKTOP_STAFF_COLUMN_WIDTH }}
+                      />
+                      {desktopMonthGroups.map((group) => (
+                        <div
+                          key={group.key}
+                          className="border-r border-[#d8dee8] px-4 py-3 text-left"
+                          style={{ gridColumn: `span ${group.count}` }}
+                        >
+                          <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#9aa2ae]">
+                            Месяц
+                          </div>
+                          <div className="mt-1 text-[18px] font-semibold text-[#303842]">{group.label}</div>
                         </div>
+                      ))}
+                      {desktopShowTrailingSummary ? (
+                        <div className="border-l border-[#d8dee8] bg-[#f8fafc] px-4 py-3" />
+                      ) : null}
+                    </div>
+
+                    <div
+                      className="grid border-b border-[#e6eaf0] bg-[#fcfcfd]"
+                      style={{ gridTemplateColumns: desktopGridColumns }}
+                    >
+                      <div
+                        className={clsx(
+                          'sticky left-0 z-30 flex items-end gap-2 border-r border-[#e6eaf0] bg-[#fcfcfd] px-4 py-5 transition',
+                          hoveredCell ? 'bg-[#fff8dc]' : undefined,
+                        )}
+                      >
+                        <span className="text-[18px] font-medium text-[#303842]">Сотрудники</span>
+                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#edf1f6] px-2 text-[12px] font-semibold text-[#7a8390]">
+                          {desktopFilteredStaff.length}
+                        </span>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => onEditStaff(person)}
-                        className={clsx('sticky z-10 flex flex-col items-start justify-center gap-2 border-r border-[#e6eaf0] px-4 py-3 text-left', rowSurface)}
+                      <div
+                        className="sticky z-20 border-r border-[#e6eaf0] bg-[#fcfcfd] px-4 py-4"
                         style={{ left: DESKTOP_STAFF_COLUMN_WIDTH }}
                       >
-                        <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
-                          <Briefcase className="h-4 w-4" />
-                          {leadingSummary.shifts}
-                        </div>
-                        <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
-                          <Clock3 className="h-4 w-4" />
-                          {formatHoursLabel(leadingSummary.totalHours)}
-                        </div>
-                      </button>
+                        <div className="text-[16px] font-semibold text-[#303842]">Всего</div>
+                        <div className="text-[13px] text-[#8f98a4]">{desktopLeadingMonthLabel}</div>
+                      </div>
 
-                      {desktopDates.map((date) => {
+                      {desktopDates.map((date, index) => {
                         const iso = toISODate(date);
-                        const daySlots = getSlotsForDate(person, date);
+                        const weekend = isWeekend(date);
                         const selected = iso === desktopSelectedIso;
+                        const monthBoundary =
+                          index === 0 ||
+                          desktopDates[index - 1]?.getMonth() !== date.getMonth() ||
+                          desktopDates[index - 1]?.getFullYear() !== date.getFullYear();
+                        const highlighted = hoveredCell?.iso === iso;
                         return (
                           <button
-                            key={`${person.id}-${iso}`}
+                            key={iso}
                             type="button"
-                            onClick={() => {
-                              onSelectDate(date);
-                              onEditStaff(person);
-                            }}
+                            onClick={() => onSelectDate(date)}
                             className={clsx(
-                              'min-h-[74px] border-r border-[#e6eaf0] px-1 py-1 text-left transition',
-                              selected ? 'bg-[#fbf5df]' : rowSurface,
+                              'border-r border-[#e6eaf0] px-1 py-3 text-center transition',
+                              monthBoundary ? 'border-l-[3px] border-l-[#d7dee8]' : undefined,
+                              selected ? 'bg-[#f8e28a]' : highlighted ? 'bg-[#fff8dc]' : 'bg-[#fcfcfd] hover:bg-[#f6f8fb]',
                             )}
                           >
-                            {daySlots.length > 0 ? (
-                              <div className="flex h-full w-full flex-col justify-between rounded-[12px] border border-[#b8ddb0] bg-[#caeec3] px-1.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
-                                <div className="text-[10px] font-semibold leading-[1.1] whitespace-pre-line text-[#2d7c2d]">
-                                  {daySlots.slice(0, 2).map((slot) => formatShortTimeRange(slot)).join('\n')}
-                                </div>
-                                <div className="text-[10px] font-semibold text-[#49a245]">
-                                  {daySlots.length}
-                                </div>
-                              </div>
-                            ) : (
-                              <div
-                                className={clsx(
-                                  'h-full min-h-[64px] rounded-[12px] border border-dashed',
-                                  selected ? 'border-[#ead9a2] bg-[#f8f0d7]' : 'border-transparent bg-transparent',
-                                )}
-                              />
-                            )}
+                            <div className={clsx('text-[15px] font-semibold', weekend && !selected ? 'text-[#ff6c63]' : 'text-[#363e47]')}>
+                              {date.getDate()}
+                            </div>
+                            <div className={clsx('mt-1 text-[12px] font-medium', weekend && !selected ? 'text-[#ff6c63]' : 'text-[#7d8693]')}>
+                              {ISO_DAY_LABELS[toISODay(date)]}
+                            </div>
+                            <div className="mt-2 text-[11px] font-medium text-[#98a0ad]">
+                              {desktopDayStaffCounts[index] > 0 ? `${desktopDayStaffCounts[index]}` : '—'}
+                            </div>
                           </button>
                         );
                       })}
 
                       {desktopShowTrailingSummary ? (
-                        <button
-                          type="button"
-                          onClick={() => onEditStaff(person)}
-                          className={clsx('flex flex-col items-start justify-center gap-2 px-4 py-3 text-left', rowSurface)}
-                        >
-                          <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
-                            <Briefcase className="h-4 w-4" />
-                            {trailingSummary?.shifts ?? 0}
-                          </div>
-                          <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
-                            <Clock3 className="h-4 w-4" />
-                            {formatHoursLabel(trailingSummary?.totalHours ?? 0)}
-                          </div>
-                        </button>
+                        <div className="border-l border-[#e6eaf0] px-4 py-4">
+                          <div className="text-[16px] font-semibold text-[#303842]">Всего</div>
+                          <div className="text-[13px] text-[#8f98a4]">{desktopTrailingMonthLabel}</div>
+                        </div>
                       ) : null}
                     </div>
-                  );
-                })}
+
+                    {desktopFilteredStaff.map((person, index) => {
+                      const leadingSummary = getSummaryForDates(
+                        person,
+                        desktopCurrentMonthDates.length > 0 ? desktopCurrentMonthDates : desktopDates,
+                      );
+                      const trailingSummary = desktopShowTrailingSummary
+                        ? getSummaryForDates(person, desktopNextMonthDates)
+                        : null;
+                      const positionLabel = person.positionName?.trim() || ROLE_LABELS[person.role] || 'Без должности';
+                      const rowSurface = index % 2 === 0 ? 'bg-white' : 'bg-[#fcfcfd]';
+                      const rowHighlighted = hoveredCell?.staffId === person.id;
+                      return (
+                        <div
+                          key={person.id}
+                          className="grid border-b border-[#eef1f5] last:border-b-0"
+                          style={{ gridTemplateColumns: desktopGridColumns }}
+                        >
+                          <div
+                            className={clsx(
+                              'sticky left-0 z-20 border-r border-[#e6eaf0] px-4 py-4 transition',
+                              rowHighlighted ? 'bg-[#fff8dc]' : rowSurface,
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => onEditStaff(person)}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef1f6] text-[#7c8592]"
+                                aria-label={`Открыть график сотрудника ${person.name}`}
+                              >
+                                {person.avatarUrl ? (
+                                  <img src={person.avatarUrl} alt={person.name} className="h-full w-full object-cover" />
+                                ) : (
+                                  <UserRound className="h-4 w-4" />
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => onEditStaff(person)}
+                                className="min-w-0 flex-1 text-left"
+                              >
+                                <div className="truncate text-[18px] font-medium text-[#313943]">{person.name}</div>
+                                <div className="truncate text-[14px] text-[#7f8895]">{positionLabel}</div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => onEditStaff(person)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#8f97a2] transition hover:bg-[#eef2f7]"
+                                aria-label={`Дополнительные действия для ${person.name}`}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => onEditStaff(person)}
+                            className={clsx(
+                              'sticky z-10 flex flex-col items-start justify-center gap-2 border-r border-[#e6eaf0] px-4 py-3 text-left transition',
+                              rowHighlighted ? 'bg-[#fff8dc]' : rowSurface,
+                            )}
+                            style={{ left: DESKTOP_STAFF_COLUMN_WIDTH }}
+                          >
+                            <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
+                              <Briefcase className="h-4 w-4" />
+                              {leadingSummary.shifts}
+                            </div>
+                            <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
+                              <Clock3 className="h-4 w-4" />
+                              {formatHoursLabel(leadingSummary.totalHours)}
+                            </div>
+                          </button>
+
+                          {desktopDates.map((date, dateIndex) => {
+                            const iso = toISODate(date);
+                            const daySlots = getSlotsForDate(person, date);
+                            const selected = iso === desktopSelectedIso;
+                            const monthBoundary =
+                              dateIndex === 0 ||
+                              desktopDates[dateIndex - 1]?.getMonth() !== date.getMonth() ||
+                              desktopDates[dateIndex - 1]?.getFullYear() !== date.getFullYear();
+                            const hovered = hoveredCell?.staffId === person.id && hoveredCell?.iso === iso;
+                            const axisHighlighted =
+                              hovered || hoveredCell?.staffId === person.id || hoveredCell?.iso === iso;
+                            return (
+                              <button
+                                key={`${person.id}-${iso}`}
+                                type="button"
+                                onMouseEnter={() => setHoveredCell({ staffId: person.id, iso })}
+                                onMouseLeave={() => setHoveredCell((current) => (
+                                  current?.staffId === person.id && current?.iso === iso ? null : current
+                                ))}
+                                onClick={() => onOpenDesktopEditor(person, date)}
+                                className={clsx(
+                                  'min-h-[74px] border-r border-[#e6eaf0] px-1 py-1 text-left transition',
+                                  monthBoundary ? 'border-l-[3px] border-l-[#d7dee8]' : undefined,
+                                  selected ? 'bg-[#fbf5df]' : axisHighlighted ? 'bg-[#fffdfa]' : rowSurface,
+                                )}
+                              >
+                                {daySlots.length > 0 ? (
+                                  <div
+                                    className={clsx(
+                                      'flex h-full w-full flex-col justify-between rounded-[12px] border px-1.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]',
+                                      hovered
+                                        ? 'border-[#85cc71] bg-[#d6f4cf]'
+                                        : 'border-[#b8ddb0] bg-[#caeec3]',
+                                    )}
+                                  >
+                                    <div className="text-[10px] font-semibold leading-[1.1] whitespace-pre-line text-[#2d7c2d]">
+                                      {daySlots.slice(0, 2).map((slot) => formatShortTimeRange(slot)).join('\n')}
+                                    </div>
+                                    <div className="text-[10px] font-semibold text-[#49a245]">
+                                      {daySlots.length}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={clsx(
+                                      'flex h-full min-h-[64px] items-center justify-center rounded-[12px] border border-dashed transition',
+                                      hovered
+                                        ? 'border-[#f4c900] bg-[#fff7d8] text-[#d6a600]'
+                                        : selected
+                                          ? 'border-[#ead9a2] bg-[#f8f0d7] text-transparent'
+                                          : axisHighlighted
+                                            ? 'border-[#f0e1a3] bg-[#fffaf0] text-transparent'
+                                            : 'border-transparent bg-transparent text-transparent',
+                                    )}
+                                  >
+                                    <span className="text-[28px] font-light leading-none">+</span>
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+
+                          {desktopShowTrailingSummary ? (
+                            <button
+                              type="button"
+                              onClick={() => onEditStaff(person)}
+                              className={clsx(
+                                'flex flex-col items-start justify-center gap-2 px-4 py-3 text-left transition',
+                                rowHighlighted ? 'bg-[#fff8dc]' : rowSurface,
+                              )}
+                            >
+                              <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
+                                <Briefcase className="h-4 w-4" />
+                                {trailingSummary?.shifts ?? 0}
+                              </div>
+                              <div className="inline-flex items-center gap-2 text-[14px] text-[#7c8591]">
+                                <Clock3 className="h-4 w-4" />
+                                {formatHoursLabel(trailingSummary?.totalHours ?? 0)}
+                              </div>
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
+
+              {desktopPanelOpen ? (
+                <aside className="flex w-[360px] shrink-0 flex-col bg-[#fcfcfd]">
+                  <div className="border-b border-[#e6eaf0] px-6 py-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#9ba2ae]">
+                          Настройка графика
+                        </div>
+                        <h2 className="mt-2 text-[30px] font-light tracking-[-0.03em] text-[#303842]">
+                          {editorStaff?.name}
+                        </h2>
+                        <p className="mt-2 text-[14px] text-[#7f8895]">
+                          {formatPanelDateLabel(selectedDate)}, {ISO_DAY_LABELS[toISODay(selectedDate)]}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onCloseDesktopEditor}
+                        className="inline-flex h-10 items-center rounded-2xl border border-[#dce2eb] bg-white px-4 text-[14px] font-medium text-[#4a535d] transition hover:bg-[#f6f8fb]"
+                      >
+                        Закрыть
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 flex-col px-6 py-6">
+                    <div>
+                      <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#9ba2ae]">
+                        Рабочие дни
+                      </div>
+                      <div className="mt-3 grid grid-cols-7 gap-2">
+                        {ISO_DAY_OPTIONS.map((item) => {
+                          const active = desktopSelectedDaySet.has(item.day);
+                          return (
+                            <button
+                              key={item.day}
+                              type="button"
+                              onClick={() => onToggleEditorDay(item.day)}
+                              className={clsx(
+                                'rounded-2xl border px-0 py-3 text-center text-[14px] font-semibold transition',
+                                active
+                                  ? 'border-[#f4c900] bg-[#fff4bf] text-[#3a3f46]'
+                                  : 'border-[#dce2eb] bg-white text-[#8c95a2] hover:bg-[#f6f8fb]',
+                              )}
+                            >
+                              {item.short}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-6">
+                      <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#9ba2ae]">
+                        Шаблоны
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => onEditorPresetSelect(preset)}
+                            className="rounded-2xl border border-[#dce2eb] bg-white px-3 py-2 text-[14px] font-medium text-[#3f4751] transition hover:bg-[#f6f8fb]"
+                          >
+                            {preset.replace('-', ' - ')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-3">
+                      <label className="rounded-[24px] border border-[#dce2eb] bg-white px-4 py-4">
+                        <span className="block text-[12px] font-semibold uppercase tracking-[0.18em] text-[#9ba2ae]">
+                          С
+                        </span>
+                        <input
+                          value={editorStart}
+                          onChange={(event) => onEditorStartChange(event.target.value)}
+                          className="mt-3 w-full bg-transparent text-[32px] font-light tracking-[-0.03em] text-[#2f3741] outline-none"
+                        />
+                      </label>
+
+                      <label className="rounded-[24px] border border-[#dce2eb] bg-white px-4 py-4">
+                        <span className="block text-[12px] font-semibold uppercase tracking-[0.18em] text-[#9ba2ae]">
+                          До
+                        </span>
+                        <input
+                          value={editorEnd}
+                          onChange={(event) => onEditorEndChange(event.target.value)}
+                          className="mt-3 w-full bg-transparent text-[32px] font-light tracking-[-0.03em] text-[#2f3741] outline-none"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-6 rounded-[24px] border border-dashed border-[#dce2eb] bg-[#f8fafc] px-4 py-4 text-[14px] text-[#7d8693]">
+                      Добавить перерыв появится следующим проходом. Сейчас панель сохраняет рабочие часы выбранных дней.
+                    </div>
+
+                    <div className="mt-auto pt-8">
+                      <div className="text-[14px] text-[#8c95a2]">
+                        Добавится дней: <span className="font-semibold text-[#303842]">{editorSelectedDays.length}</span>
+                      </div>
+
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={onClearEditor}
+                          className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-[#ebc2bc] bg-white text-[15px] font-semibold text-[#c45a46] transition hover:bg-[#fff5f3]"
+                        >
+                          Очистить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onSaveEditor}
+                          className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-[#f4c900] text-[15px] font-semibold text-[#2f3741] shadow-[0_16px_30px_rgba(244,201,0,0.22)] transition hover:bg-[#e5bc00]"
+                        >
+                          Сохранить
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+              ) : null}
             </div>
           )}
         </section>

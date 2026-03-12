@@ -35,6 +35,7 @@ import {
 import {
   extractItems,
   parseAppointment,
+  parseScheduleCalendar,
   parseWorkingHours,
 } from './parsers';
 import {
@@ -43,6 +44,7 @@ import {
   uploadWebpImage,
 } from './media';
 import {
+  isRouteCompatibleWithState,
   PUBLIC_UNAUTHORIZED_ROUTES,
   normalizePathname,
   routeToState,
@@ -56,6 +58,7 @@ import type {
   AppointmentItem,
   ClientItem,
   JournalCard,
+  ScheduleEditorOpenOptions,
   ServiceCategoryItem,
   ServiceItem,
   StaffItem,
@@ -302,6 +305,10 @@ export function useAppController(): AppController {
     setEditorPermissionBusyCode,
     settingsClientCancelMinNoticeMinutes,
     setSettingsClientCancelMinNoticeMinutes,
+    settingsNotificationMinNoticeMinutes,
+    setSettingsNotificationMinNoticeMinutes,
+    settingsNotificationSections,
+    setSettingsNotificationSections,
     privacyPolicyText,
     setPrivacyPolicyText,
     routeSyncSourceRef,
@@ -354,6 +361,7 @@ export function useAppController(): AppController {
   const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
   const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
   const canEditPrivacyPolicy = hasPermissionAccess('MANAGE_CLIENT_FRONT');
+  const canEditSettings = session?.staff.role === 'OWNER';
   const canEdit = useCallback(
     (permissionCode: string) => hasPermissionAccess(permissionCode),
     [hasPermissionAccess],
@@ -703,6 +711,8 @@ export function useAppController(): AppController {
     setJournalMarkedDates,
     setWorkingHoursByStaff,
     setSettingsClientCancelMinNoticeMinutes,
+    setSettingsNotificationMinNoticeMinutes,
+    setSettingsNotificationSections,
     setPrivacyPolicyText,
   });
 
@@ -828,7 +838,7 @@ export function useAppController(): AppController {
     const pathname = normalizePathname(location.pathname);
     const targetPath = stateToRoute(page, tab);
 
-    if (pathname === targetPath) {
+    if (isRouteCompatibleWithState(pathname, page, tab)) {
       if (routeSyncSourceRef.current === 'location') {
         routeSyncSourceRef.current = 'idle';
       }
@@ -1197,9 +1207,22 @@ export function useAppController(): AppController {
     setTab('more');
   };
 
+  const closeSettingsPage = () => {
+    setPage('tabs');
+    setTab('more');
+  };
+
+  const openSettingsNotificationsPage = () => {
+    setPage('settingsNotifications');
+  };
+
   const closePrivacyPolicyPage = () => {
     setPage('tabs');
     setTab('more');
+  };
+
+  const closeSettingsNotificationsPage = () => {
+    setPage('settings');
   };
 
   const handleOpenOwnerEditor = useCallback(async () => {
@@ -2992,36 +3015,9 @@ export function useAppController(): AppController {
           return;
         }
         case 'Настройки': {
-          const currentSettings = await loadSettings();
-          const currentNotice = currentSettings?.clientCancelMinNoticeMinutes ?? null;
-          if (session.staff.role !== 'OWNER') {
-            setPanel({
-              title: 'Настройки',
-              lines: [
-                `minNoticeMinutes: ${
-                  currentNotice !== null ? currentNotice : 'нет данных'
-                }`,
-                'Изменение доступно только Владелец',
-              ],
-            });
-            return;
-          }
-          const next = prompt(
-            'Новый minNoticeMinutes',
-            String(currentNotice ?? 120),
-          );
-          if (!next) {
-            return;
-          }
-          const value = Number(next);
-          if (!Number.isFinite(value) || value < 0) {
-            setToast('Неверное значение');
-            return;
-          }
-          await api.patch<unknown>('/settings/client-cancel-policy', {
-            minNoticeMinutes: value,
-          });
-          setToast('Настройки обновлены');
+          await loadSettings();
+          setPanel(null);
+          setPage('settings');
           return;
         }
         case 'Поддержка': {
@@ -3059,6 +3055,62 @@ export function useAppController(): AppController {
     } catch (error) {
       setToast(toErrorMessage(error));
       return false;
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const saveNotificationMinNoticeMinutes = async (value: number) => {
+    if (!canEditSettings) {
+      setToast('Изменение доступно только владельцу');
+      return false;
+    }
+    if (!Number.isFinite(value) || value < 1) {
+      setToast('Укажите корректное значение в минутах');
+      return false;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.patch<unknown>('/settings/notifications', {
+        minNoticeMinutes: Math.round(value),
+      });
+      await loadSettings();
+      setToast('Настройки уведомлений обновлены');
+      return true;
+    } catch (error) {
+      setToast(toErrorMessage(error));
+      return false;
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const toggleNotificationSetting = async (id: string, enabled: boolean) => {
+    if (!canEditSettings) {
+      setToast('Изменение доступно только владельцу');
+      return;
+    }
+    const previousSections = settingsNotificationSections;
+    setSettingsNotificationSections((current) =>
+      current.map((section) => ({
+        ...section,
+        groups: section.groups.map((group) => ({
+          ...group,
+          items: group.items.map((item) =>
+            item.id === id ? { ...item, enabled } : item,
+          ),
+        })),
+      })),
+    );
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.patch<unknown>('/settings/notifications', {
+        toggles: { [id]: enabled },
+      });
+      await loadSettings();
+    } catch (error) {
+      setSettingsNotificationSections(previousSections);
+      setToast(toErrorMessage(error));
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
@@ -3239,8 +3291,27 @@ export function useAppController(): AppController {
       const data = await api.get<unknown>(`/schedule/staff/${staffId}/working-hours`);
       return parseWorkingHours(data);
     } catch {
-      return workingHoursByStaff[staffId] ?? {};
+      return {};
     }
+  };
+
+  const fetchStaffDailySchedule = async (staffId: string, date: Date) => {
+    const isoDate = toISODate(date);
+    const data = await api.get<unknown>(`/schedule/staff/${staffId}/daily-schedule/${isoDate}`);
+    const parsed = parseScheduleCalendar(data);
+    return parsed[isoDate] ?? [];
+  };
+
+  const putStaffDailySchedule = async (staffId: string, date: Date, slots: string[]) => {
+    const isoDate = toISODate(date);
+    const items = slots
+      .map((slot) => parseSlot(slot))
+      .filter((item): item is { start: string; end: string } => Boolean(item))
+      .map((item) => ({
+        startTime: item.start,
+        endTime: item.end,
+      }));
+    await api.put<unknown>(`/schedule/staff/${staffId}/daily-schedule/${isoDate}`, { items });
   };
 
   const putStaffWorkingHours = async (
@@ -3265,7 +3336,10 @@ export function useAppController(): AppController {
     throw lastError;
   };
 
-  const openScheduleEditorForStaff = async (item: StaffItem) => {
+  const openScheduleEditorForStaff = async (
+    item: StaffItem,
+    options?: ScheduleEditorOpenOptions,
+  ) => {
     if (!canEdit(EDIT_PERMISSION.schedule)) {
       setToast('Нет прав на редактирование графика');
       return;
@@ -3273,14 +3347,39 @@ export function useAppController(): AppController {
     if (item.role === 'OWNER') {
       return;
     }
+    const presentation = options?.presentation ?? 'page';
+    const focusDate = options?.focusDate ?? null;
+    const focusedDay = focusDate ? toISODay(focusDate) : null;
     setScheduleEditorStaff(item);
-    setScheduleEditorDays([]);
+    setScheduleEditorDays(focusedDay ? [focusedDay] : []);
     setScheduleEditorStart('10:00');
     setScheduleEditorEnd('18:00');
-    setPage('scheduleEditor');
+    if (presentation === 'page') {
+      setPage('scheduleEditor');
+    } else {
+      setPage('tabs');
+      setTab('schedule');
+    }
 
     setLoadingKey(setLoading, 'action', true);
     try {
+      if (focusDate && focusedDay) {
+        const focusedSlots = await fetchStaffDailySchedule(item.id, focusDate);
+        const days = [focusedDay];
+        let start = '10:00';
+        let end = '18:00';
+        if (focusedSlots.length > 0) {
+          const focusedHours: Record<number, string[]> = { [focusedDay]: focusedSlots };
+          const focusedTimes = deriveEditorTimes(focusedHours, days);
+          start = focusedTimes.start;
+          end = focusedTimes.end;
+        }
+        setScheduleEditorDays(days);
+        setScheduleEditorStart(start);
+        setScheduleEditorEnd(end);
+        return;
+      }
+
       const hours = await fetchStaffWorkingHours(item.id);
       const days = Object.entries(hours)
         .filter(([_, slots]) => slots.length > 0)
@@ -3289,7 +3388,6 @@ export function useAppController(): AppController {
         .sort((a, b) => a - b);
 
       const { start, end } = deriveEditorTimes(hours, days);
-
       setScheduleEditorDays(days);
       setScheduleEditorStart(start);
       setScheduleEditorEnd(end);
@@ -3310,6 +3408,9 @@ export function useAppController(): AppController {
   };
 
   const toggleScheduleEditorDay = (day: number) => {
+    if (page === 'tabs') {
+      return;
+    }
     if (day < 1 || day > 7) {
       return;
     }
@@ -3347,21 +3448,24 @@ export function useAppController(): AppController {
       setToast('Время окончания должно быть позже начала');
       return;
     }
-    if (scheduleEditorDays.length === 0) {
+    if (page !== 'tabs' && scheduleEditorDays.length === 0) {
       setToast('Выберите рабочие дни');
       return;
     }
 
-    const next: Record<number, string[]> = {};
-    scheduleEditorDays.forEach((day) => {
-      next[day] = [`${scheduleEditorStart}-${scheduleEditorEnd}`];
-    });
-
     setLoadingKey(setLoading, 'action', true);
     try {
-      await putStaffWorkingHours(scheduleEditorStaff.id, next);
+      if (page === 'tabs') {
+        await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, [`${scheduleEditorStart}-${scheduleEditorEnd}`]);
+      } else {
+        const next: Record<number, string[]> = {};
+        scheduleEditorDays.forEach((day) => {
+          next[day] = [`${scheduleEditorStart}-${scheduleEditorEnd}`];
+        });
+        await putStaffWorkingHours(scheduleEditorStaff.id, next);
+      }
       await loadWorkingHours(staff);
-      setToast('График сохранен');
+      setToast(page === 'tabs' ? 'График на день сохранен' : 'График сохранен');
       closeScheduleEditor();
     } catch (error) {
       setToast(toErrorMessage(error));
@@ -3384,10 +3488,14 @@ export function useAppController(): AppController {
     }
     setLoadingKey(setLoading, 'action', true);
     try {
-      await putStaffWorkingHours(scheduleEditorStaff.id, {});
+      if (page === 'tabs') {
+        await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, []);
+      } else {
+        await putStaffWorkingHours(scheduleEditorStaff.id, {});
+      }
       await loadWorkingHours(staff);
       setScheduleEditorDays([]);
-      setToast('График очищен');
+      setToast(page === 'tabs' ? 'График на день очищен' : 'График очищен');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -3417,13 +3525,13 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     void (async () => {
       try {
-        const day = toISODay(selectedDate);
-        const hours = await fetchStaffWorkingHours(journalActionStaff.id);
-        const daySlots = hours[day] ?? [];
+        const daySlots = await fetchStaffDailySchedule(journalActionStaff.id, selectedDate);
         const firstSlot = daySlots.length > 0 ? parseSlot(daySlots[0]) : null;
         setJournalDayStart(firstSlot?.start || '10:00');
         setJournalDayEnd(firstSlot?.end || '18:00');
         setPage('journalDayEdit');
+      } catch (error) {
+        setToast(toErrorMessage(error));
       } finally {
         setLoadingKey(setLoading, 'action', false);
       }
@@ -3459,17 +3567,9 @@ export function useAppController(): AppController {
       setToast('Сотрудник не выбран');
       return false;
     }
-    const day = toISODay(selectedDate);
     setLoadingKey(setLoading, 'action', true);
     try {
-      const current = await fetchStaffWorkingHours(target.id);
-      const next: Record<number, string[]> = { ...current };
-      if (slots.length === 0) {
-        delete next[day];
-      } else {
-        next[day] = slots;
-      }
-      await putStaffWorkingHours(target.id, next);
+      await putStaffDailySchedule(target.id, selectedDate, slots);
       await loadWorkingHours(staff);
       return true;
     } catch (error) {
@@ -3702,7 +3802,10 @@ export function useAppController(): AppController {
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEdit(EDIT_PERMISSION.journal),
       canEditPrivacyPolicy,
+      canEditSettings,
       settingsClientCancelMinNoticeMinutes,
+      settingsNotificationMinNoticeMinutes,
+      settingsNotificationSections,
       privacyPolicyText,
     },
     actions: {
@@ -3734,6 +3837,9 @@ export function useAppController(): AppController {
       closeStaffServicesEditor,
       backFromStaffList,
       closeOwnerPage,
+      closeSettingsPage,
+      openSettingsNotificationsPage,
+      closeSettingsNotificationsPage,
       closePrivacyPolicyPage,
       handleOpenOwnerEditor,
       handleSaveOwner,
@@ -3775,6 +3881,8 @@ export function useAppController(): AppController {
       saveScheduleEditor,
       clearScheduleEditor,
       handleMoreAction,
+      saveNotificationMinNoticeMinutes,
+      toggleNotificationSetting,
       openEditorServicesPanel,
       setStaffServicesEditorQuery,
       toggleStaffServiceSelection,

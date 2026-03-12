@@ -18,6 +18,8 @@ const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs'>, string> = {
   scheduleEditor: '/schedule/editor',
   staff: '/staff',
   owner: '/owner',
+  settings: '/settings',
+  settingsNotifications: '/settings/notifications',
   privacyPolicy: '/more/privacy-policy',
   staffEditor: '/staff/editor',
   staffServicesEditor: '/staff/services',
@@ -39,6 +41,8 @@ export const PUBLIC_UNAUTHORIZED_ROUTES = new Set([
   '/staff/reset-pin',
 ]);
 
+const CLIENT_SITE_EDITOR_BASE_ROUTE = '/online-booking';
+
 export function normalizePathname(pathname: string) {
   if (!pathname || pathname === '/') {
     return '/';
@@ -48,6 +52,13 @@ export function normalizePathname(pathname: string) {
 
 export function routeToState(pathname: string): RouteState | null {
   const normalized = normalizePathname(pathname);
+  if (
+    normalized === CLIENT_SITE_EDITOR_BASE_ROUTE ||
+    normalized.startsWith(`${CLIENT_SITE_EDITOR_BASE_ROUTE}/`)
+  ) {
+    return { page: 'clientSiteEditor', tab: 'more' };
+  }
+
   switch (normalized) {
     case '/':
     case '/journal':
@@ -64,6 +75,10 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'servicesCategories', tab: 'services' };
     case '/more':
       return { page: 'tabs', tab: 'more' };
+    case '/settings':
+      return { page: 'settings', tab: 'more' };
+    case '/settings/notifications':
+      return { page: 'settingsNotifications', tab: 'more' };
     case '/staff':
       return { page: 'staff', tab: 'more' };
     case '/owner':
@@ -84,8 +99,6 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'journalDayEdit', tab: 'journal' };
     case '/journal/day/remove':
       return { page: 'journalDayRemove', tab: 'journal' };
-    case '/online-booking':
-      return { page: 'clientSiteEditor', tab: 'more' };
     case '/services':
       return { page: 'servicesCategories', tab: 'services' };
     case '/services/category':
@@ -104,4 +117,15 @@ export function stateToRoute(page: AppPage, tab: TabKey) {
     return TAB_ROUTE_MAP[tab];
   }
   return PAGE_ROUTE_MAP[page];
+}
+
+export function isRouteCompatibleWithState(pathname: string, page: AppPage, tab: TabKey) {
+  const normalized = normalizePathname(pathname);
+  if (page === 'clientSiteEditor') {
+    return (
+      normalized === CLIENT_SITE_EDITOR_BASE_ROUTE ||
+      normalized.startsWith(`${CLIENT_SITE_EDITOR_BASE_ROUTE}/`)
+    );
+  }
+  return normalized === stateToRoute(page, tab);
 }

@@ -10,6 +10,8 @@ export type AppPage =
   | 'scheduleEditor'
   | 'staff'
   | 'owner'
+  | 'settings'
+  | 'settingsNotifications'
   | 'privacyPolicy'
   | 'staffEditor'
   | 'staffServicesEditor'
@@ -55,6 +57,11 @@ export type StaffDraft = {
 export type StaffFilter = {
   withServices: boolean;
   withAccess: boolean;
+};
+
+export type ScheduleEditorOpenOptions = {
+  presentation?: 'page' | 'panel';
+  focusDate?: Date;
 };
 
 export type OwnerDraft = {
@@ -148,7 +155,27 @@ export type NotificationItem = {
   mode: 'new' | 'delete';
 };
 
-export type WorkingHoursMap = Record<string, Record<number, string[]>>;
+export type SettingsNotificationItem = {
+  id: string;
+  title: string;
+  enabled: boolean;
+  channel: 'email';
+  channelLabel: string;
+};
+
+export type SettingsNotificationGroup = {
+  id: string;
+  title: string;
+  items: SettingsNotificationItem[];
+};
+
+export type SettingsNotificationSection = {
+  id: string;
+  title: string;
+  groups: SettingsNotificationGroup[];
+};
+
+export type WorkingHoursMap = Record<string, Record<string, string[]>>;
 
 export type InfoPanelState = {
   title: string;
@@ -259,7 +286,10 @@ export type ControllerState = {
   canEditClients: boolean;
   canEditJournal: boolean;
   canEditPrivacyPolicy: boolean;
+  canEditSettings: boolean;
   settingsClientCancelMinNoticeMinutes: number | null;
+  settingsNotificationMinNoticeMinutes: number | null;
+  settingsNotificationSections: SettingsNotificationSection[];
   privacyPolicyText: string;
 };
 
@@ -292,6 +322,9 @@ export type ControllerActions = {
   closeStaffServicesEditor: () => void;
   backFromStaffList: () => void;
   closeOwnerPage: () => void;
+  closeSettingsPage: () => void;
+  openSettingsNotificationsPage: () => void;
+  closeSettingsNotificationsPage: () => void;
   closePrivacyPolicyPage: () => void;
   handleOpenOwnerEditor: () => Promise<void>;
   handleSaveOwner: () => Promise<void>;
@@ -326,7 +359,7 @@ export type ControllerActions = {
   handleSetDate: () => void;
   handleCreateAppointment: () => Promise<void>;
   handleScheduleEdit: () => Promise<void>;
-  openScheduleEditorForStaff: (item: StaffItem) => Promise<void>;
+  openScheduleEditorForStaff: (item: StaffItem, options?: ScheduleEditorOpenOptions) => Promise<void>;
   closeScheduleEditor: () => void;
   toggleScheduleEditorDay: (day: number) => void;
   setScheduleEditorStart: (value: string) => void;
@@ -335,6 +368,8 @@ export type ControllerActions = {
   saveScheduleEditor: () => Promise<void>;
   clearScheduleEditor: () => Promise<void>;
   handleMoreAction: (title: string) => Promise<void>;
+  saveNotificationMinNoticeMinutes: (value: number) => Promise<boolean>;
+  toggleNotificationSetting: (id: string, enabled: boolean) => Promise<void>;
   openEditorServicesPanel: () => void;
   setStaffServicesEditorQuery: (value: string) => void;
   toggleStaffServiceSelection: (serviceId: string) => void;

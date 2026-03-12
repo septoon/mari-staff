@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { api } from '../../api';
 import {
@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
+  ImagePlus,
   Loader2,
   Mail,
   MessageCircle,
@@ -19,9 +20,11 @@ import {
   Save,
   Search,
   SendHorizontal,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react';
+import { convertImageFileToWebp } from '../media';
 import {
   formatGroupedRub,
   formatHistoryDate,
@@ -41,6 +44,7 @@ type ClientsScreenProps = {
   query: string;
   loading: boolean;
   canEdit: boolean;
+  canManageAvatars: boolean;
   canManageDiscounts: boolean;
   canManagePromocodes: boolean;
   onQueryChange: (value: string) => void;
@@ -541,6 +545,7 @@ export function ClientsScreen({
   query,
   loading,
   canEdit,
+  canManageAvatars,
   canManageDiscounts,
   canManagePromocodes,
   onQueryChange,
@@ -559,6 +564,7 @@ export function ClientsScreen({
   const [draft, setDraft] = useState<ClientDraft | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [draftError, setDraftError] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [discountDirty, setDiscountDirty] = useState(false);
@@ -570,6 +576,7 @@ export function ClientsScreen({
   const [promoSending, setPromoSending] = useState(false);
   const [promoError, setPromoError] = useState('');
   const [promoResult, setPromoResult] = useState<PromoSendResult | null>(null);
+  const clientAvatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -918,6 +925,142 @@ export function ClientsScreen({
   const handlePermanentDiscountChange = (value: string) => {
     setDiscountDirty(true);
     handleDraftChange('permanentDiscountPercent', value);
+  };
+
+  const applyClientUpdateLocally = (clientId: string, nextClient: Partial<ClientItem>, nextDraft?: Partial<ClientDraft>) => {
+    setClientOverrides((prev) => ({
+      ...prev,
+      [clientId]: {
+        ...(prev[clientId] || {}),
+        ...nextClient,
+      },
+    }));
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...(nextDraft || {}),
+          }
+        : prev,
+    );
+  };
+
+  const extractUpdatedClient = (payload: unknown, fallback: ClientItem, fallbackDraft: ClientDraft | null) => {
+    const root = toRecord(payload);
+    const updated = toRecord(root?.client) ?? root;
+
+    return {
+      name: toString(updated?.name) || fallback.name,
+      phone: toString(updated?.phoneE164) || toString(updated?.phone) || fallback.phone,
+      email: toString(updated?.email) || fallback.email || '',
+      comment: toString(updated?.comment) || fallback.comment || '',
+      avatarUrl:
+        toString(updated?.avatarUrl) ||
+        toString(updated?.photoUrl) ||
+        toString(updated?.imageUrl) ||
+        fallbackDraft?.avatarUrl ||
+        fallback.avatarUrl ||
+        null,
+      permanentDiscountType:
+        toString(toRecord(toRecord(updated?.discount)?.permanent)?.type) ||
+        toString(updated?.discountType) ||
+        fallback.permanentDiscountType ||
+        'NONE',
+      permanentDiscountValue:
+        toNumber(toRecord(toRecord(updated?.discount)?.permanent)?.value) ??
+        toNumber(updated?.discountValue) ??
+        fallback.permanentDiscountValue ??
+        null,
+    } satisfies Partial<ClientItem>;
+  };
+
+  const handleUploadAvatar = async (file: File) => {
+    if (!activeClient) {
+      return;
+    }
+    if (!canManageAvatars) {
+      setDraftError('Нет прав на управление аватаркой клиента');
+      return;
+    }
+
+    setAvatarBusy(true);
+    setDraftError('');
+
+    let previewUrlToRevoke = '';
+
+    try {
+      const converted = await convertImageFileToWebp(file);
+      previewUrlToRevoke = converted.previewUrl;
+
+      const formData = new FormData();
+      formData.append(
+        'file',
+        new File([converted.blob], `${activeClient.id}.webp`, {
+          type: 'image/webp',
+        }),
+      );
+
+      const response = await api.postForm<unknown>(`/clients/${activeClient.id}/avatar`, formData);
+      const nextClient = extractUpdatedClient(response, activeClient, draft);
+
+      applyClientUpdateLocally(
+        activeClient.id,
+        nextClient,
+        {
+          avatarUrl: nextClient.avatarUrl || null,
+        },
+      );
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : 'Не удалось загрузить аватарку клиента');
+    } finally {
+      if (previewUrlToRevoke) {
+        URL.revokeObjectURL(previewUrlToRevoke);
+      }
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!activeClient) {
+      return;
+    }
+    if (!canManageAvatars) {
+      setDraftError('Нет прав на управление аватаркой клиента');
+      return;
+    }
+
+    setAvatarBusy(true);
+    setDraftError('');
+
+    try {
+      const response = await api.delete<unknown>(`/clients/${activeClient.id}/avatar`);
+      const nextClient = extractUpdatedClient(response, activeClient, {
+        ...(draft || mapClientToDraft(activeClient)),
+        avatarUrl: null,
+      });
+
+      applyClientUpdateLocally(
+        activeClient.id,
+        {
+          ...nextClient,
+          avatarUrl: null,
+        },
+        {
+          avatarUrl: null,
+        },
+      );
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : 'Не удалось удалить аватарку клиента');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleOpenAvatarPicker = () => {
+    if (!editMode || draftLoading || avatarBusy || !canManageAvatars) {
+      return;
+    }
+    clientAvatarInputRef.current?.click();
   };
 
   const handleSaveClient = async () => {
@@ -1324,9 +1467,17 @@ export function ClientsScreen({
                         >
                           <td className="px-5 py-5">
                             <div className="flex items-center gap-4">
-                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eff3f7] text-sm font-extrabold text-[#5f6978]">
-                                {getClientInitials(summary.client.name)}
-                              </div>
+                              {summary.client.avatarUrl ? (
+                                <img
+                                  src={summary.client.avatarUrl}
+                                  alt={summary.client.name}
+                                  className="h-12 w-12 shrink-0 rounded-2xl object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eff3f7] text-sm font-extrabold text-[#5f6978]">
+                                  {getClientInitials(summary.client.name)}
+                                </div>
+                              )}
                               <div className="min-w-0">
                                 <p className="truncate text-[17px] font-extrabold text-ink">{summary.client.name}</p>
                                 <span
@@ -1750,23 +1901,91 @@ export function ClientsScreen({
                             </div>
                           </div>
 
-                          <div className="rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-5">
-                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Комментарий</p>
-                            <textarea
-                              value={draft?.comment || ''}
-                              onChange={(event) => handleDraftChange('comment', event.target.value)}
-                              disabled={!editMode || draftLoading}
-                              className="mt-4 h-[192px] w-full resize-none rounded-[24px] border border-[#dce2ea] bg-white px-4 py-4 text-base font-medium leading-7 text-ink outline-none disabled:cursor-not-allowed disabled:opacity-80"
-                              placeholder="Комментарий по клиенту"
-                            />
-                            <div className="mt-4 grid gap-3 md:grid-cols-2">
-                              <div className="rounded-2xl border border-[#e5e9f0] bg-white px-4 py-3">
-                                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Первый визит</p>
-                                <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.firstVisit || null)}</p>
+                          <div className="grid gap-4">
+                            <div className="rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-5">
+                              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Аватар клиента</p>
+                              <div className="mt-4 flex items-center gap-4">
+                                {draft?.avatarUrl ? (
+                                  <img
+                                    src={draft.avatarUrl}
+                                    alt={activeClient.name}
+                                    className="h-24 w-24 rounded-[28px] border border-[#dde3eb] object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-24 w-24 items-center justify-center rounded-[28px] border border-[#dde3eb] bg-white text-2xl font-extrabold text-[#737d8b]">
+                                    {getClientInitials(activeClient.name)}
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold leading-6 text-[#7d8693]">
+                                    Фото клиента отображается в карточке и в личном кабинете.
+                                  </p>
+                                  {avatarBusy ? (
+                                    <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#7d8693]">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Обновляю аватарку...
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
-                              <div className="rounded-2xl border border-[#e5e9f0] bg-white px-4 py-3">
-                                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Последний визит</p>
-                                <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.lastVisit || null)}</p>
+                              <input
+                                ref={clientAvatarInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  event.target.value = '';
+                                  if (!file) {
+                                    return;
+                                  }
+                                  void handleUploadAvatar(file);
+                                }}
+                              />
+                              {editMode ? (
+                                <div className="mt-4 flex flex-wrap gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={handleOpenAvatarPicker}
+                                    disabled={draftLoading || avatarBusy || !canManageAvatars}
+                                    className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink transition disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <ImagePlus className="h-4 w-4" />
+                                    {draft?.avatarUrl ? 'Изменить фото' : 'Добавить фото'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void handleDeleteAvatar();
+                                    }}
+                                    disabled={draftLoading || avatarBusy || !canManageAvatars || !draft?.avatarUrl}
+                                    className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 text-sm font-semibold text-[#bc5941] disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Удалить фото
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div className="rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-5">
+                              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Комментарий</p>
+                              <textarea
+                                value={draft?.comment || ''}
+                                onChange={(event) => handleDraftChange('comment', event.target.value)}
+                                disabled={!editMode || draftLoading}
+                                className="mt-4 h-[192px] w-full resize-none rounded-[24px] border border-[#dce2ea] bg-white px-4 py-4 text-base font-medium leading-7 text-ink outline-none disabled:cursor-not-allowed disabled:opacity-80"
+                                placeholder="Комментарий по клиенту"
+                              />
+                              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                <div className="rounded-2xl border border-[#e5e9f0] bg-white px-4 py-3">
+                                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Первый визит</p>
+                                  <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.firstVisit || null)}</p>
+                                </div>
+                                <div className="rounded-2xl border border-[#e5e9f0] bg-white px-4 py-3">
+                                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Последний визит</p>
+                                  <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.lastVisit || null)}</p>
+                                </div>
                               </div>
                             </div>
                           </div>
