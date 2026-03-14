@@ -1005,58 +1005,61 @@ function CategorySummaryCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)]"
+      className="group h-full w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:p-6 md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)] xl:min-h-[360px] xl:rounded-[32px] xl:p-7"
     >
-      <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)]">
-          <Icon className="h-7 w-7" strokeWidth={2.1} />
-        </div>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4 md:gap-5">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)] md:h-16 md:w-16 xl:h-[72px] xl:w-[72px] xl:rounded-[24px]">
+              <Icon className="h-7 w-7 md:h-8 md:w-8" strokeWidth={2.1} />
+            </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-[22px] font-extrabold leading-tight text-ink">{item.title}</h2>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[22px] font-extrabold leading-tight text-ink xl:text-[26px]">{item.title}</h2>
               <p className="mt-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
                 Отвечает за
               </p>
-              <p className="mt-2 text-[16px] font-medium leading-relaxed text-[#5f6773]">{item.description}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="rounded-full border border-[#d7dce5] bg-white px-3 py-1 text-[13px] font-bold text-[#586271]">
-                {item.stat}
-              </span>
-              <ChevronRight className="h-5 w-5 text-[#808a98]" />
             </div>
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {item.tags.map((tag) => (
-              <span
-                key={`${item.title}-${tag}`}
-                className="rounded-full border border-[#d7dce5] bg-white px-3 py-1 text-[13px] font-bold text-[#586271]"
-              >
-                {tag}
-              </span>
-            ))}
+          <div className="flex shrink-0 items-center gap-2 pt-1">
+            <span className="rounded-full border border-[#d7dce5] bg-white px-3 py-1 text-[13px] font-bold text-[#586271] xl:px-3.5 xl:py-1.5">
+              {item.stat}
+            </span>
+            <ChevronRight className="h-5 w-5 text-[#808a98] transition group-hover:translate-x-0.5" />
           </div>
-
-          <div className="mt-4 space-y-2">
-            {item.details.slice(0, 2).map((line) => (
-              <div
-                key={`${item.title}-${line}`}
-                className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold leading-relaxed text-[#56606e]"
-              >
-                {line}
-              </div>
-            ))}
-          </div>
-
-          {item.warning ? (
-            <div className="mt-3 rounded-2xl border border-[#efd6b5] bg-[#fff6ea] px-4 py-3 text-[14px] font-semibold text-[#8a5f1d]">
-              {item.warning}
-            </div>
-          ) : null}
         </div>
+
+        <p className="mt-4 text-[16px] font-medium leading-relaxed text-[#5f6773] xl:mt-5 xl:text-[17px]">
+          {item.description}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-2 xl:mt-5 xl:gap-2.5">
+          {item.tags.map((tag) => (
+            <span
+              key={`${item.title}-${tag}`}
+              className="rounded-full border border-[#d7dce5] bg-white px-3 py-1 text-[13px] font-bold text-[#586271]"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-auto space-y-2 pt-4 xl:space-y-3 xl:pt-6">
+          {item.details.slice(0, 2).map((line) => (
+            <div
+              key={`${item.title}-${line}`}
+              className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold leading-relaxed text-[#56606e] xl:px-5 xl:py-3.5"
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+
+        {item.warning ? (
+          <div className="mt-3 rounded-2xl border border-[#efd6b5] bg-[#fff6ea] px-4 py-3 text-[14px] font-semibold text-[#8a5f1d] xl:mt-4 xl:px-5 xl:py-3.5">
+            {item.warning}
+          </div>
+        ) : null}
       </div>
     </button>
   );
@@ -2953,7 +2956,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
       </section>
 
-      <section className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <section className="mt-6 grid gap-5 md:grid-cols-2 xl:gap-6">
         {categorySnapshots.map((item) => (
           <CategorySummaryCard key={item.key} item={item} onOpen={() => openCategoryPage(item.key)} />
         ))}
@@ -3882,17 +3885,23 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
           ) : previewState.data ? (
             <div className="mt-4 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-2">
                 <div className="rounded-2xl bg-white px-4 py-3">
-                  <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Черновик</p>
+                  <p className="break-words text-[11px] font-bold uppercase leading-tight tracking-[0.06em] text-[#9b8858]">
+                    Черновик
+                  </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.version}</p>
                 </div>
                 <div className="rounded-2xl bg-white px-4 py-3">
-                  <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Блоков</p>
+                  <p className="break-words text-[11px] font-bold uppercase leading-tight tracking-[0.06em] text-[#9b8858]">
+                    Блоков
+                  </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.blocks.length}</p>
                 </div>
                 <div className="rounded-2xl bg-white px-4 py-3">
-                  <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#9b8858]">Специалистов</p>
+                  <p className="break-words text-[11px] font-bold uppercase leading-tight tracking-[0.06em] text-[#9b8858]">
+                    Специалистов
+                  </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.specialists.length}</p>
                 </div>
               </div>
@@ -4025,7 +4034,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </div>
         </section>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="mt-6 grid gap-7 xl:grid-cols-[minmax(0,1fr)_350px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0">{activeCategory ? renderDetail() : renderOverview()}</div>
           <div className="min-w-0">{renderDesktopSidebar()}</div>
         </div>

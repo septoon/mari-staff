@@ -642,51 +642,29 @@ export function AnalyticsScreen({
             1,
           )}%`;
 
-  if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches) {
-    return (
-      <div className="pb-6 pt-4 md:hidden">
-        <div className="rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Аналитика</p>
-          <h1 className="mt-3 text-[28px] font-extrabold leading-none text-ink">Раздел доступен на desktop</h1>
-          <p className="mt-4 text-sm font-semibold leading-6 text-[#7c8491]">
-            На мобильной версии аналитика скрыта из навигации и открывается только на широком экране.
-          </p>
-          <button
-            type="button"
-            onClick={onReload}
-            className="mt-5 inline-flex h-11 items-center gap-2 rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#222b33]"
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Обновить данные
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const handleApplyFilters = () => {
     setAppliedFilters(draftFilters);
     void syncApi(draftFilters);
   };
 
   return (
-    <div className="hidden pb-6 md:block">
-      <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
+    <div className="pb-6 pt-4 md:pb-6 md:pt-6">
+      <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)] md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Аналитика</p>
-            <h1 className="mt-3 text-[44px] font-extrabold leading-[0.94] tracking-[-0.04em] text-ink">
+            <h1 className="mt-3 text-[30px] font-extrabold leading-[0.94] tracking-[-0.04em] text-ink md:text-[44px]">
               Основные показатели
             </h1>
-            <p className="mt-4 max-w-[700px] text-[15px] font-semibold leading-6 text-[#7c8491]">
+            <p className="mt-4 max-w-[700px] text-[14px] font-semibold leading-6 text-[#7c8491] md:text-[15px]">
               Все показатели считаются по журналу записей.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full items-center gap-3 md:w-auto">
             <button
               type="button"
               onClick={onReload}
-              className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-ink"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-ink md:w-auto md:justify-start"
             >
               <RefreshCcw className="h-4 w-4 text-[#8892a2]" />
               Обновить журнал
@@ -694,7 +672,7 @@ export function AnalyticsScreen({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr]">
           <label className="block">
             <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">С</span>
             <input
@@ -732,7 +710,7 @@ export function AnalyticsScreen({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
           <div>
             <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Должность</span>
             <FilterSelect
@@ -766,11 +744,11 @@ export function AnalyticsScreen({
               ]}
             />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end md:col-span-2 xl:col-span-1">
             <button
               type="button"
               onClick={handleApplyFilters}
-              className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#f4c900] px-10 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)]"
+              className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#f4c900] px-10 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)] xl:w-auto"
             >
               Показать
             </button>
@@ -799,9 +777,9 @@ export function AnalyticsScreen({
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Динамика</p>
-                  <p className="mt-2 text-[30px] font-extrabold leading-none text-ink">{chartTotalLabel}</p>
+                  <p className="mt-2 text-[26px] font-extrabold leading-none text-ink md:text-[30px]">{chartTotalLabel}</p>
                 </div>
-                <div className="flex items-center gap-2 rounded-2xl border border-[#e2e6ed] bg-[#f7f9fc] p-1">
+                <div className="flex w-full items-center gap-2 rounded-2xl border border-[#e2e6ed] bg-[#f7f9fc] p-1 md:w-auto">
                   {[
                     { key: 'revenue', label: 'Выручка' },
                     { key: 'appointments', label: 'Записи' },
@@ -812,7 +790,7 @@ export function AnalyticsScreen({
                       type="button"
                       onClick={() => setChartMode(item.key as ChartMode)}
                       className={clsx(
-                        'rounded-2xl px-4 py-2 text-sm font-extrabold transition',
+                        'flex-1 rounded-2xl px-4 py-2 text-sm font-extrabold transition md:flex-none',
                         chartMode === item.key
                           ? 'bg-white text-ink shadow-[0_8px_18px_rgba(42,49,56,0.08)]'
                           : 'text-[#7d8693] hover:text-ink',
@@ -827,7 +805,7 @@ export function AnalyticsScreen({
               <div className="mt-5 rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-5">
                 {chartSeries.length > 0 ? (
                   <>
-                    <svg viewBox="0 0 760 220" className="h-[260px] w-full">
+                    <svg viewBox="0 0 760 220" className="h-[220px] w-full md:h-[260px]">
                       <defs>
                         <linearGradient id="analyticsArea" x1="0" x2="0" y1="0" y2="1">
                           <stop offset="0%" stopColor="#f4c900" stopOpacity="0.3" />
@@ -856,7 +834,7 @@ export function AnalyticsScreen({
                         </>
                       ) : null}
                     </svg>
-                    <div className="mt-3 flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[#98a1ae] md:text-xs md:tracking-[0.16em]">
                       {visibleChartLabels.map((item) => (
                         <span key={`${item.label}-${item.index}`}>{item.shortLabel}</span>
                       ))}
@@ -978,7 +956,7 @@ export function AnalyticsScreen({
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Сводка</p>
-                <h2 className="mt-2 text-[28px] font-extrabold leading-none text-ink">Что попало в расчет</h2>
+                <h2 className="mt-2 text-[24px] font-extrabold leading-none text-ink md:text-[28px]">Что попало в расчет</h2>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#5f6978]">

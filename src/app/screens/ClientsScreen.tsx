@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { convertImageFileToWebp } from '../media';
+import { PageSheet } from '../components/shared/PageSheet';
 import {
   formatGroupedRub,
   formatHistoryDate,
@@ -596,12 +597,6 @@ export function ClientsScreen({
   }, []);
 
   useEffect(() => {
-    if (!isDesktop) {
-      setDesktopClient(null);
-    }
-  }, [isDesktop]);
-
-  useEffect(() => {
     if (!isDesktop || !desktopClient) {
       document.documentElement.style.removeProperty('overflow');
       document.body.style.removeProperty('overflow');
@@ -765,6 +760,10 @@ export function ClientsScreen({
     () => buildPolylinePoints(statsSeries.map((item) => item.value), 640, 180),
     [statsSeries],
   );
+  const activeStatsSummary = useMemo(
+    () => (activeClient ? buildClientSummary(activeClient, statsHistory) : null),
+    [activeClient, statsHistory],
+  );
 
   useEffect(() => {
     if (!activeClientId) {
@@ -900,11 +899,8 @@ export function ClientsScreen({
   ]);
 
   const handleOpenClient = (client: ClientItem) => {
-    if (isDesktop) {
-      setDesktopClient(client);
-      return;
-    }
-    onOpenClientActions(client);
+    setDesktopClient(client);
+    setDesktopTab('card');
   };
 
   const handleCloseDesktopClient = () => {
@@ -1247,60 +1243,192 @@ export function ClientsScreen({
 
   return (
     <>
-      <div className="pb-2 pt-[162px] md:hidden">
-        <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pb-4 pt-5">
-          <div className="flex items-center justify-between pb-4">
-            <h1 className="text-[24px] font-extrabold leading-none text-ink">Клиенты</h1>
-            <div className="flex items-center gap-4 text-ink">
-              <button type="button" onClick={onOpenTools} className="rounded-lg p-1">
-                <MoreVertical className="h-8 w-8" />
+      <div className="pb-6 pt-4 md:hidden">
+        <section className="rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Клиентская база</p>
+              <h1 className="mt-2 text-[28px] font-extrabold leading-none text-ink">Клиенты</h1>
+            </div>
+            <div className="flex items-center gap-2 text-ink">
+              <button type="button" onClick={onOpenTools} className="rounded-2xl border border-[#dde3eb] bg-white p-2">
+                <MoreVertical className="h-5 w-5" />
               </button>
-              <button type="button" onClick={onReload} className="rounded-lg p-1">
-                <RefreshCcw className="h-7 w-7" strokeWidth={2.2} />
+              <button type="button" onClick={onReload} className="rounded-2xl border border-[#dde3eb] bg-white p-2">
+                <RefreshCcw className="h-5 w-5" strokeWidth={2.2} />
               </button>
             </div>
           </div>
 
-          <div className="border-b border-line">
-            <label className="flex items-center gap-3 rounded-xl border-[4px] border-[#dce0e7] px-5 py-2 text-muted">
-              <Search className="h-7 w-7 text-[#97a0ad]" />
-              <input
-                type="text"
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value)}
-                placeholder="Поиск"
-                className="w-full bg-transparent text-[16px] font-semibold text-muted outline-none placeholder:text-muted"
+          <label className="mt-5 flex items-center gap-3 rounded-2xl border border-[#dce2ea] bg-white px-4 py-3 text-muted">
+            <Search className="h-5 w-5 text-[#97a0ad]" />
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="Поиск по имени, телефону или email"
+              className="w-full bg-transparent text-[16px] font-semibold text-ink outline-none placeholder:text-muted"
+            />
+          </label>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <SelectField
+              value={activityFilter}
+              onChange={(next) => setActivityFilter(next as ActivityFilter)}
+              options={[
+                { value: 'all', label: 'Все клиенты' },
+                { value: 'visited', label: 'Только с визитами' },
+                { value: 'without-visits', label: 'Без визитов' },
+              ]}
+            />
+            <SelectField
+              value={sortMode}
+              onChange={(next) => setSortMode(next as SortMode)}
+              options={[
+                { value: 'recent', label: 'По последнему визиту' },
+                { value: 'visits', label: 'По числу визитов' },
+                { value: 'revenue', label: 'По выручке' },
+              ]}
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(Object.keys(SEGMENT_LABELS) as ClientSegment[]).map((key) => (
+              <SegmentChip
+                key={key}
+                active={segment === key}
+                label={SEGMENT_LABELS[key]}
+                count={segmentCounts[key]}
+                onClick={() => setSegment(key)}
               />
-            </label>
+            ))}
           </div>
-        </div>
 
-        <ul>
-          {clients.map((client) => (
-            <li key={client.id} className="flex items-center justify-between border-b border-line py-5">
-              <div className="space-y-2">
-                <p className="text-[18px] font-extrabold leading-none text-ink">{client.name}</p>
-                <div className="flex items-center gap-2 text-[18px] font-semibold text-muted">
-                  <Phone className="h-5 w-5" />
-                  <span>{client.phone || 'нет телефона'}</span>
-                </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">После фильтра</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{filteredSummaries.length}</p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С визитами</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{visitedClientsCount}</p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Выручка</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{formatGroupedRub(totalRevenue)}</p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Повторные</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{repeatClientsCount}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-4 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[#eef2f6] px-1 pb-4">
+            <div>
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Список клиентов</p>
+              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{filteredSummaries.length}</p>
+            </div>
+            {loading ? (
+              <div className="inline-flex items-center gap-2 text-xs font-semibold text-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Загружаю...
               </div>
-              <button type="button" className="p-2 text-ink" onClick={() => onOpenClientActions(client)}>
-                <MoreVertical className="h-7 w-7" />
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        {loading ? (
-          <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Загружаю клиентов...
+            ) : null}
           </div>
-        ) : null}
-        {!loading && clients.length === 0 ? (
-          <p className="mt-3 text-[18px] font-semibold text-muted">Ничего не найдено</p>
-        ) : null}
+
+          {!loading && filteredSummaries.length === 0 ? (
+            <p className="px-1 py-6 text-[16px] font-semibold text-muted">Ничего не найдено</p>
+          ) : null}
+
+          <ul className="space-y-3 pt-4">
+            {pageItems.map((summary) => {
+              const clientSegment = getClientSegment(summary, nowMs);
+              return (
+                <li key={summary.client.id}>
+                  <div className="flex items-start gap-3 rounded-[24px] border border-[#edf1f5] bg-white px-4 py-4">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                      onClick={() => handleOpenClient(summary.client)}
+                    >
+                      {summary.client.avatarUrl ? (
+                        <img
+                          src={summary.client.avatarUrl}
+                          alt={summary.client.name}
+                          className="h-14 w-14 shrink-0 rounded-[18px] object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-[#eff3f7] text-sm font-extrabold text-[#5f6978]">
+                          {getClientInitials(summary.client.name)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-[18px] font-extrabold text-ink">{summary.client.name}</p>
+                          <span
+                            className={clsx(
+                              'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em]',
+                              clientSegment === 'repeat'
+                                ? 'bg-[#e8f0ff] text-[#2d5fd6]'
+                                : clientSegment === 'lost'
+                                  ? 'bg-[#f2f4f7] text-[#7f8897]'
+                                  : 'bg-[#fff3cc] text-[#9b7322]',
+                            )}
+                          >
+                            {SEGMENT_LABELS[clientSegment]}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-[14px] font-semibold text-[#6e7784]">
+                          {summary.client.phone || 'нет телефона'}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-[#f4f6f9] px-3 py-1 text-[12px] font-bold text-[#5f6978]">
+                            {summary.totalVisits} визитов
+                          </span>
+                          <span className="rounded-full bg-[#f4f6f9] px-3 py-1 text-[12px] font-bold text-[#5f6978]">
+                            {formatGroupedRub(summary.totalRevenue)}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button type="button" className="shrink-0 p-2 text-ink" onClick={() => onOpenClientActions(summary.client)}>
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {totalPages > 1 ? (
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#eef2f6] px-1 pt-4">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink disabled:opacity-45"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Назад
+              </button>
+              <div className="text-sm font-semibold text-[#7d8693]">
+                {currentPage} / {totalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink disabled:opacity-45"
+              >
+                Вперед
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
+        </section>
       </div>
 
       <div className="hidden pb-6 md:block">
@@ -1563,6 +1691,577 @@ export function ClientsScreen({
           ) : null}
         </section>
       </div>
+
+      {!isDesktop && activeClient ? (
+        <PageSheet
+          open={!isDesktop && Boolean(activeClient)}
+          onDismiss={handleCloseDesktopClient}
+          snapPoints={({ maxHeight }) => [Math.max(560, maxHeight - 8)]}
+          defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+        >
+          <div className="bg-white px-4 pb-6 pt-2">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Клиент</p>
+                <h2 className="mt-2 truncate text-[28px] font-extrabold leading-none text-ink">
+                  {activeClient.name}
+                </h2>
+                <p className="mt-2 text-[14px] font-semibold text-[#748091]">
+                  {activeClient.phone || 'Телефон не указан'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseDesktopClient}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white text-[#6e7784]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-[#f4f6f9] p-1">
+              {[
+                { key: 'card', label: 'Карточка' },
+                { key: 'history', label: 'История' },
+                { key: 'stats', label: 'Статистика' },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setDesktopTab(item.key as ClientModalTab)}
+                  className={clsx(
+                    'rounded-2xl px-3 py-2 text-[13px] font-extrabold transition',
+                    desktopTab === item.key
+                      ? 'bg-white text-ink shadow-[0_8px_18px_rgba(42,49,56,0.08)]'
+                      : 'text-[#7d8693]',
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {desktopTab === 'card' ? (
+              <div className="space-y-4 pt-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCallClient}
+                    disabled={!activeClient.phone}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-3 text-sm font-semibold text-ink disabled:opacity-40"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Звонок
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSmsClient}
+                    disabled={!activeClient.phone}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-3 text-sm font-semibold text-ink disabled:opacity-40"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    SMS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTelegramClient}
+                    disabled={!activeClient.phone}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#222b33] px-3 text-sm font-semibold text-white disabled:opacity-40"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    TG
+                  </button>
+                </div>
+
+                <section className="rounded-[28px] border border-[#e3e8ef] bg-white p-4 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Карточка клиента</p>
+                      <p className="mt-2 text-[14px] font-semibold text-[#7d8693]">
+                        Основные данные, скидка, аватар и комментарий.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editMode ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditMode(false);
+                              setDiscountDirty(false);
+                              setDraft(mapClientToDraft(activeClient));
+                              setDraftError('');
+                            }}
+                            className="inline-flex h-10 items-center rounded-2xl border border-[#dde3eb] bg-[#f7f9fc] px-3 text-sm font-semibold text-ink"
+                          >
+                            Отмена
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleSaveClient();
+                            }}
+                            disabled={draftSaving}
+                            className="inline-flex h-10 items-center gap-2 rounded-2xl bg-[#f4c900] px-3 text-sm font-extrabold text-[#222b33] disabled:opacity-60"
+                          >
+                            {draftSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            Сохранить
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditMode(true)}
+                          disabled={!canEdit}
+                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f7f9fc] px-3 text-sm font-semibold text-ink disabled:opacity-40"
+                        >
+                          <PencilLine className="h-4 w-4" />
+                          Редактировать
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {draftError ? (
+                    <div className="mt-4 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 py-3 text-sm font-semibold text-[#bc5941]">
+                      {draftError}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Аватар клиента</p>
+                      <div className="mt-4 flex items-center gap-4">
+                        {draft?.avatarUrl ? (
+                          <img
+                            src={draft.avatarUrl}
+                            alt={activeClient.name}
+                            className="h-20 w-20 rounded-[24px] border border-[#dde3eb] object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded-[24px] border border-[#dde3eb] bg-white text-xl font-extrabold text-[#737d8b]">
+                            {getClientInitials(activeClient.name)}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold leading-6 text-[#7d8693]">
+                            Фото клиента отображается в карточке и в связанных сценариях.
+                          </p>
+                          {avatarBusy ? (
+                            <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#7d8693]">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Обновляю аватарку...
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <input
+                        ref={clientAvatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = '';
+                          if (!file) {
+                            return;
+                          }
+                          void handleUploadAvatar(file);
+                        }}
+                      />
+                      {editMode ? (
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={handleOpenAvatarPicker}
+                            disabled={draftLoading || avatarBusy || !canManageAvatars}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink disabled:opacity-50"
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                            {draft?.avatarUrl ? 'Изменить фото' : 'Добавить фото'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleDeleteAvatar();
+                            }}
+                            disabled={draftLoading || avatarBusy || !canManageAvatars || !draft?.avatarUrl}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 text-sm font-semibold text-[#bc5941] disabled:opacity-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Удалить фото
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Имя</span>
+                      <input
+                        type="text"
+                        value={draft?.name || ''}
+                        onChange={(event) => handleDraftChange('name', event.target.value)}
+                        disabled={!editMode || draftLoading}
+                        className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:opacity-80"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Телефон</span>
+                      <input
+                        type="text"
+                        value={draft?.phone || ''}
+                        onChange={(event) => handleDraftChange('phone', event.target.value)}
+                        disabled={!editMode || draftLoading}
+                        className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:opacity-80"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Email</span>
+                      <input
+                        type="email"
+                        value={draft?.email || ''}
+                        onChange={(event) => handleDraftChange('email', event.target.value)}
+                        disabled={!editMode || draftLoading}
+                        className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:opacity-80"
+                      />
+                    </label>
+
+                    <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fff5cf] text-[#9b7322]">
+                          <BadgePercent className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Постоянная скидка</p>
+                          <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                            Процент скидки для постоянного клиента.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-3">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={draft?.permanentDiscountPercent || ''}
+                          onChange={(event) => handlePermanentDiscountChange(event.target.value)}
+                          disabled={!editMode || draftLoading || !canManageDiscounts}
+                          placeholder="Например, 10"
+                          className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-base font-semibold text-ink outline-none disabled:opacity-70"
+                        />
+                        <span className="text-sm font-extrabold text-[#738094]">%</span>
+                      </div>
+                      <p className="mt-3 text-xs font-semibold text-[#98a1ae]">
+                        Очистите поле, чтобы убрать постоянную скидку.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Комментарий</p>
+                      <textarea
+                        value={draft?.comment || ''}
+                        onChange={(event) => handleDraftChange('comment', event.target.value)}
+                        disabled={!editMode || draftLoading}
+                        className="mt-4 h-32 w-full resize-none rounded-[24px] border border-[#dce2ea] bg-white px-4 py-4 text-base font-medium leading-7 text-ink outline-none disabled:opacity-80"
+                        placeholder="Комментарий по клиенту"
+                      />
+                    </div>
+
+                    {canManagePromocodes ? (
+                      <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#2d5fd6]">
+                            <Mail className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Отправить промокод</p>
+                            <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                              Одноразовый промокод в процентах на email клиента.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-3">
+                          <div>
+                            <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">Скидка</p>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="number"
+                                min="1"
+                                max="100"
+                                step="1"
+                                value={promoDiscountPercent}
+                                onChange={(event) => setPromoDiscountPercent(event.target.value)}
+                                disabled={promoSending || !canManagePromocodes}
+                                placeholder="15"
+                                className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-base font-semibold text-ink outline-none disabled:opacity-70"
+                              />
+                              <span className="text-sm font-extrabold text-[#738094]">%</span>
+                            </div>
+                          </div>
+                          <label className="block">
+                            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">Действует до</span>
+                            <input
+                              type="date"
+                              value={promoExpiresOn}
+                              onChange={(event) => setPromoExpiresOn(event.target.value)}
+                              disabled={promoSending || !canManagePromocodes}
+                              className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none disabled:opacity-70"
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleSendPromocode();
+                          }}
+                          disabled={promoSending || !canManagePromocodes}
+                          className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#222b33] disabled:opacity-60"
+                        >
+                          {promoSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
+                          Отправить
+                        </button>
+                        <p className="mt-3 text-xs font-semibold text-[#98a1ae]">
+                          Email отправки: {draft?.email.trim() || activeClient.email || 'не указан'}
+                        </p>
+                        {promoError ? (
+                          <div className="mt-3 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 py-3 text-sm font-semibold text-[#bc5941]">
+                            {promoError}
+                          </div>
+                        ) : null}
+                        {promoResult ? (
+                          <div className="mt-3 rounded-2xl border border-[#d7eadf] bg-[#eef8f2] px-4 py-3 text-sm font-semibold text-[#2e7a4a]">
+                            Промокод <span className="font-extrabold">{promoResult.code}</span> отправлен на {promoResult.email}
+                            {promoResult.expiresAt
+                              ? `, действует до ${formatHistoryDate(new Date(promoResult.expiresAt))}`
+                              : ', без ограничения по дате'}
+                            .
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Визитов</p>
+                        <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{activeSummary?.totalVisits ?? 0}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Средний чек</p>
+                        <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">
+                          {activeSummary ? formatGroupedRub(activeSummary.averageCheck) : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Первый визит</p>
+                        <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.firstVisit || null)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Последний визит</p>
+                        <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.lastVisit || null)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {desktopTab === 'history' ? (
+              <div className="space-y-4 pt-4">
+                <section className="rounded-[28px] border border-[#e3e8ef] bg-white p-4 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">История посещений</p>
+                  <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                    Все записи клиента, найденные по ID и телефону в журнале.
+                  </p>
+                  <div className="mt-4">
+                    <SelectField
+                      value={historyFilter}
+                      onChange={(next) => setHistoryFilter(next as HistoryFilter)}
+                      options={[
+                        { value: 'all', label: 'Показать все записи' },
+                        { value: 'upcoming', label: 'Только ожидание' },
+                        { value: 'confirmed', label: 'Только подтвержденные' },
+                        { value: 'arrived', label: 'Только завершенные' },
+                        { value: 'no-show', label: 'Только неявки' },
+                      ]}
+                    />
+                  </div>
+                </section>
+
+                <div className="space-y-3">
+                  {filteredHistory.length > 0 ? (
+                    filteredHistory.map((item) => {
+                      const status = getStatusMeta(item.status);
+                      return (
+                        <div
+                          key={item.id}
+                          className="w-full rounded-[24px] border border-[#e3e8ef] bg-white px-4 py-4 text-left shadow-[0_10px_24px_rgba(42,49,56,0.05)]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[16px] font-extrabold text-ink">{item.serviceName || '—'}</p>
+                              <p className="mt-1 text-sm font-semibold text-[#7d8693]">
+                                {formatHistoryDate(item.startAt)} · {formatTime(item.startAt)}-{formatTime(item.endAt)}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-[#7d8693]">{item.staffName || '—'}</p>
+                            </div>
+                            <span className={clsx('inline-flex rounded-full px-3 py-1 text-xs font-extrabold', status.badgeClass)}>
+                              {status.label}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-[#f4f6f9] px-3 py-1 text-[12px] font-bold text-[#5f6978]">
+                              Стоимость: {formatGroupedRub(getAppointmentAmount(item))}
+                            </span>
+                            <span className="rounded-full bg-[#f4f6f9] px-3 py-1 text-[12px] font-bold text-[#5f6978]">
+                              Оплачено: {formatGroupedRub(item.paidAmount ?? 0)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <section className="rounded-[24px] border border-[#e3e8ef] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+                      <p className="text-lg font-extrabold text-ink">Нет записей</p>
+                      <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                        Для выбранного фильтра история посещений пуста.
+                      </p>
+                    </section>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {desktopTab === 'stats' ? (
+              <div className="space-y-4 pt-4">
+                <section className="rounded-[28px] border border-[#e3e8ef] bg-white p-4 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Статистика</p>
+                      <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                        Аналитика клиента по данным журнала записей.
+                      </p>
+                    </div>
+                    <div className="grid w-full gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">С</span>
+                        <input
+                          type="date"
+                          value={statsFrom}
+                          max={statsTo || undefined}
+                          onChange={(event) => setStatsFrom(event.target.value)}
+                          className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">До</span>
+                        <input
+                          type="date"
+                          value={statsTo}
+                          min={statsFrom || undefined}
+                          onChange={(event) => setStatsTo(event.target.value)}
+                          className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Выручка</p>
+                      <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">
+                        {formatGroupedRub(statsHistory.reduce((sum, item) => sum + getAppointmentAmount(item), 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Оплачено</p>
+                      <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">
+                        {formatGroupedRub(statsHistory.reduce((sum, item) => sum + Math.max(item.paidAmount ?? 0, 0), 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Визиты</p>
+                      <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{statsHistory.length}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Неявки</p>
+                      <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">
+                        {statsHistory.filter((item) => item.status === 'NO_SHOW').length}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Выручка по месяцам</p>
+                        <p className="mt-2 text-sm font-semibold text-[#7d8693]">Динамика по выбранному периоду.</p>
+                      </div>
+                      <p className="text-sm font-extrabold text-ink">
+                        {formatGroupedRub(statsSeries.reduce((sum, item) => sum + item.value, 0))}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 rounded-[20px] border border-[#e5e9f0] bg-white p-4">
+                      {statsSeries.length > 0 ? (
+                        <>
+                          <svg viewBox="0 0 640 200" className="h-[180px] w-full">
+                            <defs>
+                              <linearGradient id="clientsStatsAreaMobile" x1="0" x2="0" y1="0" y2="1">
+                                <stop offset="0%" stopColor="#f4c900" stopOpacity="0.35" />
+                                <stop offset="100%" stopColor="#f4c900" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                            <polyline
+                              fill="none"
+                              stroke="#f4c900"
+                              strokeWidth="4"
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                              points={statsPolyline}
+                            />
+                            <polyline
+                              fill="url(#clientsStatsAreaMobile)"
+                              stroke="none"
+                              points={`${statsPolyline} 640,180 0,180`}
+                            />
+                          </svg>
+                          <div className="mt-2 grid grid-cols-2 gap-3">
+                            {statsSeries.map((item) => (
+                              <div key={item.label} className="rounded-2xl border border-[#eef2f6] bg-[#f9fbfd] px-3 py-3">
+                                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]">{item.label}</p>
+                                <p className="mt-2 text-sm font-extrabold text-ink">{formatGroupedRub(item.value)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm font-semibold text-[#7d8693]">Недостаточно данных для графика.</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <div className="grid gap-4">
+                  <DonutCard
+                    title="Услуги"
+                    items={activeStatsSummary?.topServices || []}
+                    valueFormatter={(value) => formatGroupedRub(value)}
+                  />
+                  <DonutCard
+                    title="Сотрудники"
+                    items={activeStatsSummary?.topStaff || []}
+                  />
+                  <DonutCard
+                    title="Статусы"
+                    items={activeStatsSummary?.statusBreakdown || []}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </PageSheet>
+      ) : null}
 
       {isDesktop && activeClient ? (
         <div
@@ -2210,16 +2909,16 @@ export function ClientsScreen({
                       <div className="grid gap-6 xl:grid-cols-3">
                         <DonutCard
                           title="Услуги"
-                          items={buildClientSummary(activeClient, statsHistory).topServices}
+                          items={activeStatsSummary?.topServices || []}
                           valueFormatter={(value) => formatGroupedRub(value)}
                         />
                         <DonutCard
                           title="Сотрудники"
-                          items={buildClientSummary(activeClient, statsHistory).topStaff}
+                          items={activeStatsSummary?.topStaff || []}
                         />
                         <DonutCard
                           title="Статусы"
-                          items={buildClientSummary(activeClient, statsHistory).statusBreakdown}
+                          items={activeStatsSummary?.statusBreakdown || []}
                         />
                       </div>
                     </div>

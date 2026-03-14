@@ -7,10 +7,12 @@ import {
   Download,
   GripVertical,
   Loader2,
+  MoreVertical,
   Pencil,
   Plus,
   Search,
 } from 'lucide-react';
+import { PageSheet } from '../components/shared/PageSheet';
 import { formatGroupedRub } from '../helpers';
 import type { ServiceCategoryItem, ServiceItem } from '../types';
 
@@ -114,6 +116,7 @@ export function ServicesCategoriesScreen({
 }: ServicesCategoriesScreenProps) {
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [pendingServiceIds, setPendingServiceIds] = useState<string[]>([]);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -231,6 +234,7 @@ export function ServicesCategoriesScreen({
       ...categories.map((item) => [item.name, item.count]),
     ]);
     setExportMenuOpen(false);
+    setMobileToolsOpen(false);
   };
 
   const exportServicesCsv = () => {
@@ -255,6 +259,7 @@ export function ServicesCategoriesScreen({
       ),
     ]);
     setExportMenuOpen(false);
+    setMobileToolsOpen(false);
   };
 
   return (
@@ -266,9 +271,19 @@ export function ServicesCategoriesScreen({
               <ArrowLeft className="h-6 w-6" />
             </button>
             <h1 className="text-[24px] font-extrabold text-ink">Услуги</h1>
-            <button type="button" onClick={onCreateCategory} className="rounded-lg p-2 text-ink">
-              <Plus className="h-7 w-7" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setMobileToolsOpen(true)}
+                className="rounded-lg p-2 text-ink"
+                aria-label="Открыть сводку и экспорт"
+              >
+                <MoreVertical className="h-6 w-6" />
+              </button>
+              <button type="button" onClick={onCreateCategory} className="rounded-lg p-2 text-ink">
+                <Plus className="h-7 w-7" />
+              </button>
+            </div>
           </div>
 
           <label className="flex items-center gap-3 rounded-xl border-[3px] border-line bg-screen px-4 py-2 text-muted">
@@ -325,6 +340,52 @@ export function ServicesCategoriesScreen({
           <p className="mt-4 text-sm font-semibold text-muted">Категории не найдены</p>
         ) : null}
       </div>
+
+      <PageSheet
+        open={mobileToolsOpen}
+        onDismiss={() => setMobileToolsOpen(false)}
+        snapPoints={({ maxHeight }) => [Math.min(maxHeight, 480)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        <div className="bg-white px-4 pb-6 pt-2 md:hidden">
+          <div className="mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Сводка</p>
+            <h2 className="mt-2 text-[24px] font-extrabold leading-none text-ink">Услуги</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Категорий</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{categories.length}</p>
+            </div>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Услуг</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{totalServices}</p>
+            </div>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Онлайн</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{onlineServicesCount}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={exportServicesCsv}
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-[24px] border border-line bg-[#fcfcfd] px-4 text-[14px] font-extrabold text-ink"
+            >
+              <Download className="h-4 w-4" />
+              Экспорт услуг CSV
+            </button>
+            <button
+              type="button"
+              onClick={exportCategoriesCsv}
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-[24px] border border-line bg-[#fcfcfd] px-4 text-[14px] font-extrabold text-ink"
+            >
+              <Download className="h-4 w-4" />
+              Экспорт категорий CSV
+            </button>
+          </div>
+        </div>
+      </PageSheet>
 
       <div className="hidden pb-6 md:block">
         <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">

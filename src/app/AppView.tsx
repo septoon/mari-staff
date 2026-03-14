@@ -200,10 +200,7 @@ export function AppView({ controller }: AppViewProps) {
   const activeJournalNoShows = activeJournalHistory.filter((item) => item.status === 'NO_SHOW').length;
 
   const clientsWithPhone = state.clients.filter((item) => item.phone.trim().length > 0);
-  const mobileVisibleTabs = useMemo(
-    () => state.visibleTabs.filter((item) => item.key !== 'analytics'),
-    [state.visibleTabs],
-  );
+  const mobileVisibleTabs = useMemo(() => state.visibleTabs, [state.visibleTabs]);
   const smsRecipients = Array.from(
     new Set(
       clientsWithPhone.map((item) => normalizePhoneForLink(item.phone)).filter((value) => Boolean(value)),

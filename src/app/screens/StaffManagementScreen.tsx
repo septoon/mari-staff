@@ -36,7 +36,7 @@ export function StaffManagementScreen({
 
   return (
     <>
-      <div className="pb-4 pt-[160px] md:hidden">
+      <div className="pb-4 pt-[208px] md:hidden">
         <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-4">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
@@ -63,22 +63,39 @@ export function StaffManagementScreen({
               className="w-full bg-transparent text-[16px] font-semibold text-ink outline-none placeholder:text-[#97a0ad]"
             />
           </label>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                onFilterChange((prev) => ({ ...prev, withServices: !prev.withServices }))
+              }
+              className={clsx(
+                'rounded-full px-4 py-2 text-[13px] font-extrabold transition',
+                filters.withServices
+                  ? 'bg-[#f4c900] text-[#222b33] shadow-[0_10px_22px_rgba(244,201,0,0.2)]'
+                  : 'bg-[#dde2ea] text-ink',
+              )}
+            >
+              Оказывает услуги
+            </button>
+          </div>
         </div>
 
-        {/* <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              onFilterChange((prev) => ({ ...prev, withServices: !prev.withServices }))
-            }
-            className={clsx(
-              'rounded-full px-5 py-2 text-[14px] font-semibold',
-              filters.withServices ? 'bg-[#f2dc7e] text-ink' : 'bg-[#dde2ea] text-ink',
-            )}
-          >
-            Оказывает услуги
-          </button>
-        </div> */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Всего</p>
+            <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{staff.length}</p>
+          </div>
+          <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С услугами</p>
+            <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{withServicesCount}</p>
+          </div>
+          <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С доступом</p>
+            <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{withAccessCount}</p>
+          </div>
+        </div>
 
         <ul className="mt-4 space-y-5">
           {staff.map((item) => {
