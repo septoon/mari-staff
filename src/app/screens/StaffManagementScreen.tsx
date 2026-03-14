@@ -83,22 +83,6 @@ export function StaffManagementScreen({
             />
           </label>
 
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                onFilterChange((prev) => ({ ...prev, withServices: !prev.withServices }))
-              }
-              className={clsx(
-                'rounded-full px-4 py-2 text-[13px] font-extrabold transition',
-                filters.withServices
-                  ? 'bg-[#f4c900] text-[#222b33] shadow-[0_10px_22px_rgba(244,201,0,0.2)]'
-                  : 'bg-[#dde2ea] text-ink',
-              )}
-            >
-              Оказывает услуги
-            </button>
-          </div>
         </div>
 
         <ul className="mt-4 space-y-5">
