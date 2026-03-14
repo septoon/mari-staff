@@ -306,10 +306,16 @@ function MetricCard({
           : 'text-ink';
 
   return (
-    <section className="rounded-[28px] border border-[#e3e8ef] bg-white px-5 py-5">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">{title}</p>
-      <p className={clsx('mt-3 text-[34px] font-extrabold leading-none', accentClass)}>{value}</p>
-      <p className="mt-3 text-sm font-semibold leading-6 text-[#7d8693]">{subtitle}</p>
+    <section className="rounded-[28px] border border-[#e3e8ef] bg-white px-4 py-4 md:px-5 md:py-5">
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#98a1ae] md:text-xs md:tracking-[0.18em]">
+        {title}
+      </p>
+      <p className={clsx('mt-3 text-[28px] font-extrabold leading-none md:text-[34px]', accentClass)}>
+        {value}
+      </p>
+      <p className="mt-3 text-[13px] font-semibold leading-5 text-[#7d8693] md:text-sm md:leading-6">
+        {subtitle}
+      </p>
     </section>
   );
 }
@@ -366,23 +372,25 @@ function DonutCard({
       : '#eef2f6';
 
   return (
-    <section className="rounded-[28px] border border-[#e3e8ef] bg-white p-5">
+    <section className="rounded-[28px] border border-[#e3e8ef] bg-white p-4 md:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">{title}</p>
-          <p className="mt-3 text-[30px] font-extrabold leading-none text-ink">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#98a1ae] md:text-xs md:tracking-[0.18em]">
+            {title}
+          </p>
+          <p className="mt-3 text-[26px] font-extrabold leading-none text-ink md:text-[30px]">
             {total > 0 ? formatter?.(total) || Math.round(total).toString() : '—'}
           </p>
         </div>
-        <div className="relative h-24 w-24 shrink-0 rounded-full" style={{ background }}>
-          <div className="absolute inset-[14px] rounded-full bg-white" />
+        <div className="relative h-20 w-20 shrink-0 rounded-full md:h-24 md:w-24" style={{ background }}>
+          <div className="absolute inset-[12px] rounded-full bg-white md:inset-[14px]" />
         </div>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-4 space-y-2.5 md:mt-5 md:space-y-3">
         {items.length > 0 ? (
           items.map((item) => (
-            <div key={item.label} className="flex items-center justify-between gap-4 text-sm font-semibold text-[#55606f]">
+            <div key={item.label} className="flex items-center justify-between gap-3 text-[13px] font-semibold text-[#55606f] md:gap-4 md:text-sm">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                 <span className="truncate">{item.label}</span>
@@ -772,14 +780,14 @@ export function AnalyticsScreen({
 
       {!loading ? (
         <>
-          <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_320px]">
-            <div className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
+          <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_320px] xl:gap-5">
+            <div className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)] md:p-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Динамика</p>
-                  <p className="mt-2 text-[26px] font-extrabold leading-none text-ink md:text-[30px]">{chartTotalLabel}</p>
+                  <p className="mt-2 text-[22px] font-extrabold leading-none text-ink md:text-[30px]">{chartTotalLabel}</p>
                 </div>
-                <div className="flex w-full items-center gap-2 rounded-2xl border border-[#e2e6ed] bg-[#f7f9fc] p-1 md:w-auto">
+                <div className="flex w-full items-center gap-1 rounded-2xl border border-[#e2e6ed] bg-[#f7f9fc] p-1 md:w-auto md:gap-2">
                   {[
                     { key: 'revenue', label: 'Выручка' },
                     { key: 'appointments', label: 'Записи' },
@@ -790,7 +798,7 @@ export function AnalyticsScreen({
                       type="button"
                       onClick={() => setChartMode(item.key as ChartMode)}
                       className={clsx(
-                        'flex-1 rounded-2xl px-4 py-2 text-sm font-extrabold transition md:flex-none',
+                        'flex-1 rounded-2xl px-3 py-2 text-[13px] font-extrabold transition md:flex-none md:px-4 md:text-sm',
                         chartMode === item.key
                           ? 'bg-white text-ink shadow-[0_8px_18px_rgba(42,49,56,0.08)]'
                           : 'text-[#7d8693] hover:text-ink',
@@ -802,10 +810,10 @@ export function AnalyticsScreen({
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-5">
+              <div className="mt-4 rounded-[28px] border border-[#e5e9f0] bg-[#f8fafc] p-4 md:mt-5 md:p-5">
                 {chartSeries.length > 0 ? (
                   <>
-                    <svg viewBox="0 0 760 220" className="h-[220px] w-full md:h-[260px]">
+                    <svg viewBox="0 0 760 220" className="h-[176px] w-full md:h-[260px]">
                       <defs>
                         <linearGradient id="analyticsArea" x1="0" x2="0" y1="0" y2="1">
                           <stop offset="0%" stopColor="#f4c900" stopOpacity="0.3" />
@@ -841,14 +849,14 @@ export function AnalyticsScreen({
                     </div>
                   </>
                 ) : (
-                  <div className="flex h-[260px] items-center justify-center rounded-[22px] bg-white text-sm font-semibold text-[#7d8693]">
+                  <div className="flex h-[200px] items-center justify-center rounded-[22px] bg-white text-sm font-semibold text-[#7d8693] md:h-[260px]">
                     Нет данных за выбранный период
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="grid gap-5">
+            <div className="grid gap-4 md:gap-5">
               <MetricCard
                 title="Новые клиенты"
                 value={String(clientSegments.newClients)}
@@ -870,7 +878,7 @@ export function AnalyticsScreen({
             </div>
           </section>
 
-          <section className="mt-5 grid gap-5 xl:grid-cols-4">
+          <section className="mt-5 grid gap-4 xl:grid-cols-4 xl:gap-5">
             <MetricCard
               title="Всего записей"
               value={String(totalAppointments)}
@@ -897,7 +905,7 @@ export function AnalyticsScreen({
             />
           </section>
 
-          <section className="mt-5 grid gap-5 xl:grid-cols-3">
+          <section className="mt-5 grid gap-4 xl:grid-cols-3 xl:gap-5">
             <MetricCard
               title="Доход"
               value={formatGroupedRub(totalRevenue)}
@@ -936,7 +944,7 @@ export function AnalyticsScreen({
             />
           </section>
 
-          <section className="mt-5 grid gap-5 xl:grid-cols-3">
+          <section className="mt-5 grid gap-4 xl:grid-cols-3 xl:gap-5">
             <DonutCard
               title="Услуги"
               items={serviceTotals}

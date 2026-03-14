@@ -523,7 +523,7 @@ export function ScheduleScreen({
 
   return (
     <>
-      <div className="flex min-h-full flex-col pb-[190px] pt-5 md:hidden">
+      <div className="flex min-h-full flex-col pb-[calc(env(safe-area-inset-bottom)+228px)] pt-5 md:hidden">
         <div className="flex items-center justify-between">
           <h1 className="flex items-center gap-2 text-[22px] font-extrabold leading-none text-ink">
             <span>График работы</span>
@@ -658,7 +658,10 @@ export function ScheduleScreen({
           </div>
         </div>
 
-        <div className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-6" style={{ bottom: '110px' }}>
+        <div
+          className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-6"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 132px)' }}
+        >
           <button
             type="button"
             onClick={onEdit}

@@ -482,10 +482,10 @@ export function AppView({ controller }: AppViewProps) {
           'scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6',
           showDesktopRail ? 'md:pl-[444px] md:pr-6' : undefined,
           isJournalMainPage
-            ? 'pb-[192px] md:pb-6'
+            ? 'pb-[calc(env(safe-area-inset-bottom)+208px)] md:pb-6'
             : isScheduleMainPage
-              ? 'pb-[94px] md:pb-6'
-              : 'pb-[106px] md:pb-6',
+              ? 'pb-[calc(env(safe-area-inset-bottom)+132px)] md:pb-6'
+              : 'pb-[calc(env(safe-area-inset-bottom)+144px)] md:pb-6',
         )}
       >
         {state.page === 'staff' ? (
