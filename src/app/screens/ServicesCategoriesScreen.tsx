@@ -264,8 +264,8 @@ export function ServicesCategoriesScreen({
 
   return (
     <>
-      <div className="pb-4 pt-40 md:hidden">
-        <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-4">
+      <div className="pb-4 pt-[calc(env(safe-area-inset-top)+160px)] md:hidden">
+        <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-[calc(env(safe-area-inset-top)+16px)]">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
               <ArrowLeft className="h-6 w-6" />

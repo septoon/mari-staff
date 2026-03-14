@@ -324,11 +324,11 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <label className="relative block">
+    <label className="relative block min-w-0 overflow-hidden">
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-2xl border border-[#dce2ea] bg-white pl-4 pr-11 text-sm font-semibold text-ink outline-none transition focus:border-[#c8d1dd]"
+        className="h-12 w-full min-w-0 appearance-none rounded-2xl border border-[#dce2ea] bg-white pl-4 pr-11 text-sm font-semibold text-ink outline-none transition focus:border-[#c8d1dd]"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -649,7 +649,7 @@ export function AnalyticsScreen({
 
   return (
     <div className="pb-6 pt-4 md:pb-6 md:pt-6">
-      <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)] md:p-6">
+      <section className="overflow-hidden rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)] md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Аналитика</p>
@@ -673,24 +673,24 @@ export function AnalyticsScreen({
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr]">
-          <label className="block">
+          <label className="block min-w-0 overflow-hidden">
             <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">С</span>
             <input
               type="date"
               value={draftFilters.from}
               max={draftFilters.to}
               onChange={(event) => setDraftFilters((prev) => ({ ...prev, from: event.target.value }))}
-              className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none"
+              className="h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none"
             />
           </label>
-          <label className="block">
+          <label className="block min-w-0 overflow-hidden">
             <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">По</span>
             <input
               type="date"
               value={draftFilters.to}
               min={draftFilters.from}
               onChange={(event) => setDraftFilters((prev) => ({ ...prev, to: event.target.value }))}
-              className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none"
+              className="h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none"
             />
           </label>
           <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-5 py-4">

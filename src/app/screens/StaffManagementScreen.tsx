@@ -1,6 +1,16 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import clsx from 'clsx';
-import { ArrowLeft, ChevronRight, Loader2, Plus, RefreshCcw, Search, UserRound } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronRight,
+  Loader2,
+  MoreVertical,
+  Plus,
+  RefreshCcw,
+  Search,
+  UserRound,
+} from 'lucide-react';
+import { PageSheet } from '../components/shared/PageSheet';
 import { roleLabel } from '../helpers';
 import type { StaffFilter, StaffItem } from '../types';
 
@@ -31,13 +41,14 @@ export function StaffManagementScreen({
   onCreate,
   onEdit,
 }: StaffManagementScreenProps) {
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const withServicesCount = staff.filter((item) => (serviceCounts[item.id] ?? 0) > 0).length;
   const withAccessCount = staff.filter((item) => item.isActive).length;
 
   return (
     <>
-      <div className="pb-4 pt-[208px] md:hidden">
-        <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-4">
+      <div className="pb-4 pt-[calc(env(safe-area-inset-top)+196px)] md:hidden">
+        <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-[calc(env(safe-area-inset-top)+16px)]">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
               <ArrowLeft className="h-6 w-6" />
@@ -46,6 +57,14 @@ export function StaffManagementScreen({
             <div className="flex items-center gap-1 text-muted">
               <button type="button" onClick={onRefresh} className="rounded-lg p-2 text-ink">
                 <RefreshCcw className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileToolsOpen(true)}
+                className="rounded-lg p-2 text-ink"
+                aria-label="Открыть доп. информацию"
+              >
+                <MoreVertical className="h-6 w-6" />
               </button>
               <button type="button" onClick={onCreate} className="rounded-lg p-2 text-ink">
                 <Plus className="h-6 w-6" />
@@ -79,21 +98,6 @@ export function StaffManagementScreen({
             >
               Оказывает услуги
             </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Всего</p>
-            <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{staff.length}</p>
-          </div>
-          <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С услугами</p>
-            <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{withServicesCount}</p>
-          </div>
-          <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(42,49,56,0.05)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С доступом</p>
-            <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{withAccessCount}</p>
           </div>
         </div>
 
@@ -149,6 +153,35 @@ export function StaffManagementScreen({
           <p className="mt-3 text-sm font-semibold text-muted">Сотрудники не найдены</p>
         ) : null}
       </div>
+
+      <PageSheet
+        open={mobileToolsOpen}
+        onDismiss={() => setMobileToolsOpen(false)}
+        snapPoints={({ maxHeight }) => [Math.min(maxHeight, 420)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        <div className="bg-white px-4 pb-6 pt-2 md:hidden">
+          <div className="mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Сводка</p>
+            <h2 className="mt-2 text-[24px] font-extrabold leading-none text-ink">Сотрудники</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Всего</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{staff.length}</p>
+            </div>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С услугами</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{withServicesCount}</p>
+            </div>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С доступом</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{withAccessCount}</p>
+            </div>
+          </div>
+        </div>
+      </PageSheet>
 
       <div className="hidden pb-6 md:block">
         <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">

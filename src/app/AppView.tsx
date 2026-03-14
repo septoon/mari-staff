@@ -961,7 +961,7 @@ export function AppView({ controller }: AppViewProps) {
       {isJournalMainPage ? (
         <div
           className="fixed left-1/2 z-40 w-full px-4 -translate-x-1/2 md:hidden"
-          style={{ bottom: '110px' }}
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 110px)' }}
         >
           <JournalWeekStrip
             selectedDate={state.selectedDate}
@@ -977,7 +977,7 @@ export function AppView({ controller }: AppViewProps) {
             ? 'md:hidden'
             : undefined,
         )}
-        style={{ bottom: '20px' }}
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
       >
         <BottomNav active={state.tab} items={mobileVisibleTabs} onChange={actions.handleTabChange} />
       </div>
