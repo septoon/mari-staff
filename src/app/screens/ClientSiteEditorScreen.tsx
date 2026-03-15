@@ -860,6 +860,30 @@ function createContactEditorState(contact: ContactPointRecord | null): ContactEd
   };
 }
 
+function findPrimaryContact(contacts: ContactPointRecord[]): ContactPointRecord | null {
+  return contacts.find((item) => item.isPrimary) ?? contacts[0] ?? null;
+}
+
+function validateContactDraft(draft: ContactEditorState['draft']): string | null {
+  if (!draft.id.trim()) {
+    return 'У контакта должен быть id';
+  }
+  if (!draft.name.trim()) {
+    return 'У контакта должно быть имя';
+  }
+  if (!draft.addressLabel.trim() || !draft.addressLine1.trim()) {
+    return 'Для контакта нужен хотя бы один адрес';
+  }
+  if (!draft.phoneLabel.trim() || !draft.phoneE164.trim()) {
+    return 'Для контакта нужен хотя бы один телефон';
+  }
+  if (!/^\+[1-9]\d{6,14}$/.test(draft.phoneE164.trim())) {
+    return 'Телефон должен быть в формате E.164';
+  }
+
+  return null;
+}
+
 function buildContactPayload(editor: ContactEditorState): ContactPointRecord {
   const draft = editor.draft;
   const source = editor.source;
@@ -1197,6 +1221,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     extraJson: '{}',
   });
   const [contactEditor, setContactEditor] = useState<ContactEditorState | null>(null);
+  const [primaryContactDraft, setPrimaryContactDraft] = useState<ContactEditorState['draft']>(
+    () => createContactEditorState(null).draft,
+  );
   const [specialistEditor, setSpecialistEditor] = useState<SpecialistEditorState | null>(null);
   const [blockEditor, setBlockEditor] = useState<BlockEditorState | null>(null);
   const [mediaPicker, setMediaPicker] = useState<MediaPickerState | null>(null);
@@ -1204,6 +1231,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const config = screenData.config.data;
   const contacts = useMemo(() => config?.contacts ?? [], [config]);
+  const primaryContact = useMemo(() => findPrimaryContact(contacts), [contacts]);
   const blocks = useMemo(() => screenData.blocks.data?.items ?? [], [screenData.blocks.data]);
   const specialists = useMemo(() => screenData.specialists.data?.items ?? [], [screenData.specialists.data]);
   const services = useMemo(() => screenData.services.data?.items ?? [], [screenData.services.data]);
@@ -1229,6 +1257,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const closeCategoryPage = useCallback(() => {
     navigate(CLIENT_SITE_EDITOR_BASE_ROUTE);
   }, [navigate]);
+
+  useEffect(() => {
+    setPrimaryContactDraft(createContactEditorState(primaryContact).draft);
+  }, [primaryContact]);
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -1411,7 +1443,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const categorySnapshots = useMemo<CategorySnapshot[]>(() => {
     const pageBlocks = blocks.filter((block) => ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'].includes(block.blockType));
     const promoBlocks = blocks.filter((block) => ['PROMO', 'OFFERS'].includes(block.blockType));
-    const contactBlocks = blocks.filter((block) => block.blockType === 'CONTACTS');
     const customBlocks = blocks.filter((block) => block.blockType === 'CUSTOM');
     const blocksWithConditions = blocks.filter(
       (block) =>
@@ -1427,7 +1458,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const servicesCategoriesCount = new Set(services.map((item) => item.category.id)).size;
     const activeServices = services.filter((item) => item.isActive);
     const visibleSpecialists = specialists.filter((item) => item.isVisible);
-    const contactsWithHours = contacts.filter((item) => (item.workingHours?.length ?? 0) > 0);
 
     return categories.map((category) => {
       switch (category.key) {
@@ -1471,18 +1501,25 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             warning: screenData.specialists.error || undefined,
           };
         case 'contacts':
+          {
+            const primaryPhone =
+              primaryContact?.phones.find((item) => item.primary) ?? primaryContact?.phones[0];
+            const primaryAddress = primaryContact?.addresses[0];
+            const primaryEmail = primaryContact?.emails?.[0];
+
           return {
             ...category,
             stat: screenData.config.error ? screenData.config.error : `${contacts.length} точек`,
-            details: contacts.length
+            details: primaryContact
               ? [
-                  `Главных точек: ${contacts.filter((item) => item.isPrimary).length}`,
-                  `С графиком работы: ${contactsWithHours.length}`,
-                  `Контактных блоков: ${contactBlocks.length}`,
+                  `Адрес: ${primaryAddress?.line1 || 'не задан'}`,
+                  `Телефон: ${primaryPhone?.display || primaryPhone?.e164 || 'не задан'}`,
+                  `Email: ${primaryEmail || 'не задан'}`,
                 ]
               : ['Контакты пока не заполнены.'],
             warning: screenData.config.error || undefined,
           };
+          }
         case 'page':
           return {
             ...category,
@@ -1536,7 +1573,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, contacts, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, services, specialists]);
+  }, [blocks, config, contacts, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, services, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -1654,29 +1691,52 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setContactEditor(createContactEditorState(contact));
   };
 
+  const savePrimaryContact = async () => {
+    const normalizedDraft: ContactEditorState['draft'] = {
+      ...primaryContactDraft,
+      addressLabel: primaryContactDraft.addressLabel.trim() || 'Основной адрес',
+      phoneLabel: primaryContactDraft.phoneLabel.trim() || 'Основной телефон',
+      orderIndex: primaryContactDraft.orderIndex.trim() || '0',
+      isPrimary: true,
+    };
+    const validationError = validateContactDraft(normalizedDraft);
+    if (validationError) {
+      setBanner('error', validationError);
+      return;
+    }
+
+    const nextContact = buildContactPayload({
+      mode: primaryContact ? 'edit' : 'create',
+      source: primaryContact,
+      draft: normalizedDraft,
+    });
+    const nextContacts = [
+      ...contacts
+        .filter((item) => item.id !== nextContact.id)
+        .map((item) => ({ ...item, isPrimary: false })),
+      { ...nextContact, isPrimary: true },
+    ].sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0));
+
+    setBusyKey('contact-primary-save');
+    setMessage(null);
+    try {
+      await api.patch('/client-front/staff/config', { contacts: nextContacts });
+      await loadData({ silent: true });
+      setBanner('success', 'Основные контакты сохранены');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   const saveContactEditor = async () => {
     if (!contactEditor) {
       return;
     }
-    const draft = contactEditor.draft;
-    if (!draft.id.trim()) {
-      setBanner('error', 'У контакта должен быть id');
-      return;
-    }
-    if (!draft.name.trim()) {
-      setBanner('error', 'У контакта должно быть имя');
-      return;
-    }
-    if (!draft.addressLabel.trim() || !draft.addressLine1.trim()) {
-      setBanner('error', 'Для контакта нужен хотя бы один адрес');
-      return;
-    }
-    if (!draft.phoneLabel.trim() || !draft.phoneE164.trim()) {
-      setBanner('error', 'Для контакта нужен хотя бы один телефон');
-      return;
-    }
-    if (!/^\+[1-9]\d{6,14}$/.test(draft.phoneE164.trim())) {
-      setBanner('error', 'Телефон должен быть в формате E.164');
+    const validationError = validateContactDraft(contactEditor.draft);
+    if (validationError) {
+      setBanner('error', validationError);
       return;
     }
 
@@ -3142,12 +3202,108 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const renderContactsDetail = () => {
     const contactBlocks = blocks.filter((block) => block.blockType === 'CONTACTS');
+    const primaryDisplayPhone = primaryContactDraft.phoneDisplay.trim() || primaryContactDraft.phoneE164.trim();
 
     return (
       <div className="space-y-5">
         <SectionCard
-          title="Точки контакта"
-          subtitle="Храним публичные контакты клиентского сайта. Дополнительные адреса и телефоны существующих точек сохраняются как есть."
+          title="Основной контакт сайта"
+          subtitle="Эти поля используются в футере и на странице /contacts клиентского сайта. Сохраняем основную публичную точку без лишних технических полей."
+          action={
+            <button
+              type="button"
+              onClick={() => openContactEditor(primaryContact)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+            >
+              <Pencil className="h-4 w-4" />
+              Полный редактор
+            </button>
+          }
+        >
+          <div className="grid gap-3 lg:grid-cols-2">
+            <TextField
+              label="Название точки"
+              value={primaryContactDraft.name}
+              onChange={(value) =>
+                setPrimaryContactDraft((prev) => ({
+                  ...prev,
+                  name: value,
+                  publicName: prev.publicName || value,
+                }))
+              }
+              placeholder="MARI"
+            />
+            <TextField
+              label="Публичное название"
+              value={primaryContactDraft.publicName}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, publicName: value }))}
+              placeholder="MARI"
+            />
+            <TextField
+              label="Адрес"
+              value={primaryContactDraft.addressLine1}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, addressLine1: value }))}
+              placeholder="Улица, дом"
+            />
+            <TextField
+              label="Комментарий к адресу"
+              value={primaryContactDraft.addressComment}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, addressComment: value }))}
+              placeholder="ТЦ, этаж, ориентир"
+            />
+            <TextField
+              label="Телефон на сайте"
+              value={primaryContactDraft.phoneDisplay}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, phoneDisplay: value }))}
+              placeholder="+7 (978) 000-00-00"
+            />
+            <TextField
+              label="Телефон E.164"
+              value={primaryContactDraft.phoneE164}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, phoneE164: value }))}
+              placeholder="+79780000000"
+            />
+            <TextField
+              label="Email"
+              value={primaryContactDraft.email}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, email: value }))}
+              placeholder="hello@example.com"
+            />
+            <TextField
+              label="Ссылка на карту"
+              value={primaryContactDraft.mapUrl}
+              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, mapUrl: value }))}
+              placeholder="https://maps.yandex.ru/..."
+            />
+          </div>
+
+          <div className="mt-4 rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+            Сейчас будет показано клиенту:
+            <span className="ml-1 font-extrabold text-ink">
+              {primaryContactDraft.addressLine1.trim() || 'адрес не задан'}
+            </span>
+            {' • '}
+            <span className="font-extrabold text-ink">{primaryDisplayPhone || 'телефон не задан'}</span>
+            {' • '}
+            <span className="font-extrabold text-ink">{primaryContactDraft.email.trim() || 'email не задан'}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void savePrimaryContact();
+            }}
+            disabled={busyKey === 'contact-primary-save'}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+          >
+            {busyKey === 'contact-primary-save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Сохранить основные контакты
+          </button>
+        </SectionCard>
+
+        <SectionCard
+          title="Все точки контакта"
+          subtitle="Полный список публичных контактов клиентского сайта. Здесь можно хранить дополнительные адреса, телефоны и графики работы."
           action={
             <button
               type="button"
@@ -3172,8 +3328,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       <div className="min-w-0 flex-1">
                         <p className="text-[18px] font-extrabold text-ink">{contact.name}</p>
                         <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                          {contact.addresses[0]?.line1 || 'Адрес не задан'} • {contact.phones[0]?.e164 || 'Телефон не задан'}
+                          {contact.addresses[0]?.line1 || 'Адрес не задан'} • {contact.phones[0]?.display || contact.phones[0]?.e164 || 'Телефон не задан'}
                         </p>
+                        <p className="mt-1 text-[13px] font-medium text-[#5f6773]">{contact.emails?.[0] || 'Email не задан'}</p>
                         <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
                           #{contact.orderIndex ?? 0} {contact.isPrimary ? '• Основная точка' : ''}{' '}
                           {(contact.workingHours?.length ?? 0) > 0 ? '• Есть часы работы' : ''}
