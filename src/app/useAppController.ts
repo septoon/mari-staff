@@ -78,7 +78,7 @@ const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
   Услуги: 'VIEW_SERVICES',
   Аналитика: 'VIEW_FINANCIAL_STATS',
   'Онлайн-запись': 'MANAGE_CLIENT_FRONT',
-  'Политика конфиденциальности': null,
+  'Политика конфиденциальности': 'MANAGE_CLIENT_FRONT',
   Настройки: null,
   Поддержка: null,
 };
@@ -3010,8 +3010,9 @@ export function useAppController(): AppController {
           return;
         }
         case 'Политика конфиденциальности': {
-          await loadSettings();
-          setPage('privacyPolicy');
+          setPanel(null);
+          setPage('clientSiteEditor');
+          navigate('/online-booking/politika-konfidentsialnosti');
           return;
         }
         case 'Настройки': {

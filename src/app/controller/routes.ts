@@ -20,7 +20,7 @@ const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs'>, string> = {
   owner: '/owner',
   settings: '/settings',
   settingsNotifications: '/settings/notifications',
-  privacyPolicy: '/more/privacy-policy',
+  privacyPolicy: '/online-booking/politika-konfidentsialnosti',
   staffEditor: '/staff/editor',
   staffServicesEditor: '/staff/services',
   clientHistory: '/clients/history',

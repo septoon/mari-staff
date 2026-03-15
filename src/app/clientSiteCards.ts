@@ -36,10 +36,37 @@ export type SiteLocationRecord = {
   }>;
 };
 
+export type SitePolicySectionRecord = {
+  id: string;
+  title: string;
+  paragraphs: string[];
+};
+
+export type SitePolicyRecord = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  summaryEyebrow: string;
+  summaryTitle: string;
+  operatorLabel: string;
+  contactLabel: string;
+  addressLabel: string;
+  summaryNote: string;
+  contactCtaLabel: string;
+  bookingConsentLabel: string;
+  accountConsentLabel: string;
+  cookieBannerTitle: string;
+  cookieBannerDescription: string;
+  cookieBannerAcceptLabel: string;
+  cookieBannerNecessaryLabel: string;
+  sections: SitePolicySectionRecord[];
+};
+
 export type SiteCardsDraft = {
   offers: SiteOfferRecord[];
   news: SiteNewsRecord[];
   locations: SiteLocationRecord[];
+  policy: SitePolicyRecord;
 };
 
 const DEFAULT_OFFERS: SiteOfferRecord[] = [
@@ -168,6 +195,91 @@ const DEFAULT_LOCATIONS: SiteLocationRecord[] = [
   }
 ];
 
+const DEFAULT_POLICY: SitePolicyRecord = {
+  eyebrow: 'Privacy policy',
+  title: 'Политика конфиденциальности',
+  description: 'Какие данные сайт получает, зачем они нужны, как обрабатываются и каким образом пользователь может запросить уточнение, ограничение или удаление.',
+  summaryEyebrow: 'Кратко',
+  summaryTitle: 'Что важно знать',
+  operatorLabel: 'Оператор сайта',
+  contactLabel: 'Основной контакт для запросов',
+  addressLabel: 'Адрес салона',
+  summaryNote: 'Если вопрос связан с записью или кабинетом, удобнее всего писать с той почты или телефона, которые уже использовались на сайте.',
+  contactCtaLabel: 'Задать вопрос',
+  bookingConsentLabel: 'Подтверждаю согласие на обработку персональных данных для оформления записи и ознакомлен(а) с политикой конфиденциальности.',
+  accountConsentLabel: 'Подтверждаю согласие на обработку персональных данных для создания личного кабинета и ознакомлен(а) с политикой конфиденциальности.',
+  cookieBannerTitle: 'Сайт использует cookie',
+  cookieBannerDescription: 'Cookie нужны для входа в кабинет, стабильной работы записи и аналитики. Вы можете разрешить аналитику или оставить только необходимые cookie.',
+  cookieBannerAcceptLabel: 'Разрешить аналитику',
+  cookieBannerNecessaryLabel: 'Только необходимые',
+  sections: [
+    {
+      id: 'policy-scope',
+      title: '1. Что регулирует этот документ',
+      paragraphs: [
+        'Эта страница объясняет, какие данные сайт может получать от посетителя, зачем они нужны и как используются при работе с онлайн-записью, личным кабинетом и обратной связью.',
+        'Документ применяется к сайту салона, формам записи, формам входа в кабинет, обращениям по телефону и электронной почте, а также к связанным сервисам аналитики и уведомлений.'
+      ]
+    },
+    {
+      id: 'policy-data',
+      title: '2. Какие данные могут обрабатываться',
+      paragraphs: [
+        'Сайт может получать имя, номер телефона, адрес электронной почты, данные о выбранных услугах, специалистах, времени визита, а также сведения, которые пользователь сам указывает в комментарии к записи.',
+        'Дополнительно могут обрабатываться технические данные: IP-адрес, сведения о браузере и устройстве, cookie, дата и время визита, адреса посещённых страниц и действия на сайте.'
+      ]
+    },
+    {
+      id: 'policy-purpose',
+      title: '3. Для чего нужны эти данные',
+      paragraphs: [
+        'Основные цели: оформить и подтвердить запись, дать доступ к личному кабинету, связаться по вопросам визита, отправить сервисные уведомления, ответить на запрос пользователя и улучшать работу сайта.',
+        'Данные не запрашиваются без причины: если сайт просит телефон или почту, это связано либо с записью, либо с идентификацией пользователя, либо с обратной связью.'
+      ]
+    },
+    {
+      id: 'policy-basis',
+      title: '4. Правовые основания обработки',
+      paragraphs: [
+        'Данные обрабатываются на основании согласия пользователя, необходимости исполнить запрос пользователя или подготовить оказание услуги, а также для исполнения обязательных требований законодательства.',
+        'Если для конкретного действия требуется отдельное согласие, пользователь выражает его через форму сайта, чекбокс, отправку данных или иное явное действие.'
+      ]
+    },
+    {
+      id: 'policy-storage',
+      title: '5. Передача и хранение данных',
+      paragraphs: [
+        'Данные могут передаваться только тем сервисам и подрядчикам, без которых невозможно обеспечить запись, авторизацию, техническую работу сайта, аналитику или отправку уведомлений. Передача происходит в пределах задач, для которых данные были собраны.',
+        'Данные хранятся только столько, сколько это нужно для работы сервиса, выполнения записи, обслуживания клиента, соблюдения обязательств и разрешения спорных ситуаций.'
+      ]
+    },
+    {
+      id: 'policy-cookies',
+      title: '6. Cookie и аналитика',
+      paragraphs: [
+        'Сайт может использовать cookie и технические идентификаторы, чтобы сохранять сессию, понимать, какие страницы работают лучше, и оценивать стабильность записи и личного кабинета.',
+        'Если пользователь ограничивает cookie в браузере или выбирает только необходимые cookie, часть аналитики не будет загружаться, но базовые функции сайта останутся доступны.'
+      ]
+    },
+    {
+      id: 'policy-rights',
+      title: '7. Права пользователя',
+      paragraphs: [
+        'Пользователь может запросить уточнение, обновление, ограничение обработки или удаление своих данных, если это не противоречит обязательным требованиям закона и факту уже оказанной услуги.',
+        'Также пользователь может отозвать согласие на обработку в той части, где обработка строится именно на согласии.'
+      ]
+    },
+    {
+      id: 'policy-updates',
+      title: '8. Изменение политики',
+      paragraphs: [
+        'Политика может обновляться при изменении сайта, процессов записи, состава сервисов или требований закона. Актуальная версия всегда публикуется на этой странице.',
+        'Если изменения влияют на существенные условия обработки данных, новая редакция начинает применяться с момента публикации на сайте.'
+      ]
+    }
+  ]
+};
+
 const asObjectRecord = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -250,22 +362,64 @@ const readLocations = (value: unknown): SiteLocationRecord[] => {
   });
 };
 
+const readPolicySections = (value: unknown): SitePolicySectionRecord[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_POLICY.sections;
+  }
+
+  return value.map((item, index) => {
+    const current = asObjectRecord(item);
+    return {
+      id: typeof current.id === 'string' ? current.id : `policy-section-${index + 1}`,
+      title: typeof current.title === 'string' ? current.title : '',
+      paragraphs: asStringArray(current.paragraphs)
+    };
+  });
+};
+
+const readPolicy = (value: unknown): SitePolicyRecord => {
+  const source = asObjectRecord(value);
+  return {
+    eyebrow: typeof source.eyebrow === 'string' ? source.eyebrow : DEFAULT_POLICY.eyebrow,
+    title: typeof source.title === 'string' ? source.title : DEFAULT_POLICY.title,
+    description: typeof source.description === 'string' ? source.description : DEFAULT_POLICY.description,
+    summaryEyebrow: typeof source.summaryEyebrow === 'string' ? source.summaryEyebrow : DEFAULT_POLICY.summaryEyebrow,
+    summaryTitle: typeof source.summaryTitle === 'string' ? source.summaryTitle : DEFAULT_POLICY.summaryTitle,
+    operatorLabel: typeof source.operatorLabel === 'string' ? source.operatorLabel : DEFAULT_POLICY.operatorLabel,
+    contactLabel: typeof source.contactLabel === 'string' ? source.contactLabel : DEFAULT_POLICY.contactLabel,
+    addressLabel: typeof source.addressLabel === 'string' ? source.addressLabel : DEFAULT_POLICY.addressLabel,
+    summaryNote: typeof source.summaryNote === 'string' ? source.summaryNote : DEFAULT_POLICY.summaryNote,
+    contactCtaLabel: typeof source.contactCtaLabel === 'string' ? source.contactCtaLabel : DEFAULT_POLICY.contactCtaLabel,
+    bookingConsentLabel: typeof source.bookingConsentLabel === 'string' ? source.bookingConsentLabel : DEFAULT_POLICY.bookingConsentLabel,
+    accountConsentLabel: typeof source.accountConsentLabel === 'string' ? source.accountConsentLabel : DEFAULT_POLICY.accountConsentLabel,
+    cookieBannerTitle: typeof source.cookieBannerTitle === 'string' ? source.cookieBannerTitle : DEFAULT_POLICY.cookieBannerTitle,
+    cookieBannerDescription: typeof source.cookieBannerDescription === 'string' ? source.cookieBannerDescription : DEFAULT_POLICY.cookieBannerDescription,
+    cookieBannerAcceptLabel: typeof source.cookieBannerAcceptLabel === 'string' ? source.cookieBannerAcceptLabel : DEFAULT_POLICY.cookieBannerAcceptLabel,
+    cookieBannerNecessaryLabel: typeof source.cookieBannerNecessaryLabel === 'string' ? source.cookieBannerNecessaryLabel : DEFAULT_POLICY.cookieBannerNecessaryLabel,
+    sections: readPolicySections(source.sections)
+  };
+};
+
 export const createSiteCardsDraft = (extra: Record<string, unknown>): SiteCardsDraft => {
   const siteContent = asObjectRecord(extra.siteContent);
 
   return {
     offers: readOffers(siteContent.offers),
     news: readNews(siteContent.news),
-    locations: readLocations(siteContent.locations)
+    locations: readLocations(siteContent.locations),
+    policy: readPolicy(siteContent.policy)
   };
 };
 
 export const mergeSiteCardsIntoExtra = (extra: Record<string, unknown>, draft: SiteCardsDraft): Record<string, unknown> => {
   const nextExtra = { ...extra };
+  const nextSiteContent = asObjectRecord(extra.siteContent);
   nextExtra.siteContent = {
+    ...nextSiteContent,
     offers: draft.offers,
     news: draft.news,
-    locations: draft.locations
+    locations: draft.locations,
+    policy: draft.policy
   };
   return nextExtra;
 };

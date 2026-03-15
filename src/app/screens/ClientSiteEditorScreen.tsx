@@ -16,6 +16,7 @@ import {
   Save,
   Search,
   Settings2,
+  Shield,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -24,8 +25,17 @@ import {
   X,
 } from 'lucide-react';
 import { ApiError, api } from '../../api';
+import { buildRuPhoneValue } from '../helpers';
 import { convertImageFileToWebp, uploadWebpImage } from '../media';
 import { PageSheet } from '../components/shared/PageSheet';
+import {
+  applyBookingPageTemplate,
+  countConfiguredSiteBookingPageSections,
+  createSiteBookingPageDraft,
+  mergeSiteBookingPageIntoExtra,
+  SITE_BOOKING_PAGE_DEFAULTS,
+  type SiteBookingPageDraft,
+} from '../clientSiteBookingPage';
 import {
   createSiteCardsDraft,
   mergeSiteCardsIntoExtra,
@@ -33,6 +43,7 @@ import {
   type SiteLocationRecord,
   type SiteNewsRecord,
   type SiteOfferRecord,
+  type SitePolicyRecord,
 } from '../clientSiteCards';
 import {
   SITE_PAGE_HERO_DEFINITIONS,
@@ -56,6 +67,7 @@ type CategoryKey =
   | 'contacts'
   | 'page'
   | 'promo'
+  | 'legal'
   | 'advanced'
   | 'publish';
 
@@ -300,6 +312,7 @@ const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
   contacts: 'kontakty',
   page: 'stranica',
   promo: 'akcii',
+  legal: 'politika-konfidentsialnosti',
   advanced: 'sluzhebnye-nastroyki',
   publish: 'publikatsiya',
 };
@@ -317,6 +330,57 @@ type AdvancedDraft = {
   featureFlagsJson: string;
   extraJson: string;
 };
+
+const STANDARD_FEATURE_FLAGS_EXAMPLE = `{
+  "booking.webBeta": {
+    "defaultEnabled": false,
+    "rules": [
+      {
+        "platform": "web",
+        "enabled": true
+      }
+    ]
+  }
+}`;
+
+const STANDARD_EXTRA_EXAMPLE = `{
+  "pageHero": {
+    "booking": {
+      "eyebrow": "Онлайн-запись",
+      "title": "Выберите услугу и удобное время",
+      "description": "Показываем только актуальные услуги, специалистов и доступные окна."
+    }
+  },
+  "bookingPage": {
+    "heroActions": {
+      "phoneLabel": "Позвонить",
+      "servicesLabel": "Смотреть услуги",
+      "contactsLabel": "Контакты"
+    },
+    "panel": {
+      "title": "Соберите визит под свою задачу",
+      "description": "Сначала выберите услуги, потом дату и специалиста."
+    }
+  },
+  "siteContent": {
+    "policy": {
+      "title": "Политика конфиденциальности",
+      "summaryTitle": "Что важно знать",
+      "sections": [
+        {
+          "id": "policy-scope",
+          "title": "1. Что регулирует этот документ",
+          "paragraphs": [
+            "Какие данные сайт получает и зачем.",
+            "Как это связано с записью, кабинетом и обратной связью."
+          ]
+        }
+      ]
+    }
+  }
+}`;
+
+type BookingPageSectionKey = keyof SiteBookingPageDraft;
 
 type WorkingHoursDraft = {
   dayOfWeek: number;
@@ -478,17 +542,17 @@ const categories: CategoryMeta[] = [
   {
     key: 'contacts',
     title: 'Контакты',
-    description: 'Точки контакта, филиалы, адреса, телефоны и часы работы.',
-    note: 'Здесь же логично держать и контактные блоки страницы, если они выводятся клиенту.',
-    tags: ['адреса', 'телефоны', 'карта', 'часы работы'],
+    description: 'Адрес, телефон и почта, которые видит клиент на сайте.',
+    note: 'Простой набор контактов без лишних сущностей: только то, что реально показывается клиенту.',
+    tags: ['адрес', 'телефон', 'почта'],
     icon: MapPin,
   },
   {
     key: 'page',
-    title: 'Страницы сайта',
-    description: 'PageHero для страниц сайта и дополнительные блоки страницы записи.',
-    note: 'Здесь редактируются шапки страниц: eyebrow, title, description, а ниже дополнительные блоки страницы записи.',
-    tags: ['page hero', 'eyebrow', 'заголовок', 'описание'],
+    title: 'Страница записи',
+    description: 'Шапка /booking, кнопки hero и тексты рабочей панели, которые реально видит клиент на сайте.',
+    note: 'Здесь собраны именно те элементы, которые используются в mari на странице /booking. Пустые generic-блоки больше не являются обязательной частью редактирования.',
+    tags: ['hero /booking', 'тексты панели', 'подсказки', 'cta'],
     icon: FileText,
   },
   {
@@ -500,6 +564,14 @@ const categories: CategoryMeta[] = [
     icon: BadgePercent,
   },
   {
+    key: 'legal',
+    title: 'Политика конфиденциальности',
+    description: 'Блоки политики, cookie-уведомление и отдельные тексты согласия на обработку данных.',
+    note: 'Эта категория управляет страницей /privacy-policy, cookie-баннером и текстами согласия в формах регистрации и записи.',
+    tags: ['блоки политики', 'cookie-баннер', 'согласие на ПДн', 'юридический текст'],
+    icon: Shield,
+  },
+  {
     key: 'advanced',
     title: 'Служебные настройки',
     description: 'Технические настройки, которые не стоит смешивать с обычным контентом.',
@@ -509,10 +581,10 @@ const categories: CategoryMeta[] = [
   },
   {
     key: 'publish',
-    title: 'Публикация',
-    description: 'Предпросмотр, выпуск черновика и история опубликованных версий.',
-    note: 'Финальный этап: проверить черновик, опубликовать и смотреть историю публикаций.',
-    tags: ['предпросмотр', 'публикация', 'история изменений'],
+    title: 'Состояние сайта',
+    description: 'Проверка текущего результата и история автопубликаций.',
+    note: 'Изменения из редактора публикуются сразу. Этот раздел нужен для контроля результата и истории версий.',
+    tags: ['результат', 'автопубликация', 'история изменений'],
     icon: Rocket,
   },
 ];
@@ -943,8 +1015,61 @@ function createContactEditorState(contact: ContactPointRecord | null): ContactEd
   };
 }
 
+function createPrimaryContactDraft(contact: ContactPointRecord | null): ContactEditorState['draft'] {
+  const draft = createContactEditorState(contact).draft;
+  if (contact) {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    id: 'primary-contact',
+    name: '',
+    publicName: '',
+    legalName: '',
+    aliasesText: '',
+    addressLabel: 'Адрес',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    region: '',
+    postalCode: '',
+    country: '',
+    addressComment: '',
+    phoneLabel: 'Телефон',
+    phoneE164: '',
+    phoneDisplay: '',
+    email: '',
+    website: '',
+    mapUrl: '',
+    orderIndex: '0',
+    isPrimary: true,
+    note: '',
+    tagsText: '',
+    startAt: '',
+    endAt: '',
+    workingHours: buildWorkingHoursDraft(undefined),
+  };
+}
+
 function findPrimaryContact(contacts: ContactPointRecord[]): ContactPointRecord | null {
   return contacts.find((item) => item.isPrimary) ?? contacts[0] ?? null;
+}
+
+function normalizeContactPhoneValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('+')) {
+    const normalized = trimmed.replace(/[^\d+]/g, '');
+    return /^\+[1-9]\d{6,14}$/.test(normalized) ? normalized : '';
+  }
+  return buildRuPhoneValue(trimmed);
+}
+
+function getContactPhoneInputValue(draft: ContactEditorState['draft']) {
+  return draft.phoneDisplay.trim() || draft.phoneE164.trim();
 }
 
 function validateContactDraft(draft: ContactEditorState['draft']): string | null {
@@ -1112,22 +1237,11 @@ function createNewsEditorState(article: SiteNewsRecord | null): NewsEditorState 
   };
 }
 
-function createLocationEditorState(location: SiteLocationRecord | null): LocationEditorState {
+function createPolicySectionRecord(index: number): SitePolicyRecord['sections'][number] {
   return {
-    mode: location ? 'edit' : 'create',
-    sourceSlug: location?.slug ?? null,
-    source: location,
-    draft: {
-      slug: location?.slug ?? '',
-      name: location?.name ?? '',
-      district: location?.district ?? '',
-      address: location?.address ?? '',
-      phone: location?.phone ?? '',
-      workingHours: location?.workingHours ?? '',
-      mapUrl: location?.mapUrl ?? '',
-      description: location?.description ?? '',
-      note: location?.note ?? '',
-    },
+    id: `policy-section-${Date.now()}-${index}`,
+    title: '',
+    paragraphs: ['']
   };
 }
 
@@ -1185,7 +1299,7 @@ function CategorySummaryCard({
       className="group h-full w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:p-6 md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)] xl:min-h-[360px] xl:rounded-[32px] xl:p-7"
     >
       <div className="flex h-full flex-col">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-4 md:gap-5">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)] md:h-16 md:w-16 xl:h-[72px] xl:w-[72px] xl:rounded-[24px]">
               <Icon className="h-7 w-7 md:h-8 md:w-8" strokeWidth={2.1} />
@@ -1198,10 +1312,8 @@ function CategorySummaryCard({
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2 pt-1">
-            <span className="rounded-full border border-[#d7dce5] bg-white px-3 py-1 text-[13px] font-bold text-[#586271] xl:px-3.5 xl:py-1.5">
-              {item.stat}
-            </span>
+          <div className="flex w-full items-center justify-between gap-2 pt-1 sm:w-auto sm:shrink-0 sm:justify-start">
+
             <ChevronRight className="h-5 w-5 text-[#808a98] transition group-hover:translate-x-0.5" />
           </div>
         </div>
@@ -1255,12 +1367,12 @@ function SectionCard({
 }) {
   return (
     <section className="rounded-[28px] border border-line bg-screen p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-[22px] font-extrabold text-ink">{title}</h2>
           {subtitle ? <p className="mt-1 text-[15px] font-medium leading-relaxed text-[#5f6773]">{subtitle}</p> : null}
         </div>
-        {action}
+        {action ? <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{action}</div> : null}
       </div>
       {children}
     </section>
@@ -1370,6 +1482,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     maintenanceMessage: '',
   });
   const [pageHeroDraft, setPageHeroDraft] = useState<SitePageHeroDraft>(() => createSitePageHeroDraft({}));
+  const [bookingPageDraft, setBookingPageDraft] = useState<SiteBookingPageDraft>(() =>
+    createSiteBookingPageDraft({})
+  );
   const [siteCardsDraft, setSiteCardsDraft] = useState<SiteCardsDraft>(() => createSiteCardsDraft({}));
   const [advancedDraft, setAdvancedDraft] = useState<AdvancedDraft>({
     featureFlagsJson: '{}',
@@ -1377,7 +1492,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   });
   const [contactEditor, setContactEditor] = useState<ContactEditorState | null>(null);
   const [primaryContactDraft, setPrimaryContactDraft] = useState<ContactEditorState['draft']>(
-    () => createContactEditorState(null).draft,
+    () => createPrimaryContactDraft(null),
   );
   const [specialistEditor, setSpecialistEditor] = useState<SpecialistEditorState | null>(null);
   const [serviceEditor, setServiceEditor] = useState<ServiceEditorState | null>(null);
@@ -1426,7 +1541,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   }, [navigate]);
 
   useEffect(() => {
-    setPrimaryContactDraft(createContactEditorState(primaryContact).draft);
+    setPrimaryContactDraft(createPrimaryContactDraft(primaryContact));
   }, [primaryContact]);
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
@@ -1488,6 +1603,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       maintenanceMessage: config.maintenanceMessage ?? '',
     });
     setPageHeroDraft(createSitePageHeroDraft(config.extra ?? {}));
+    setBookingPageDraft(createSiteBookingPageDraft(config.extra ?? {}));
     setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
       featureFlagsJson: toJsonText(config.featureFlags ?? {}),
@@ -1627,6 +1743,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const featureFlags = Object.entries(config?.featureFlags ?? {});
     const featureRules = featureFlags.reduce((sum, [, item]) => sum + (item.rules?.length ?? 0), 0);
     const configuredPageHeroes = countConfiguredSitePageHeroes(config?.extra ?? {});
+    const configuredBookingPageSections = countConfiguredSiteBookingPageSections(config?.extra ?? {});
     const servicesCategoriesCount = serviceCategories.length || new Set(services.map((item) => item.category.id)).size;
     const activeServices = services.filter((item) => item.isActive);
     const visibleSpecialists = specialists.filter((item) => item.isVisible);
@@ -1681,13 +1798,12 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
           return {
             ...category,
-            stat: screenData.config.error ? screenData.config.error : `${contacts.length} точек`,
+            stat: screenData.config.error ? screenData.config.error : primaryContact ? 'заполнено' : 'пусто',
             details: primaryContact
               ? [
                   `Адрес: ${primaryAddress?.line1 || 'не задан'}`,
                   `Телефон: ${primaryPhone?.display || primaryPhone?.e164 || 'не задан'}`,
                   `Email: ${primaryEmail || 'не задан'}`,
-                  `Локаций: ${siteCardsDraft.locations.length}`,
                 ]
               : ['Контакты пока не заполнены.'],
             warning: screenData.config.error || undefined,
@@ -1699,15 +1815,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             stat:
               screenData.config.error || screenData.blocks.error
                 ? screenData.config.error || screenData.blocks.error || 'частично'
-                : `${configuredPageHeroes}/${SITE_PAGE_HERO_DEFINITIONS.length}`,
+                : `${configuredBookingPageSections}/5`,
             details: [
-              `Шапок страниц: ${SITE_PAGE_HERO_DEFINITIONS.length}`,
-              `С кастомным текстом: ${configuredPageHeroes}`,
-              `Доп. блоков страницы записи: ${pageBlocks.length}`,
+              `Кастомных шапок страниц: ${configuredPageHeroes}`,
+              `Секций контента записи: ${configuredBookingPageSections} из 5`,
+              `Старых generic-блоков: ${pageBlocks.length}`,
             ],
             warning:
               screenData.config.error || screenData.blocks.error
                 ? 'Часть настроек страниц сейчас недоступна.'
+                : pageBlocks.length > 0
+                  ? 'В конфигурации остались старые generic-блоки. Они вынесены ниже как legacy-слой и не являются основной моделью сайта mari.'
                 : undefined,
           };
         case 'promo':
@@ -1720,6 +1838,18 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               `Маркетинговых блоков: ${promoBlocks.length}`,
             ],
             warning: screenData.blocks.error || undefined,
+          };
+        case 'legal':
+          return {
+            ...category,
+            stat: screenData.config.error ? screenData.config.error : `${siteCardsDraft.policy.sections.length} блоков`,
+            details: [
+              `Секций документа: ${siteCardsDraft.policy.sections.length}`,
+              `Cookie-баннер: ${siteCardsDraft.policy.cookieBannerTitle.trim() ? 'настроен' : 'пусто'}`,
+              `Согласие в записи: ${siteCardsDraft.policy.bookingConsentLabel.trim() ? 'настроено' : 'пусто'}`,
+              `Согласие в регистрации: ${siteCardsDraft.policy.accountConsentLabel.trim() ? 'настроено' : 'пусто'}`,
+            ],
+            warning: screenData.config.error || undefined,
           };
         case 'advanced':
           return {
@@ -1740,7 +1870,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             details: [
               `Последняя публикация: ${formatDate(config?.publishedAt)}`,
               `Публикаций в истории: ${releases.length}`,
-              `Черновых блоков: ${blocks.length}`,
+              `Legacy-блоков в черновике: ${blocks.length}`,
             ],
             warning: screenData.releases.error || undefined,
           };
@@ -1752,7 +1882,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, contacts, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.locations.length, siteCardsDraft.news.length, siteCardsDraft.offers.length, specialists]);
+  }, [blocks, config, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -1808,8 +1938,18 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setMessage(null);
     try {
       await api.patch('/client-front/staff/config', payload);
-      await loadData({ silent: true });
-      setBanner('success', successMessage);
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        await loadData({ silent: true });
+        if (previewState.data || previewState.error || activeCategory === 'publish') {
+          const preview = await safeGet<PreviewRecord>('/client-front/staff/preview?platform=web');
+          setPreviewState(preview);
+        }
+        setBanner('success', `${successMessage}. Сразу опубликована версия v${result.version}.`);
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Изменения сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -1847,6 +1987,42 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
+  const updateBookingPageField = <
+    TSectionKey extends BookingPageSectionKey,
+    TFieldKey extends keyof SiteBookingPageDraft[TSectionKey]
+  >(
+    section: TSectionKey,
+    field: TFieldKey,
+    value: string
+  ) => {
+    setBookingPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetBookingPageSection = (section: BookingPageSectionKey) => {
+    setBookingPageDraft((prev) => ({
+      ...prev,
+      [section]: Object.keys(prev[section]).reduce<Record<string, string>>((acc, key) => {
+        acc[key] = '';
+        return acc;
+      }, {}) as SiteBookingPageDraft[typeof section],
+    }));
+  };
+
+  const saveBookingPage = async () => {
+    await saveConfigPatch(
+      {
+        extra: mergeSiteBookingPageIntoExtra(config?.extra ?? {}, bookingPageDraft),
+      },
+      'Контент страницы записи сохранен',
+    );
+  };
+
   const saveSiteCards = async (nextDraft: SiteCardsDraft, successMessage: string) => {
     setBusyKey('site-cards');
     setMessage(null);
@@ -1854,9 +2030,20 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       await api.patch('/client-front/staff/config', {
         extra: mergeSiteCardsIntoExtra(config?.extra ?? {}, nextDraft),
       });
-      await loadData({ silent: true });
-      setBanner('success', successMessage);
-      return true;
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        await loadData({ silent: true });
+        if (previewState.data || previewState.error || activeCategory === 'publish') {
+          const preview = await safeGet<PreviewRecord>('/client-front/staff/preview?platform=web');
+          setPreviewState(preview);
+        }
+        setBanner('success', `${successMessage}. Сразу опубликована версия v${result.version}.`);
+        return true;
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Изменения сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+        return false;
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
       return false;
@@ -1872,8 +2059,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       await api.patch(`/client-front/staff/specialists/${specialist.staffId}`, {
         isVisible,
       });
-      await loadData({ silent: true });
-      setBanner('success', isVisible ? 'Карточка специалиста добавлена на сайт' : 'Карточка специалиста скрыта с сайта');
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        await loadData({ silent: true });
+        setBanner(
+          'success',
+          `${isVisible ? 'Карточка специалиста добавлена на сайт' : 'Карточка специалиста скрыта с сайта'}. Сразу опубликована версия v${result.version}.`
+        );
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Изменения сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -1939,7 +2135,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
       setServiceEditor(null);
       await loadData({ silent: true });
-      setBanner('success', 'Карточка услуги сохранена');
+      setBanner('success', 'Карточка услуги сохранена. Изменения для сайта доступны сразу.');
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -1957,7 +2153,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     try {
       await api.delete(`/services/${service.id}`);
       await loadData({ silent: true });
-      setBanner('success', 'Карточка услуги удалена');
+      setBanner('success', 'Карточка услуги удалена. Изменения для сайта доступны сразу.');
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -1997,6 +2193,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       ].sort((left, right) => left.title.localeCompare(right.title, 'ru')),
       news: siteCardsDraft.news,
       locations: siteCardsDraft.locations,
+      policy: siteCardsDraft.policy,
     };
 
     const saved = await saveSiteCards(nextDraft, 'Офферы сохранены');
@@ -2016,6 +2213,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       offers: siteCardsDraft.offers.filter((item) => item.slug !== slug),
       news: siteCardsDraft.news,
       locations: siteCardsDraft.locations,
+      policy: siteCardsDraft.policy,
     };
 
     await saveSiteCards(nextDraft, 'Предложение удалено');
@@ -2059,6 +2257,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         nextItem,
       ].sort((left, right) => right.publishedAt.localeCompare(left.publishedAt)),
       locations: siteCardsDraft.locations,
+      policy: siteCardsDraft.policy,
     };
 
     const saved = await saveSiteCards(nextDraft, 'Статьи сохранены');
@@ -2078,14 +2277,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       offers: siteCardsDraft.offers,
       news: siteCardsDraft.news.filter((item) => item.slug !== slug),
       locations: siteCardsDraft.locations,
+      policy: siteCardsDraft.policy,
     };
 
     await saveSiteCards(nextDraft, 'Статья удалена');
-  };
-
-  const openLocationEditor = (location: SiteLocationRecord | null) => {
-    setMessage(null);
-    setLocationEditor(createLocationEditorState(location));
   };
 
   const saveLocationEditor = async () => {
@@ -2125,6 +2320,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         ...siteCardsDraft.locations.filter((item) => item.slug !== locationEditor.sourceSlug),
         nextItem,
       ].sort((left, right) => left.name.localeCompare(right.name, 'ru')),
+      policy: siteCardsDraft.policy,
     };
 
     const saved = await saveSiteCards(nextDraft, 'Локации сохранены');
@@ -2133,20 +2329,103 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }
   };
 
-  const deleteLocation = async (slug: string) => {
-    const confirmed = window.confirm('Удалить локацию?');
+  const updatePolicyField = (
+    field: Exclude<keyof SitePolicyRecord, 'sections'>,
+    value: string,
+  ) => {
+    setSiteCardsDraft((prev) => ({
+      ...prev,
+      policy: {
+        ...prev.policy,
+        [field]: value,
+      },
+    }));
+  };
+
+  const updatePolicySection = (
+    sectionId: string,
+    updater: (section: SitePolicyRecord['sections'][number]) => SitePolicyRecord['sections'][number],
+  ) => {
+    setSiteCardsDraft((prev) => ({
+      ...prev,
+      policy: {
+        ...prev.policy,
+        sections: prev.policy.sections.map((section) =>
+          section.id === sectionId ? updater(section) : section,
+        ),
+      },
+    }));
+  };
+
+  const addPolicySection = () => {
+    setSiteCardsDraft((prev) => ({
+      ...prev,
+      policy: {
+        ...prev.policy,
+        sections: [...prev.policy.sections, createPolicySectionRecord(prev.policy.sections.length + 1)],
+      },
+    }));
+  };
+
+  const deletePolicySection = (sectionId: string) => {
+    const confirmed = window.confirm('Удалить секцию политики?');
     if (!confirmed) {
       return;
     }
 
-    const nextDraft: SiteCardsDraft = {
-      ...siteCardsDraft,
-      offers: siteCardsDraft.offers,
-      news: siteCardsDraft.news,
-      locations: siteCardsDraft.locations.filter((item) => item.slug !== slug),
-    };
+    setSiteCardsDraft((prev) => ({
+      ...prev,
+      policy: {
+        ...prev.policy,
+        sections: prev.policy.sections.filter((section) => section.id !== sectionId),
+      },
+    }));
+  };
 
-    await saveSiteCards(nextDraft, 'Локация удалена');
+  const savePolicy = async () => {
+    const normalizedSections = siteCardsDraft.policy.sections
+      .map((section, index) => ({
+        ...section,
+        id: section.id.trim() || `policy-section-${index + 1}`,
+        title: section.title.trim(),
+        paragraphs: section.paragraphs.map((paragraph) => paragraph.trim()).filter(Boolean),
+      }))
+      .filter((section) => section.title || section.paragraphs.length > 0);
+
+    if (normalizedSections.length === 0) {
+      setBanner('error', 'Добавьте хотя бы одну секцию политики конфиденциальности');
+      return;
+    }
+
+    const invalidSection = normalizedSections.find(
+      (section) => !section.title || section.paragraphs.length === 0,
+    );
+
+    if (invalidSection) {
+      setBanner('error', 'У каждой секции политики должны быть заголовок и хотя бы один абзац');
+      return;
+    }
+
+    const saved = await saveSiteCards(
+      {
+        ...siteCardsDraft,
+        policy: {
+          ...siteCardsDraft.policy,
+          sections: normalizedSections,
+        },
+      },
+      'Политика конфиденциальности сохранена',
+    );
+
+    if (saved) {
+      setSiteCardsDraft((prev) => ({
+        ...prev,
+        policy: {
+          ...prev.policy,
+          sections: normalizedSections,
+        },
+      }));
+    }
   };
 
   const saveGeneral = async () => {
@@ -2198,19 +2477,38 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }
   };
 
-  const openContactEditor = (contact: ContactPointRecord | null) => {
-    setMessage(null);
-    setContactEditor(createContactEditorState(contact));
-  };
-
   const savePrimaryContact = async () => {
+    const phoneInputValue = getContactPhoneInputValue(primaryContactDraft);
+    const normalizedPhone = normalizeContactPhoneValue(phoneInputValue);
+    const contactTitle =
+      primaryContactDraft.publicName.trim() ||
+      primaryContactDraft.name.trim() ||
+      config?.brandName?.trim() ||
+      'Контакты';
     const normalizedDraft: ContactEditorState['draft'] = {
       ...primaryContactDraft,
-      addressLabel: primaryContactDraft.addressLabel.trim() || 'Основной адрес',
-      phoneLabel: primaryContactDraft.phoneLabel.trim() || 'Основной телефон',
-      orderIndex: primaryContactDraft.orderIndex.trim() || '0',
+      id: primaryContact?.id || primaryContactDraft.id.trim() || 'primary-contact',
+      name: contactTitle,
+      publicName: contactTitle,
+      addressLabel: 'Адрес',
+      phoneLabel: 'Телефон',
+      phoneDisplay: phoneInputValue.trim(),
+      phoneE164: normalizedPhone,
+      orderIndex: '0',
       isPrimary: true,
     };
+    if (!normalizedDraft.addressLine1.trim()) {
+      setBanner('error', 'Укажите адрес');
+      return;
+    }
+    if (!normalizedDraft.phoneDisplay.trim()) {
+      setBanner('error', 'Укажите телефон');
+      return;
+    }
+    if (!normalizedPhone) {
+      setBanner('error', 'Телефон должен быть в корректном формате');
+      return;
+    }
     const validationError = validateContactDraft(normalizedDraft);
     if (validationError) {
       setBanner('error', validationError);
@@ -2222,19 +2520,41 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       source: primaryContact,
       draft: normalizedDraft,
     });
-    const nextContacts = [
-      ...contacts
-        .filter((item) => item.id !== nextContact.id)
-        .map((item) => ({ ...item, isPrimary: false })),
-      { ...nextContact, isPrimary: true },
-    ].sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0));
+    const nextContacts = [{ ...nextContact, isPrimary: true, orderIndex: 0 }];
+    const contactBlocks = blocks.filter((block) => block.blockType === 'CONTACTS');
 
     setBusyKey('contact-primary-save');
     setMessage(null);
     try {
       await api.patch('/client-front/staff/config', { contacts: nextContacts });
-      await loadData({ silent: true });
-      setBanner('success', 'Основные контакты сохранены');
+      if (contactBlocks.length > 0) {
+        await Promise.all(
+          contactBlocks.map((block) =>
+            api.patch(`/client-front/staff/blocks/${block.id}`, {
+              blockType: block.blockType,
+              payload: {
+                ...block.payload,
+                items: nextContacts,
+              },
+              sortOrder: block.sortOrder,
+              platform: block.platform ?? undefined,
+              minAppVersion: block.minAppVersion ?? undefined,
+              maxAppVersion: block.maxAppVersion ?? undefined,
+              startAt: block.startAt ?? undefined,
+              endAt: block.endAt ?? undefined,
+              isEnabled: block.isEnabled,
+            }),
+          ),
+        );
+      }
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        await loadData({ silent: true });
+        setBanner('success', `Контакты сохранены и сразу опубликованы. Версия v${result.version}.`);
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Контакты сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -2262,29 +2582,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setMessage(null);
     try {
       await api.patch('/client-front/staff/config', { contacts: nextContacts });
-      setContactEditor(null);
-      await loadData({ silent: true });
-      setBanner('success', 'Контакты сохранены');
-    } catch (error) {
-      setBanner('error', getErrorMessage(error));
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const deleteContact = async (contactId: string) => {
-    const confirmed = window.confirm('Удалить контакт?');
-    if (!confirmed) {
-      return;
-    }
-    setBusyKey(`contact-delete:${contactId}`);
-    setMessage(null);
-    try {
-      await api.patch('/client-front/staff/config', {
-        contacts: contacts.filter((item) => item.id !== contactId),
-      });
-      await loadData({ silent: true });
-      setBanner('success', 'Контакт удалён');
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        setContactEditor(null);
+        await loadData({ silent: true });
+        setBanner('success', `Контакты сохранены и сразу опубликованы. Версия v${result.version}.`);
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Контакты сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -2335,9 +2641,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         sortOrder: Number(draft.sortOrder) || 0,
         photoAssetId: draft.photoAssetId.trim() || null,
       });
-      setSpecialistEditor(null);
-      await loadData({ silent: true });
-      setBanner('success', 'Карточка специалиста сохранена');
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        setSpecialistEditor(null);
+        await loadData({ silent: true });
+        setBanner('success', `Карточка специалиста сохранена и опубликована. Версия v${result.version}.`);
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Карточка специалиста сохранена, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -2474,9 +2786,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         await api.patch(`/client-front/staff/blocks/${blockEditor.source.id}`, body);
       }
 
-      setBlockEditor(null);
-      await loadData({ silent: true });
-      setBanner('success', 'Блок сохранён');
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        setBlockEditor(null);
+        await loadData({ silent: true });
+        setBanner('success', `Блок сохранён и опубликован. Версия v${result.version}.`);
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Блок сохранён, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -2493,8 +2811,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setMessage(null);
     try {
       await api.delete(`/client-front/staff/blocks/${block.id}`);
-      await loadData({ silent: true });
-      setBanner('success', 'Блок удалён');
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        await loadData({ silent: true });
+        setBanner('success', `Блок удалён и опубликован. Версия v${result.version}.`);
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner('error', `Блок удалён, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -2586,28 +2910,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       return;
     }
     await uploadBlockImage(file, { offerIndex });
-  };
-
-  const publishDraft = async () => {
-    const confirmed = window.confirm('Опубликовать текущий черновик клиентского сайта?');
-    if (!confirmed) {
-      return;
-    }
-    setBusyKey('publish');
-    setMessage(null);
-    try {
-      const result = await api.post<{ version: number; blocksCount: number; publishedAt: string }>(
-        '/client-front/staff/publish',
-        {},
-      );
-      await loadData({ silent: true });
-      await loadPreview();
-      setBanner('success', `Опубликована версия v${result.version}`);
-    } catch (error) {
-      setBanner('error', getErrorMessage(error));
-    } finally {
-      setBusyKey(null);
-    }
   };
 
   const renderBlockPayloadEditor = () => {
@@ -3528,7 +3830,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
       </section>
 
-      <section className="mt-6 grid gap-5 md:grid-cols-2 xl:gap-6">
+      <section className="mt-6 grid gap-5 md:grid-cols-[repeat(auto-fit,minmax(280px,1fr))] xl:gap-6">
         {categorySnapshots.map((item) => (
           <CategorySummaryCard key={item.key} item={item} onOpen={() => openCategoryPage(item.key)} />
         ))}
@@ -3594,7 +3896,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
         >
           {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Сохранить
+          Сохранить и опубликовать
         </button>
       </SectionCard>
     </div>
@@ -3624,6 +3926,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </button>
           }
         >
+          <div className="mb-4 rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
+            <span className="font-extrabold text-ink">Связка:</span>
+            {' '}
+            редактор услуг пишет напрямую в `mari-server` через `/services`,
+            {' '}
+            а `mari` читает витрину из `/services/public`.
+            {' '}
+            Поэтому услуги на сайте обновляются сразу и не ждут публикации `client-front`.
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-white px-4 py-3">
               <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Всего услуг</div>
@@ -3808,224 +4119,84 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   );
 
   const renderContactsDetail = () => {
-    const contactBlocks = blocks.filter((block) => block.blockType === 'CONTACTS');
-    const primaryDisplayPhone = primaryContactDraft.phoneDisplay.trim() || primaryContactDraft.phoneE164.trim();
+    const primaryDisplayPhone = getContactPhoneInputValue(primaryContactDraft);
 
     return (
       <div className="space-y-5">
         <SectionCard
-          title="Основной контакт сайта"
-          subtitle="Эти поля используются в футере и на странице /contacts клиентского сайта. Сохраняем основную публичную точку без лишних технических полей."
-          action={
-            <button
-              type="button"
-              onClick={() => openContactEditor(primaryContact)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
-            >
-              <Pencil className="h-4 w-4" />
-              Полный редактор
-            </button>
-          }
+          title="Контакты сайта"
+          subtitle="Этот экран сохраняет контакты в mari-server и сразу публикует их для сайта mari."
         >
-          <div className="grid gap-3 lg:grid-cols-2">
-            <TextField
-              label="Название точки"
-              value={primaryContactDraft.name}
-              onChange={(value) =>
-                setPrimaryContactDraft((prev) => ({
-                  ...prev,
-                  name: value,
-                  publicName: prev.publicName || value,
-                }))
-              }
-              placeholder="MARI"
-            />
-            <TextField
-              label="Публичное название"
-              value={primaryContactDraft.publicName}
-              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, publicName: value }))}
-              placeholder="MARI"
-            />
+          <div className="rounded-2xl border border-[#e6d6a7] bg-[#fff7e4] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#7a6330]">
+            <span className="font-extrabold text-[#5f4b1f]">Связка:</span>
+            {' '}
+            `mari-staff` сохраняет данные в `mari-server`,
+            {' '}
+            сервер сразу публикует обновлённую версию,
+            {' '}
+            а `mari` читает уже опубликованные контакты.
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
             <TextField
               label="Адрес"
               value={primaryContactDraft.addressLine1}
               onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, addressLine1: value }))}
               placeholder="Улица, дом"
+              type="text"
             />
             <TextField
-              label="Комментарий к адресу"
-              value={primaryContactDraft.addressComment}
-              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, addressComment: value }))}
-              placeholder="ТЦ, этаж, ориентир"
-            />
-            <TextField
-              label="Телефон на сайте"
-              value={primaryContactDraft.phoneDisplay}
-              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, phoneDisplay: value }))}
+              label="Телефон"
+              value={primaryDisplayPhone}
+              onChange={(value) =>
+                setPrimaryContactDraft((prev) => ({
+                  ...prev,
+                  phoneDisplay: value,
+                  phoneE164: normalizeContactPhoneValue(value),
+                }))
+              }
               placeholder="+7 (978) 000-00-00"
+              type="tel"
             />
             <TextField
-              label="Телефон E.164"
-              value={primaryContactDraft.phoneE164}
-              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, phoneE164: value }))}
-              placeholder="+79780000000"
-            />
-            <TextField
-              label="Email"
+              label="Почта"
               value={primaryContactDraft.email}
               onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, email: value }))}
               placeholder="hello@example.com"
-            />
-            <TextField
-              label="Ссылка на карту"
-              value={primaryContactDraft.mapUrl}
-              onChange={(value) => setPrimaryContactDraft((prev) => ({ ...prev, mapUrl: value }))}
-              placeholder="https://maps.yandex.ru/..."
+              type="email"
             />
           </div>
 
           <div className="mt-4 rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-            Сейчас будет показано клиенту:
+            Будет опубликовано:
             <span className="ml-1 font-extrabold text-ink">
               {primaryContactDraft.addressLine1.trim() || 'адрес не задан'}
             </span>
             {' • '}
             <span className="font-extrabold text-ink">{primaryDisplayPhone || 'телефон не задан'}</span>
             {' • '}
-            <span className="font-extrabold text-ink">{primaryContactDraft.email.trim() || 'email не задан'}</span>
+            <span className="font-extrabold text-ink">{primaryContactDraft.email.trim() || 'почта не задана'}</span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              void savePrimaryContact();
-            }}
-            disabled={busyKey === 'contact-primary-save'}
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
-          >
-            {busyKey === 'contact-primary-save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Сохранить основные контакты
-          </button>
-        </SectionCard>
-
-        <SectionCard
-          title="Все точки контакта"
-          subtitle="Полный список публичных контактов клиентского сайта. Здесь можно хранить дополнительные адреса, телефоны и графики работы."
-          action={
+          <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => openContactEditor(null)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+              onClick={() => {
+                void savePrimaryContact();
+              }}
+              disabled={busyKey === 'contact-primary-save'}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
             >
-              <Plus className="h-4 w-4" />
-              Добавить
+              {busyKey === 'contact-primary-save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
             </button>
-          }
-        >
-          <div className="space-y-3">
-            {contacts.length === 0 ? (
-              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Контактов пока нет.</div>
-            ) : (
-              contacts
-                .slice()
-                .sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0))
-                .map((contact) => (
-                  <div key={contact.id} className="rounded-2xl bg-white px-4 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[18px] font-extrabold text-ink">{contact.name}</p>
-                        <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                          {contact.addresses[0]?.line1 || 'Адрес не задан'} • {contact.phones[0]?.display || contact.phones[0]?.e164 || 'Телефон не задан'}
-                        </p>
-                        <p className="mt-1 text-[13px] font-medium text-[#5f6773]">{contact.emails?.[0] || 'Email не задан'}</p>
-                        <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
-                          #{contact.orderIndex ?? 0} {contact.isPrimary ? '• Основная точка' : ''}{' '}
-                          {(contact.workingHours?.length ?? 0) > 0 ? '• Есть часы работы' : ''}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openContactEditor(contact)}
-                          className="rounded-2xl border border-line p-3 text-[#6c7685]"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void deleteContact(contact.id);
-                          }}
-                          disabled={busyKey === `contact-delete:${contact.id}`}
-                          className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
-                        >
-                          {busyKey === `contact-delete:${contact.id}` ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-            )}
-          </div>
-        </SectionCard>
-
-        {renderBlockManager(contactBlocks, ['CONTACTS'], 'Контактные блоки', 'Если контакты выводятся отдельным блоком на клиентской странице.')}
-
-        <SectionCard
-          title="Карточки локаций"
-          subtitle="Редактор данных для LocationCard. Если эти карточки используются на клиентском сайте, изменения применятся после публикации."
-          action={
             <button
               type="button"
-              onClick={() => openLocationEditor(null)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+              onClick={() => openCategoryPage('publish')}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] font-extrabold text-ink"
             >
-              <Plus className="h-4 w-4" />
-              Добавить локацию
+              Открыть состояние сайта
             </button>
-          }
-        >
-          <div className="space-y-3">
-            {siteCardsDraft.locations.length === 0 ? (
-              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Локаций пока нет.</div>
-            ) : (
-              siteCardsDraft.locations.map((location) => (
-                <div key={location.slug} className="rounded-2xl bg-white px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[18px] font-extrabold text-ink">{location.name}</p>
-                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                        {location.district} • {location.address}
-                      </p>
-                      <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{location.description}</p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openLocationEditor(location)}
-                        className="rounded-2xl border border-line p-3 text-[#6c7685]"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void deleteLocation(location.slug);
-                        }}
-                        disabled={busyKey === 'site-cards'}
-                        className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
-                      >
-                        {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         </SectionCard>
       </div>
@@ -4034,12 +4205,88 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const renderPageBlocksDetail = () => {
     const pageBlocks = blocks.filter((block) => ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'].includes(block.blockType));
+    const bookingHeroDefinition =
+      SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'booking') ?? null;
+    const otherPageHeroDefinitions = SITE_PAGE_HERO_DEFINITIONS.filter(
+      (definition) => definition.key !== 'booking'
+    );
+
+    if (!bookingHeroDefinition) {
+      return null;
+    }
+
+    const bookingHeroDraft = pageHeroDraft.booking;
+    const bookingHeroPreview = resolveSitePageHeroPreview(bookingHeroDefinition, bookingHeroDraft);
+    const previewAuthenticatedText = applyBookingPageTemplate(
+      bookingPageDraft.confirmation.authenticatedDescriptionTemplate,
+      { client: 'Тигран' }
+    );
+    const previewDiscountText = applyBookingPageTemplate(
+      bookingPageDraft.confirmation.discountDescriptionTemplate,
+      { discount: '10' }
+    );
+    const previewSlotText = applyBookingPageTemplate(
+      bookingPageDraft.schedule.dateHintFirstSlotTemplate,
+      { time: '10:30' }
+    );
 
     return (
       <div className="space-y-5">
         <SectionCard
-          title="Шапки страниц"
-          subtitle="Редактируйте eyebrow, title и description для всех страниц, где используется PageHero. Пустое поле оставляет текущий текст по умолчанию."
+          title="Как страница /booking собирается на сайте"
+          subtitle="Каждая зона ниже соответствует реальному месту на клиентском сайте mari. Здесь больше не нужно гадать, какой элемент за что отвечает."
+        >
+          <div className="grid gap-3 xl:grid-cols-2">
+            {[
+              {
+                key: 'general' as const,
+                title: 'Основное',
+                description:
+                  'Бренд, техработы и общие параметры сайта. Влияют на шапку сайта, сообщения техработ и публикацию.',
+              },
+              {
+                key: 'services' as const,
+                title: 'Услуги',
+                description:
+                  'Каталог услуг для клиента: названия, цены, длительность и активность карточек в сценарии записи.',
+              },
+              {
+                key: 'specialists' as const,
+                title: 'Специалисты',
+                description:
+                  'Карточки мастеров, которые участвуют в записи и видны клиенту на сайте.',
+              },
+              {
+                key: 'contacts' as const,
+                title: 'Контакты',
+                description:
+                  'Телефон, адрес и почта, которые используются в кнопках и контактных переходах на /booking.',
+              },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => openCategoryPage(item.key)}
+                className="rounded-[24px] border border-line bg-white px-4 py-4 text-left transition hover:border-[#cad2dd] hover:bg-[#fbfcfe]"
+              >
+                <p className="text-[18px] font-extrabold text-ink">{item.title}</p>
+                <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {item.description}
+                </p>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-[24px] bg-[#f4f6f9] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+            В новой модели страницы записи generic-блоки BANNER/TEXT/BUTTONS/FAQ больше не
+            считаются обязательной структурой сайта. Основной контент редактируется ниже через
+            понятные секции, а legacy-блоки вынесены отдельно только для совместимости.
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Шапка страницы /booking"
+          subtitle="Это hero-блок в верхней части страницы записи: eyebrow, заголовок и описание."
           action={
             <button
               type="button"
@@ -4050,112 +4297,84 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
             >
               {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить
+              Сохранить и опубликовать
             </button>
           }
         >
           <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-            Для шаблонных страниц можно использовать переменные в фигурных скобках, например
+            Эта шапка используется именно на маршруте
             {' '}
-            <span className="font-mono text-[13px] font-bold text-ink">{'{serviceName}'}</span>
-            {' '}
-            или
-            {' '}
-            <span className="font-mono text-[13px] font-bold text-ink">{'{masterName}'}</span>
-            .
+            <span className="font-mono text-[13px] font-bold text-ink">/booking</span>
+            . Пустое поле оставляет дефолтный текст сайта.
           </div>
 
-          <div className="mt-4 space-y-4">
-            {SITE_PAGE_HERO_DEFINITIONS.map((definition) => {
-              const draft = pageHeroDraft[definition.key];
-              const preview = resolveSitePageHeroPreview(definition, draft);
+          <article className="mt-4 rounded-[24px] border border-line bg-white px-4 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                  {bookingHeroDefinition.scope}
+                </p>
+                <h3 className="mt-2 text-[20px] font-extrabold text-ink">
+                  {bookingHeroDefinition.title}
+                </h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  <span className="font-mono text-[13px] text-[#7a8493]">
+                    {bookingHeroDefinition.route}
+                  </span>
+                  {' • '}
+                  {bookingHeroDefinition.note}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => resetPageHeroFields('booking')}
+                className="inline-flex items-center justify-center rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+              >
+                Сбросить
+              </button>
+            </div>
 
-              return (
-                <article key={definition.key} className="rounded-[24px] border border-line bg-white px-4 py-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">{definition.scope}</p>
-                      <h3 className="mt-2 text-[20px] font-extrabold text-ink">{definition.title}</h3>
-                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                        <span className="font-mono text-[13px] text-[#7a8493]">{definition.route}</span>
-                        {' • '}
-                        {definition.note}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => resetPageHeroFields(definition.key)}
-                      className="inline-flex items-center justify-center rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
-                    >
-                      Сбросить
-                    </button>
-                  </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              <div className="grid gap-3">
+                <TextField
+                  label="Eyebrow / подпись"
+                  value={bookingHeroDraft.eyebrow}
+                  onChange={(value) => updatePageHeroField('booking', 'eyebrow', value)}
+                  placeholder={bookingHeroDefinition.defaults.eyebrow || 'Пусто = текст по умолчанию'}
+                />
+                <TextField
+                  label="Title / заголовок"
+                  value={bookingHeroDraft.title}
+                  onChange={(value) => updatePageHeroField('booking', 'title', value)}
+                  placeholder={bookingHeroDefinition.defaults.title}
+                />
+                <TextAreaField
+                  label="Description / описание"
+                  value={bookingHeroDraft.description}
+                  onChange={(value) => updatePageHeroField('booking', 'description', value)}
+                  rows={4}
+                  placeholder={bookingHeroDefinition.defaults.description}
+                />
+              </div>
 
-                  {definition.tokens.length > 0 ? (
-                    <div className="mt-4">
-                      <p className="text-[13px] font-semibold text-[#7a8493]">Можно использовать переменные:</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {definition.tokens.map((token) => (
-                          <span
-                            key={`${definition.key}-${token.token}`}
-                            className="rounded-full border border-[#d7dce5] bg-[#fbfcfe] px-3 py-1 text-[12px] font-bold text-[#586271]"
-                          >
-                            <span className="font-mono">{`{${token.token}}`}</span>
-                            {' · '}
-                            {token.label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-                    <div className="grid gap-3">
-                      <TextField
-                        label="Eyebrow / подпись"
-                        value={draft.eyebrow}
-                        onChange={(value) => updatePageHeroField(definition.key, 'eyebrow', value)}
-                        placeholder={definition.defaults.eyebrow || 'Пусто = текст по умолчанию'}
-                      />
-                      <TextField
-                        label="Title / заголовок"
-                        value={draft.title}
-                        onChange={(value) => updatePageHeroField(definition.key, 'title', value)}
-                        placeholder={definition.defaults.title}
-                      />
-                      <TextAreaField
-                        label="Description / описание"
-                        value={draft.description}
-                        onChange={(value) => updatePageHeroField(definition.key, 'description', value)}
-                        rows={4}
-                        placeholder={definition.defaults.description}
-                      />
-                    </div>
-
-                    <div className="rounded-[24px] bg-[#f4f6f9] px-4 py-4">
-                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр</p>
-                      {preview.eyebrow ? (
-                        <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{preview.eyebrow}</p>
-                      ) : null}
-                      <p className="mt-3 text-[24px] font-extrabold leading-tight text-ink">{preview.title}</p>
-                      <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{preview.description}</p>
-
-                      {definition.tokens.length > 0 ? (
-                        <div className="mt-4 space-y-2 rounded-2xl bg-white px-3 py-3">
-                          {definition.tokens.slice(0, 4).map((token) => (
-                            <div key={`${definition.key}-example-${token.token}`} className="flex items-start justify-between gap-3">
-                              <span className="font-mono text-[12px] font-bold text-[#596373]">{`{${token.token}}`}</span>
-                              <span className="text-right text-[12px] font-semibold text-[#7a8493]">{token.example}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+              <div className="rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                  Предпросмотр
+                </p>
+                {bookingHeroPreview.eyebrow ? (
+                  <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+                    {bookingHeroPreview.eyebrow}
+                  </p>
+                ) : null}
+                <p className="mt-3 text-[24px] font-extrabold leading-tight text-ink">
+                  {bookingHeroPreview.title}
+                </p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {bookingHeroPreview.description}
+                </p>
+              </div>
+            </div>
+          </article>
 
           <div className="mt-4 flex justify-end">
             <button
@@ -4167,17 +4386,321 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
             >
               {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить шапки страниц
+              Сохранить и опубликовать шапку /booking
             </button>
           </div>
         </SectionCard>
 
-        {renderBlockManager(
-          pageBlocks,
-          ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'],
-          'Дополнительные блоки страницы записи',
-          'Редактор баннеров, текстовых блоков, кнопок и раздела «Вопросы и ответы» для страницы записи.',
-        )}
+        <SectionCard
+          title="Контент рабочей панели /booking"
+          subtitle="Редактируются только те подписи и тексты, которые реально использует клиентский сайт mari внутри страницы записи."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                void saveBookingPage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
+            </button>
+          }
+        >
+          <div className="grid gap-5">
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Кнопки hero и сервисное предупреждение</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Верхние кнопки под hero /booking и текст предупреждения, если данные сайта обновляются медленнее обычного.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetBookingPageSection('heroActions')}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить кнопки
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <TextField label="Кнопка телефона" value={bookingPageDraft.heroActions.phoneLabel} onChange={(value) => updateBookingPageField('heroActions', 'phoneLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.heroActions.phoneLabel} />
+                  <TextField label="Кнопка услуг" value={bookingPageDraft.heroActions.servicesLabel} onChange={(value) => updateBookingPageField('heroActions', 'servicesLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.heroActions.servicesLabel} />
+                  <TextField label="Кнопка контактов" value={bookingPageDraft.heroActions.contactsLabel} onChange={(value) => updateBookingPageField('heroActions', 'contactsLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.heroActions.contactsLabel} />
+                </div>
+
+                <div className="rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр hero-действий</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                      {bookingPageDraft.heroActions.phoneLabel}
+                    </button>
+                    <button type="button" className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-ink">
+                      {bookingPageDraft.heroActions.servicesLabel}
+                    </button>
+                    <button type="button" className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-ink">
+                      {bookingPageDraft.heroActions.contactsLabel}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                <div className="grid gap-3">
+                  <TextField label="Заголовок предупреждения" value={bookingPageDraft.connectivityNotice.title} onChange={(value) => updateBookingPageField('connectivityNotice', 'title', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.connectivityNotice.title} />
+                  <TextAreaField label="Текст предупреждения" value={bookingPageDraft.connectivityNotice.description} onChange={(value) => updateBookingPageField('connectivityNotice', 'description', value)} rows={4} placeholder={SITE_BOOKING_PAGE_DEFAULTS.connectivityNotice.description} />
+                </div>
+
+                <div className="rounded-[24px] bg-[#fff6ea] px-4 py-4">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#a2732e]">Предпросмотр предупреждения</p>
+                  <p className="mt-3 text-[16px] font-extrabold text-[#7d6120]">{bookingPageDraft.connectivityNotice.title}</p>
+                  <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#8a6d34]">{bookingPageDraft.connectivityNotice.description}</p>
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Верх панели записи</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Верхняя плашка внутри большой панели: eyebrow, бейдж доступности, заголовок, описание и блок корзины.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetBookingPageSection('panel')}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить секцию
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <TextField label="Eyebrow панели" value={bookingPageDraft.panel.eyebrow} onChange={(value) => updateBookingPageField('panel', 'eyebrow', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.eyebrow} />
+                <TextField label="Бейдж доступности" value={bookingPageDraft.panel.availabilityBadge} onChange={(value) => updateBookingPageField('panel', 'availabilityBadge', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.availabilityBadge} />
+                <TextField label="Главный заголовок" value={bookingPageDraft.panel.title} onChange={(value) => updateBookingPageField('panel', 'title', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.title} />
+                <TextField label="Подпись корзины" value={bookingPageDraft.panel.cartEyebrow} onChange={(value) => updateBookingPageField('panel', 'cartEyebrow', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.cartEyebrow} />
+                <TextAreaField label="Описание панели" value={bookingPageDraft.panel.description} onChange={(value) => updateBookingPageField('panel', 'description', value)} rows={4} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.description} />
+                <TextAreaField label="Описание корзины" value={bookingPageDraft.panel.cartDescription} onChange={(value) => updateBookingPageField('panel', 'cartDescription', value)} rows={4} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.cartDescription} />
+                <TextField label="Кнопка показать каталог" value={bookingPageDraft.panel.showCatalogLabel} onChange={(value) => updateBookingPageField('panel', 'showCatalogLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.showCatalogLabel} />
+                <TextField label="Кнопка скрыть каталог" value={bookingPageDraft.panel.hideCatalogLabel} onChange={(value) => updateBookingPageField('panel', 'hideCatalogLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.hideCatalogLabel} />
+                <TextField label="Плейсхолдер поиска услуги" value={bookingPageDraft.panel.searchPlaceholder} onChange={(value) => updateBookingPageField('panel', 'searchPlaceholder', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.searchPlaceholder} />
+                <TextField label="Сообщение пустой корзины" value={bookingPageDraft.panel.emptyCartMessage} onChange={(value) => updateBookingPageField('panel', 'emptyCartMessage', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.panel.emptyCartMessage} />
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр секции</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-white bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#5d6776]">{bookingPageDraft.panel.eyebrow}</span>
+                  <span className="rounded-full border border-white bg-white px-3 py-2 text-[13px] font-semibold text-[#5d6776]">{bookingPageDraft.panel.availabilityBadge}</span>
+                </div>
+                <p className="mt-4 text-[28px] font-extrabold leading-tight text-ink">{bookingPageDraft.panel.title}</p>
+                <p className="mt-3 text-[15px] font-medium leading-relaxed text-[#5f6773]">{bookingPageDraft.panel.description}</p>
+                <div className="mt-4 rounded-2xl bg-white px-4 py-4">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">{bookingPageDraft.panel.cartEyebrow}</p>
+                  <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{bookingPageDraft.panel.cartDescription}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" className="rounded-2xl border border-line bg-[#f7f9fc] px-4 py-3 text-[14px] font-extrabold text-ink">{bookingPageDraft.panel.hideCatalogLabel}</button>
+                    <div className="rounded-2xl border border-line bg-[#f7f9fc] px-4 py-3 text-[14px] font-medium text-[#7a8493]">{bookingPageDraft.panel.searchPlaceholder}</div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Дата, мастер и слоты</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Подписи и подсказки для блока выбора даты, мастера и свободного времени.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetBookingPageSection('schedule')}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить секцию
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <TextField label="Заголовок секции" value={bookingPageDraft.schedule.title} onChange={(value) => updateBookingPageField('schedule', 'title', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.title} />
+                <TextField label="Бейдж диапазона дат" value={bookingPageDraft.schedule.daysAheadLabel} onChange={(value) => updateBookingPageField('schedule', 'daysAheadLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.daysAheadLabel} />
+                <TextAreaField label="Описание секции" value={bookingPageDraft.schedule.description} onChange={(value) => updateBookingPageField('schedule', 'description', value)} rows={3} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.description} />
+                <TextAreaField label="Пустое состояние до выбора услуг" value={bookingPageDraft.schedule.emptySelectionMessage} onChange={(value) => updateBookingPageField('schedule', 'emptySelectionMessage', value)} rows={3} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.emptySelectionMessage} />
+                <TextField label="Лейбл поля мастера" value={bookingPageDraft.schedule.masterLabel} onChange={(value) => updateBookingPageField('schedule', 'masterLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.masterLabel} />
+                <TextField label="Опция любого мастера" value={bookingPageDraft.schedule.anyMasterLabel} onChange={(value) => updateBookingPageField('schedule', 'anyMasterLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.anyMasterLabel} />
+                <TextField label="Лейбл ручной даты" value={bookingPageDraft.schedule.manualDateLabel} onChange={(value) => updateBookingPageField('schedule', 'manualDateLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.manualDateLabel} />
+                <TextField label="Подсказка первого слота" value={bookingPageDraft.schedule.dateHintFirstSlotTemplate} onChange={(value) => updateBookingPageField('schedule', 'dateHintFirstSlotTemplate', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.dateHintFirstSlotTemplate} />
+                <TextField label="Подсказка количества окон" value={bookingPageDraft.schedule.dateHintSlotsTemplate} onChange={(value) => updateBookingPageField('schedule', 'dateHintSlotsTemplate', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.dateHintSlotsTemplate} />
+                <TextField label="Сообщение, когда окон нет" value={bookingPageDraft.schedule.slotsEmptyResults} onChange={(value) => updateBookingPageField('schedule', 'slotsEmptyResults', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.slotsEmptyResults} />
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр секции</p>
+                <p className="mt-3 text-[24px] font-extrabold text-ink">{bookingPageDraft.schedule.title}</p>
+                <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{bookingPageDraft.schedule.description}</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl bg-white px-4 py-4">
+                    <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">{bookingPageDraft.schedule.masterLabel}</p>
+                    <p className="mt-3 text-[15px] font-semibold text-ink">{bookingPageDraft.schedule.anyMasterLabel}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-4">
+                    <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Подсказка под датой</p>
+                    <p className="mt-3 text-[15px] font-semibold text-ink">{previewSlotText}</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Подтверждение и вход</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Правая карточка подтверждения визита: тексты для авторизованного и гостевого сценария, поля формы и подписи итогового блока.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetBookingPageSection('confirmation')}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить секцию
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <TextField label="Eyebrow" value={bookingPageDraft.confirmation.eyebrow} onChange={(value) => updateBookingPageField('confirmation', 'eyebrow', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.eyebrow} />
+                <TextField label="Заголовок" value={bookingPageDraft.confirmation.title} onChange={(value) => updateBookingPageField('confirmation', 'title', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.title} />
+                <TextField label="Текст для авторизованного клиента" value={bookingPageDraft.confirmation.authenticatedDescriptionTemplate} onChange={(value) => updateBookingPageField('confirmation', 'authenticatedDescriptionTemplate', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.authenticatedDescriptionTemplate} />
+                <TextAreaField label="Текст для гостя" value={bookingPageDraft.confirmation.guestDescription} onChange={(value) => updateBookingPageField('confirmation', 'guestDescription', value)} rows={3} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.guestDescription} />
+                <TextAreaField label="Текст callout перед входом" value={bookingPageDraft.confirmation.loginCalloutDescription} onChange={(value) => updateBookingPageField('confirmation', 'loginCalloutDescription', value)} rows={4} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.loginCalloutDescription} />
+                <TextField label="Заголовок профиля" value={bookingPageDraft.confirmation.profileLabel} onChange={(value) => updateBookingPageField('confirmation', 'profileLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.profileLabel} />
+                <TextField label="Лейбл промокода" value={bookingPageDraft.confirmation.promoLabel} onChange={(value) => updateBookingPageField('confirmation', 'promoLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.promoLabel} />
+                <TextField label="Плейсхолдер промокода" value={bookingPageDraft.confirmation.promoPlaceholder} onChange={(value) => updateBookingPageField('confirmation', 'promoPlaceholder', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.promoPlaceholder} />
+                <TextField label="Лейбл комментария" value={bookingPageDraft.confirmation.commentLabel} onChange={(value) => updateBookingPageField('confirmation', 'commentLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.commentLabel} />
+                <TextField label="Плейсхолдер комментария" value={bookingPageDraft.confirmation.commentPlaceholder} onChange={(value) => updateBookingPageField('confirmation', 'commentPlaceholder', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.commentPlaceholder} />
+                <TextField label="Заголовок итога" value={bookingPageDraft.confirmation.summaryTitle} onChange={(value) => updateBookingPageField('confirmation', 'summaryTitle', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.summaryTitle} />
+                <TextField label="Заголовок кнопки отправки" value={bookingPageDraft.confirmation.submitLabel} onChange={(value) => updateBookingPageField('confirmation', 'submitLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.confirmation.submitLabel} />
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр секции</p>
+                <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{bookingPageDraft.confirmation.eyebrow}</p>
+                <p className="mt-3 text-[24px] font-extrabold text-ink">{bookingPageDraft.confirmation.title}</p>
+                <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{previewAuthenticatedText}</p>
+                <div className="mt-4 rounded-2xl bg-white px-4 py-4">
+                  <p className="text-[15px] font-semibold text-ink">{bookingPageDraft.confirmation.profileLabel}</p>
+                  <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{previewDiscountText}</p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">{bookingPageDraft.confirmation.loginButtonLabel}</button>
+                  <button type="button" className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-ink">{bookingPageDraft.confirmation.registerButtonLabel}</button>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void saveBookingPage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать контент страницы
+            </button>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Остальные шапки сайта"
+          subtitle="Редактирование других PageHero оставлено доступным, но вынесено ниже, чтобы не смешивать его с самой страницей записи."
+        >
+          <details className="rounded-[24px] border border-line bg-white px-4 py-4">
+            <summary className="cursor-pointer list-none text-[16px] font-extrabold text-ink">
+              Показать остальные PageHero
+            </summary>
+            <div className="mt-4 space-y-4">
+              {otherPageHeroDefinitions.map((definition) => {
+                const draft = pageHeroDraft[definition.key];
+                const preview = resolveSitePageHeroPreview(definition, draft);
+
+                return (
+                  <article key={definition.key} className="rounded-[24px] border border-line bg-[#fbfcfe] px-4 py-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">{definition.scope}</p>
+                        <h3 className="mt-2 text-[20px] font-extrabold text-ink">{definition.title}</h3>
+                        <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                          <span className="font-mono text-[13px] text-[#7a8493]">{definition.route}</span>
+                          {' • '}
+                          {definition.note}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => resetPageHeroFields(definition.key)}
+                        className="inline-flex items-center justify-center rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                      >
+                        Сбросить
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+                      <div className="grid gap-3">
+                        <TextField label="Eyebrow / подпись" value={draft.eyebrow} onChange={(value) => updatePageHeroField(definition.key, 'eyebrow', value)} placeholder={definition.defaults.eyebrow || 'Пусто = текст по умолчанию'} />
+                        <TextField label="Title / заголовок" value={draft.title} onChange={(value) => updatePageHeroField(definition.key, 'title', value)} placeholder={definition.defaults.title} />
+                        <TextAreaField label="Description / описание" value={draft.description} onChange={(value) => updatePageHeroField(definition.key, 'description', value)} rows={4} placeholder={definition.defaults.description} />
+                      </div>
+
+                      <div className="rounded-[24px] bg-white px-4 py-4">
+                        <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр</p>
+                        {preview.eyebrow ? (
+                          <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{preview.eyebrow}</p>
+                        ) : null}
+                        <p className="mt-3 text-[24px] font-extrabold leading-tight text-ink">{preview.title}</p>
+                        <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{preview.description}</p>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </details>
+        </SectionCard>
+
+        <SectionCard
+          title="Legacy-блоки старой схемы"
+          subtitle="Старые BANNER/TEXT/BUTTONS/FAQ оставлены только для совместимости. Для сайта mari их больше не нужно создавать вручную."
+        >
+          <div className="rounded-[24px] bg-[#f4f6f9] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+            {pageBlocks.length === 0
+              ? 'Старых page-блоков сейчас нет. Это нормально: новая страница /booking в mari собирается из hero, bookingPage, услуг, специалистов и контактов.'
+              : `В конфигурации найдено legacy-блоков: ${pageBlocks.length}. Они не являются основной моделью страницы, но доступны ниже для миграции или очистки.`}
+          </div>
+
+          {pageBlocks.length > 0 ? (
+            <div className="mt-4">
+              {renderBlockManager(
+                pageBlocks,
+                ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'],
+                'Legacy-блоки',
+                'Редактор старых сущностей. Используйте только если действительно поддерживаете старую схему.',
+              )}
+            </div>
+          ) : null}
+        </SectionCard>
       </div>
     );
   };
@@ -4302,22 +4825,330 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     </div>
   );
 
+  const renderLegalDetail = () => {
+    const operatorName =
+      config?.legalName?.trim() ||
+      config?.brandName?.trim() ||
+      primaryContact?.publicName?.trim() ||
+      primaryContact?.name?.trim() ||
+      'MARI';
+    const primaryPhone =
+      primaryContact?.phones.find((item) => item.primary)?.display ||
+      primaryContact?.phones.find((item) => item.primary)?.e164 ||
+      primaryContact?.phones[0]?.display ||
+      primaryContact?.phones[0]?.e164 ||
+      'Телефон не заполнен';
+    const primaryEmail = primaryContact?.emails?.[0] || 'Email не заполнен';
+    const primaryAddress = primaryContact?.addresses[0]?.line1 || 'Адрес не заполнен';
+
+    return (
+      <div className="space-y-5">
+        <SectionCard
+          title="Политика конфиденциальности"
+          subtitle="Страница /privacy-policy, cookie-уведомление и тексты согласия на обработку данных теперь редактируются из одного места и публикуются сразу."
+        >
+          <div className="rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#39516d]">
+            <span className="font-extrabold text-ink">Связка:</span>
+            {' '}
+            `mari-staff` пишет блоки политики в `client-front extra.siteContent.policy`,
+            {' '}
+            `mari-server` публикует их в bootstrap,
+            {' '}
+            а `mari` из этих же данных собирает страницу `/privacy-policy`, cookie-баннер и тексты согласия в формах.
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
+            <div className="space-y-4">
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <h3 className="text-[20px] font-extrabold text-ink">Шапка страницы</h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  Верхний hero на странице `/privacy-policy`.
+                </p>
+                <div className="mt-4 grid gap-3">
+                  <TextField label="Eyebrow" value={siteCardsDraft.policy.eyebrow} onChange={(value) => updatePolicyField('eyebrow', value)} />
+                  <TextField label="Заголовок" value={siteCardsDraft.policy.title} onChange={(value) => updatePolicyField('title', value)} />
+                  <TextAreaField label="Описание" value={siteCardsDraft.policy.description} onChange={(value) => updatePolicyField('description', value)} rows={4} />
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <h3 className="text-[20px] font-extrabold text-ink">Левый блок «Кратко»</h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  Это фиксированный summary-блок слева на странице политики. Значения оператора, почты и адреса подставляются из раздела `Контакты` и `Основное`.
+                </p>
+                <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                  <TextField label="Eyebrow" value={siteCardsDraft.policy.summaryEyebrow} onChange={(value) => updatePolicyField('summaryEyebrow', value)} />
+                  <TextField label="Заголовок" value={siteCardsDraft.policy.summaryTitle} onChange={(value) => updatePolicyField('summaryTitle', value)} />
+                  <TextField label="Подпись для оператора" value={siteCardsDraft.policy.operatorLabel} onChange={(value) => updatePolicyField('operatorLabel', value)} />
+                  <TextField label="Подпись для контакта" value={siteCardsDraft.policy.contactLabel} onChange={(value) => updatePolicyField('contactLabel', value)} />
+                  <TextField label="Подпись для адреса" value={siteCardsDraft.policy.addressLabel} onChange={(value) => updatePolicyField('addressLabel', value)} />
+                  <TextField label="Текст кнопки связи" value={siteCardsDraft.policy.contactCtaLabel} onChange={(value) => updatePolicyField('contactCtaLabel', value)} />
+                </div>
+                <div className="mt-3">
+                  <TextAreaField label="Нижнее пояснение" value={siteCardsDraft.policy.summaryNote} onChange={(value) => updatePolicyField('summaryNote', value)} rows={4} />
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <h3 className="text-[20px] font-extrabold text-ink">Cookie и отдельные согласия</h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  Эти тексты используются не на самой странице политики, а в cookie-баннере и в чекбоксах согласия на формах регистрации и записи.
+                </p>
+                <div className="mt-4 grid gap-3">
+                  <TextField label="Заголовок cookie-баннера" value={siteCardsDraft.policy.cookieBannerTitle} onChange={(value) => updatePolicyField('cookieBannerTitle', value)} />
+                  <TextAreaField label="Описание cookie-баннера" value={siteCardsDraft.policy.cookieBannerDescription} onChange={(value) => updatePolicyField('cookieBannerDescription', value)} rows={4} />
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    <TextField label="Кнопка «разрешить аналитику»" value={siteCardsDraft.policy.cookieBannerAcceptLabel} onChange={(value) => updatePolicyField('cookieBannerAcceptLabel', value)} />
+                    <TextField label="Кнопка «только необходимые»" value={siteCardsDraft.policy.cookieBannerNecessaryLabel} onChange={(value) => updatePolicyField('cookieBannerNecessaryLabel', value)} />
+                  </div>
+                  <TextAreaField label="Согласие в записи" value={siteCardsDraft.policy.bookingConsentLabel} onChange={(value) => updatePolicyField('bookingConsentLabel', value)} rows={3} />
+                  <TextAreaField label="Согласие при регистрации" value={siteCardsDraft.policy.accountConsentLabel} onChange={(value) => updatePolicyField('accountConsentLabel', value)} rows={3} />
+                </div>
+              </article>
+            </div>
+
+            <div className="space-y-4">
+              <article className="rounded-[24px] border border-line bg-[#fbfcfe] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр hero</p>
+                <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{siteCardsDraft.policy.eyebrow}</p>
+                <p className="mt-3 text-[30px] font-extrabold leading-tight text-ink">{siteCardsDraft.policy.title}</p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{siteCardsDraft.policy.description}</p>
+                <button type="button" className="mt-5 rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                  {siteCardsDraft.policy.contactCtaLabel}
+                </button>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-[#fbfcfe] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр summary</p>
+                <div className="mt-4 rounded-[24px] bg-white px-4 py-4">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{siteCardsDraft.policy.summaryEyebrow}</p>
+                  <p className="mt-3 font-serif text-[34px] leading-none text-ink">{siteCardsDraft.policy.summaryTitle}</p>
+                  <div className="mt-5 space-y-3 text-[14px] leading-relaxed text-[#5f6773]">
+                    <p>
+                      {siteCardsDraft.policy.operatorLabel}: <span className="font-extrabold text-ink">{operatorName}</span>
+                    </p>
+                    <p>
+                      {siteCardsDraft.policy.contactLabel}: <span className="font-extrabold text-ink">{primaryEmail}</span>
+                    </p>
+                    <p>
+                      {siteCardsDraft.policy.addressLabel}: <span className="font-extrabold text-ink">{primaryAddress}</span>
+                    </p>
+                    <p className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[13px] text-[#5f6773]">
+                      Телефон из контактов: <span className="font-extrabold text-ink">{primaryPhone}</span>
+                    </p>
+                    <p>{siteCardsDraft.policy.summaryNote}</p>
+                  </div>
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-[#fbfcfe] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр cookie</p>
+                <div className="mt-4 rounded-[24px] border border-line bg-white px-4 py-4">
+                  <p className="text-[15px] font-extrabold text-ink">{siteCardsDraft.policy.cookieBannerTitle}</p>
+                  <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{siteCardsDraft.policy.cookieBannerDescription}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" className="rounded-full bg-ink px-4 py-3 text-[13px] font-extrabold text-white">{siteCardsDraft.policy.cookieBannerAcceptLabel}</button>
+                    <button type="button" className="rounded-full border border-line bg-white px-4 py-3 text-[13px] font-extrabold text-ink">{siteCardsDraft.policy.cookieBannerNecessaryLabel}</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Секции документа"
+          subtitle="Каждая карточка ниже — отдельный блок политики. На сайте они рендерятся в правой колонке как самостоятельные секции."
+          action={
+            <button
+              type="button"
+              onClick={addPolicySection}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+            >
+              <Plus className="h-4 w-4" />
+              Добавить секцию
+            </button>
+          }
+        >
+          <div className="space-y-4">
+            {siteCardsDraft.policy.sections.map((section, index) => (
+              <article key={section.id} className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Блок {String(index + 1).padStart(2, '0')}</p>
+                    <p className="mt-2 text-[13px] font-semibold text-[#7c8695]">ID в API: <span className="font-mono text-[12px] text-[#5f6773]">{section.id}</span></p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deletePolicySection(section.id)}
+                    className="inline-flex items-center justify-center rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Удалить
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <TextField
+                    label="Заголовок секции"
+                    value={section.title}
+                    onChange={(value) =>
+                      updatePolicySection(section.id, (current) => ({
+                        ...current,
+                        title: value,
+                      }))
+                    }
+                  />
+                  <TextAreaField
+                    label="Абзацы секции"
+                    value={section.paragraphs.join('\n\n')}
+                    onChange={(value) =>
+                      updatePolicySection(section.id, (current) => ({
+                        ...current,
+                        paragraphs: value.split(/\n{2,}/),
+                      }))
+                    }
+                    rows={8}
+                    placeholder="Каждый новый абзац отделяйте пустой строкой."
+                  />
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void savePolicy();
+              }}
+              disabled={busyKey === 'site-cards'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать политику
+            </button>
+          </div>
+        </SectionCard>
+      </div>
+    );
+  };
+
   const renderAdvancedDetail = () => (
     <div className="space-y-5">
-      <SectionCard title="Служебные настройки" subtitle="Служебные данные сохраняются в техническом формате JSON.">
+      <SectionCard
+        title="Служебные настройки"
+        subtitle="Технический раздел для редких случаев. Если вы меняете обычный текст, кнопки, контакты, услуги или специалистов, сюда заходить не нужно."
+      >
+        <div className="rounded-2xl border border-[#e6d6a7] bg-[#fff7e4] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#7a6330]">
+          <span className="font-extrabold text-[#5f4b1f]">Когда использовать:</span>
+          {' '}
+          только если разработчик дал точный ключ, точное JSON-поле или нужно восстановить/перенести технические данные.
+          {' '}
+          Для обычного редактирования сайта этот раздел не нужен.
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <article className="rounded-2xl border border-line bg-white px-4 py-4">
+            <p className="text-[16px] font-extrabold text-ink">Служебные переключатели</p>
+            <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Это скрытые переключатели поведения сайта или приложения.
+              {' '}
+              Ими можно включать или выключать функцию по ключу, а также ограничивать её по платформе, версии приложения или дате.
+            </p>
+            <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Пользоваться стоит только тогда, когда разработчик сказал:
+              {' '}
+              какой именно ключ нужен и какое правило должно сработать.
+              {' '}
+              Для текстов, кнопок и дизайна этот блок не подходит.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-line bg-white px-4 py-4">
+            <p className="text-[16px] font-extrabold text-ink">Дополнительные данные</p>
+            <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Это сырое техническое хранилище для структур вроде `pageHero`, `bookingPage` и `siteContent`.
+              {' '}
+              Обычный интерфейс выше уже редактирует большую часть этих данных в понятных формах.
+            </p>
+            <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Сюда стоит идти только если в интерфейсе ещё нет нужного поля,
+              {' '}
+              если нужно исправить сломанную структуру
+              {' '}
+              или если разработчик просит вставить точный JSON.
+            </p>
+          </article>
+        </div>
+
         <div className="space-y-4">
           <TextAreaField
             label="Служебные переключатели (JSON)"
             value={advancedDraft.featureFlagsJson}
             onChange={(value) => setAdvancedDraft((prev) => ({ ...prev, featureFlagsJson: value }))}
             rows={12}
+            placeholder={STANDARD_FEATURE_FLAGS_EXAMPLE}
           />
+          <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-4">
+            <p className="text-[16px] font-extrabold text-ink">Пример JSON</p>
+            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-[#1f2937] px-4 py-4 text-[12px] font-medium leading-6 text-[#e5eefb]">
+              {STANDARD_FEATURE_FLAGS_EXAMPLE}
+            </pre>
+            <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Что меняет на сайте:
+              {' '}
+              такой JSON сам по себе ничего визуально не меняет,
+              {' '}
+              пока разработчик не привязал ключ
+              {' '}
+              <span className="font-mono text-[13px] font-bold text-ink">booking.webBeta</span>
+              {' '}
+              к конкретной функции в коде.
+            </p>
+            <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Это поле подходит для скрытых технических переключателей,
+              {' '}
+              а не для редактирования текстов, кнопок или структуры страниц.
+            </p>
+          </div>
+
           <TextAreaField
             label="Дополнительные данные (JSON)"
             value={advancedDraft.extraJson}
             onChange={(value) => setAdvancedDraft((prev) => ({ ...prev, extraJson: value }))}
             rows={10}
+            placeholder={STANDARD_EXTRA_EXAMPLE}
           />
+          <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-4">
+            <p className="text-[16px] font-extrabold text-ink">Пример JSON</p>
+            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-[#1f2937] px-4 py-4 text-[12px] font-medium leading-6 text-[#e5eefb]">
+              {STANDARD_EXTRA_EXAMPLE}
+            </pre>
+            <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Что меняет на сайте:
+              {' '}
+              <span className="font-mono text-[13px] font-bold text-ink">pageHero.booking</span>
+              {' '}
+              меняет верхнюю шапку страницы
+              {' '}
+              <span className="font-mono text-[13px] font-bold text-ink">/booking</span>,
+              {' '}
+              а
+              {' '}
+              <span className="font-mono text-[13px] font-bold text-ink">bookingPage.heroActions</span>
+              {' '}
+              и
+              {' '}
+              <span className="font-mono text-[13px] font-bold text-ink">bookingPage.panel</span>
+              {' '}
+              меняют подписи кнопок и тексты внутри рабочей панели записи.
+            </p>
+            <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+              Это поле стоит использовать только если нужного редактора выше ещё нет.
+              {' '}
+              Если поле уже есть в обычном интерфейсе, безопаснее менять его там, а не через сырой JSON.
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -4328,7 +5159,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
         >
           {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Сохранить служебные данные
+          Сохранить и опубликовать служебные данные
         </button>
       </SectionCard>
 
@@ -4336,7 +5167,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         blocks.filter((block) => block.blockType === 'CUSTOM'),
         ['CUSTOM'],
         'Нестандартные блоки',
-        'Служебные блоки для нестандартного поведения клиентского сайта.',
+        'Технический резерв для нестандартных сценариев. Используйте только под конкретную задачу от разработчика.',
       )}
     </div>
   );
@@ -4575,8 +5406,26 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
     const previewBlocks = previewState.data.blocks;
     const previewContacts = (previewState.data.config.contacts ?? []).map((item) => asObjectRecord(item));
-    const previewSpecialists = previewState.data.specialists;
-    const hasContactsBlock = previewBlocks.some((block) => block.blockType === 'CONTACTS');
+    const previewSpecialists = previewState.data.specialists.filter((item) => item.isVisible).slice(0, 3);
+    const previewServices = services.filter((item) => item.isActive).slice(0, 4);
+    const previewExtra = previewState.data.config.extra ?? {};
+    const previewBookingHero = resolveSitePageHeroPreview(
+      SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'booking')!,
+      createSitePageHeroDraft(previewExtra).booking
+    );
+    const previewBookingPage = createSiteBookingPageDraft(previewExtra);
+    const previewClientText = applyBookingPageTemplate(
+      previewBookingPage.confirmation.authenticatedDescriptionTemplate,
+      { client: 'Тигран' }
+    );
+    const previewDiscountText = applyBookingPageTemplate(
+      previewBookingPage.confirmation.discountDescriptionTemplate,
+      { discount: '10' }
+    );
+    const previewSlotText = applyBookingPageTemplate(
+      previewBookingPage.schedule.dateHintFirstSlotTemplate,
+      { time: '10:30' }
+    );
 
     return (
       <div className="rounded-[32px] border border-line bg-[#e8edf4] p-3">
@@ -4584,13 +5433,31 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           <div className="rounded-[24px] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(42,49,56,0.05)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8a94a2]">Предпросмотр сайта</p>
+                <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8a94a2]">
+                  Предпросмотр mari /booking
+                </p>
                 <h2 className="mt-1 text-[28px] font-extrabold text-ink">
-                  {previewState.data.config.brandName || 'Онлайн-запись'}
+                  {previewBookingHero.title}
                 </h2>
-                {previewState.data.config.legalName ? (
-                  <p className="mt-1 text-[14px] font-medium text-[#5f6773]">{previewState.data.config.legalName}</p>
-                ) : null}
+                <p className="mt-2 max-w-[640px] text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {previewBookingHero.description}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {renderPreviewButtons([
+                    {
+                      label: previewBookingPage.heroActions.phoneLabel,
+                      style: 'primary',
+                    },
+                    {
+                      label: previewBookingPage.heroActions.servicesLabel,
+                      style: 'secondary',
+                    },
+                    {
+                      label: previewBookingPage.heroActions.contactsLabel,
+                      style: 'secondary',
+                    },
+                  ])}
+                </div>
               </div>
               <div className="rounded-full border border-line bg-[#f6f8fb] px-4 py-2 text-[13px] font-bold text-[#596373]">
                 Черновик, версия {previewState.data.version}
@@ -4609,9 +5476,153 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
           ) : null}
 
-          <div className="mt-5 space-y-5">
-            {previewBlocks.map((block) => renderPreviewBlock(block))}
-          </div>
+          <section className="mt-5 overflow-hidden rounded-[32px] bg-[linear-gradient(135deg,#184b52_0%,#1d5860_44%,#24515f_100%)] px-4 py-4 text-white shadow-[0_18px_40px_rgba(18,47,53,0.28)] md:px-5 md:py-5">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+              <div className="min-w-0 space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/80">
+                    {previewBookingPage.panel.eyebrow}
+                  </span>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-[12px] font-semibold text-white/80">
+                    {previewBookingPage.panel.availabilityBadge}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-[30px] font-extrabold leading-[0.96] tracking-[-0.04em] text-white">
+                    {previewBookingPage.panel.title}
+                  </p>
+                  <p className="mt-3 max-w-[560px] text-[14px] font-medium leading-relaxed text-white/74">
+                    {previewBookingPage.panel.description}
+                  </p>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+                  <div className="rounded-[24px] border border-white/12 bg-[rgba(255,255,255,0.08)] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/56">
+                          {previewBookingPage.panel.cartEyebrow}
+                        </p>
+                        <p className="mt-2 text-[14px] font-medium leading-relaxed text-white/74">
+                          {previewBookingPage.panel.cartDescription}
+                        </p>
+                      </div>
+                      <button type="button" className="rounded-full border border-white/16 bg-white/12 px-4 py-2 text-[13px] font-extrabold text-white">
+                        {previewBookingPage.panel.hideCatalogLabel}
+                      </button>
+                    </div>
+                    <div className="mt-4 rounded-[18px] bg-white px-4 py-3 text-[#5f6773]">
+                      {previewServices.length > 0 ? (
+                        <div className="space-y-2">
+                          {previewServices.slice(0, 2).map((service) => (
+                            <div key={service.id} className="rounded-2xl border border-line bg-[#f8fafc] px-3 py-3">
+                              <p className="text-[15px] font-extrabold text-ink">
+                                {service.nameOnline || service.name}
+                              </p>
+                              <p className="mt-1 text-[13px] font-medium text-[#7a8493]">
+                                {service.category.name} • {formatDuration(service.durationSec)} • {formatMoney(service.priceMin)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[14px] font-medium">{previewBookingPage.panel.emptyCartMessage}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/12 bg-[rgba(255,255,255,0.08)] p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/56">
+                      {previewBookingPage.schedule.title}
+                    </p>
+                    <p className="mt-2 text-[14px] font-medium leading-relaxed text-white/74">
+                      {previewBookingPage.schedule.description}
+                    </p>
+                    <div className="mt-4 rounded-2xl bg-white px-4 py-4 text-[#5f6773]">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                        {previewBookingPage.schedule.masterLabel}
+                      </p>
+                      <p className="mt-2 text-[14px] font-semibold text-ink">
+                        {previewBookingPage.schedule.anyMasterLabel}
+                      </p>
+                      <p className="mt-4 text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                        {previewBookingPage.schedule.slotsTitle}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {['10:00', '10:30', '11:00'].map((slot) => (
+                          <span
+                            key={slot}
+                            className="rounded-full border border-line bg-[#f8fafc] px-3 py-2 text-[13px] font-extrabold text-ink"
+                          >
+                            {slot}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="min-w-0 rounded-[28px] bg-white px-4 py-4 text-ink shadow-[0_16px_36px_rgba(26,56,64,0.18)]">
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+                  {previewBookingPage.confirmation.eyebrow}
+                </p>
+                <p className="mt-3 text-[28px] font-extrabold leading-tight text-ink">
+                  {previewBookingPage.confirmation.title}
+                </p>
+                <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {previewClientText}
+                </p>
+
+                <div className="mt-4 rounded-[20px] border border-line bg-[#f8fafc] px-4 py-4">
+                  <p className="text-[15px] font-extrabold text-ink">
+                    {previewBookingPage.confirmation.profileLabel}
+                  </p>
+                  <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    {previewDiscountText}
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[18px] border border-line bg-[#fbfcfe] px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                      {previewBookingPage.confirmation.promoLabel}
+                    </p>
+                    <p className="mt-2 text-[14px] font-medium text-[#7a8493]">
+                      {previewBookingPage.confirmation.promoPlaceholder}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-line bg-[#fbfcfe] px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                      {previewBookingPage.confirmation.commentLabel}
+                    </p>
+                    <p className="mt-2 text-[14px] font-medium text-[#7a8493]">
+                      {previewBookingPage.confirmation.commentPlaceholder}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-[20px] border border-line bg-[#f8fafc] px-4 py-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">
+                    {previewBookingPage.confirmation.summaryTitle}
+                  </p>
+                  <p className="mt-3 text-[14px] font-medium text-[#5f6773]">
+                    {previewBookingPage.confirmation.summaryServicesLabel}: {' '}
+                    {previewServices[0]?.nameOnline || previewServices[0]?.name || previewBookingPage.confirmation.summaryServicesEmpty}
+                  </p>
+                  <p className="mt-2 text-[14px] font-medium text-[#5f6773]">
+                    {previewBookingPage.confirmation.summaryTimeLabel}: {previewSlotText}
+                  </p>
+                  <p className="mt-4 text-[24px] font-extrabold text-ink">1 500 ₽</p>
+                </div>
+
+                <button type="button" className="mt-4 w-full rounded-full bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                  {previewBookingPage.confirmation.submitLabel}
+                </button>
+              </div>
+            </div>
+          </section>
 
           {previewSpecialists.length > 0 ? (
             <section className="mt-5 rounded-[28px] bg-white px-5 py-5 shadow-[0_8px_24px_rgba(42,49,56,0.06)]">
@@ -4668,14 +5679,19 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </section>
           ) : null}
 
-          {!hasContactsBlock && previewContacts.length > 0 ? (
+          {previewContacts.length > 0 ? (
             <div className="mt-5">{renderPreviewContactsSection(previewContacts, 'Контакты')}</div>
           ) : null}
 
-          {previewBlocks.length === 0 && previewSpecialists.length === 0 && previewContacts.length === 0 ? (
-            <div className="mt-5 rounded-[24px] bg-white px-5 py-5 text-[15px] font-semibold text-[#5f6773]">
-              В предпросмотре пока нечего показывать.
-            </div>
+          {previewBlocks.length > 0 ? (
+            <details className="mt-5 rounded-[24px] border border-line bg-white px-5 py-5">
+              <summary className="cursor-pointer list-none text-[16px] font-extrabold text-ink">
+                Legacy-блоки старой схемы: {previewBlocks.length}
+              </summary>
+              <div className="mt-4 space-y-5">
+                {previewBlocks.map((block) => renderPreviewBlock(block))}
+              </div>
+            </details>
           ) : null}
         </div>
       </div>
@@ -4685,8 +5701,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const renderPublishDetail = () => (
     <div className="space-y-5">
       <SectionCard
-        title="Предпросмотр черновика"
-        subtitle="Показывает, как клиент увидит сайт до публикации."
+        title="Диагностика структуры"
+        subtitle="Необязательная проверка draft-версии. После сохранения изменения уже публикуются автоматически."
         action={
           <button
             type="button"
@@ -4709,11 +5725,11 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl bg-white px-4 py-3">
-                <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Черновик</div>
+                <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Draft-версия</div>
                 <div className="mt-1 text-[24px] font-extrabold text-ink">{previewState.data.version}</div>
               </div>
               <div className="rounded-2xl bg-white px-4 py-3">
-                <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Блоков</div>
+                <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Legacy-блоков</div>
                 <div className="mt-1 text-[24px] font-extrabold text-ink">{previewState.data.blocks.length}</div>
               </div>
               <div className="rounded-2xl bg-white px-4 py-3">
@@ -4725,26 +5741,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             {renderVisualPreview()}
           </div>
         ) : (
-          <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Предпросмотр ещё не загружен.</div>
+          <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Диагностика ещё не загружена.</div>
         )}
       </SectionCard>
 
       <SectionCard
-        title="Публикация"
-        subtitle="После публикации эта версия станет основной для клиентского сайта."
-        action={
-          <button
-            type="button"
-            onClick={() => {
-              void publishDraft();
-            }}
-            disabled={busyKey === 'publish'}
-            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-          >
-            {busyKey === 'publish' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            Опубликовать
-          </button>
-        }
+        title="Автопубликация"
+        subtitle="Любое сохранение из этого редактора сразу создаёт новую опубликованную версию сайта."
       >
         <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold leading-relaxed text-[#5f6773]">
           Текущая опубликованная версия: <span className="text-ink">{config?.publishedVersion ?? 0}</span>. Последняя
@@ -4763,7 +5766,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   <div className="min-w-0 flex-1">
                     <p className="text-[18px] font-extrabold text-ink">Версия {release.version}</p>
                     <p className="mt-1 text-[14px] font-medium text-[#5f6773]">
-                      {formatDate(release.publishedAt)} • Блоков: {release.blocksCount}
+                      {formatDate(release.publishedAt)} • Legacy-блоков: {release.blocksCount}
                     </p>
                     {release.publishedByStaff ? (
                       <p className="mt-1 text-[13px] font-semibold text-[#8590a0]">
@@ -4814,6 +5817,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         {activeCategory === 'contacts' ? renderContactsDetail() : null}
         {activeCategory === 'page' ? renderPageBlocksDetail() : null}
         {activeCategory === 'promo' ? renderPromoDetail() : null}
+        {activeCategory === 'legal' ? renderLegalDetail() : null}
         {activeCategory === 'advanced' ? renderAdvancedDetail() : null}
         {activeCategory === 'publish' ? renderPublishDetail() : null}
       </>
@@ -4824,6 +5828,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const quickItems = activeCategory
       ? categorySnapshots.filter((item) => item.key !== activeCategory).slice(0, 3)
       : categorySnapshots.slice(0, 4);
+    const configuredBookingContentCount =
+      countConfiguredSiteBookingPageSections(config?.extra ?? {}) +
+      countConfiguredSitePageHeroes(config?.extra ?? {}) +
+      siteCardsDraft.policy.sections.length;
 
     return (
       <div className="space-y-5 xl:sticky xl:top-6">
@@ -4847,8 +5855,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <p className="mt-2 text-[24px] font-extrabold text-white">{config?.publishedVersion ?? 0}</p>
               </div>
               <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Блоков</p>
-                <p className="mt-2 text-[24px] font-extrabold text-white">{blocks.length}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Контента</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">{configuredBookingContentCount}</p>
               </div>
               <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Специалистов</p>
@@ -4936,7 +5944,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         <section className="rounded-[28px] border border-line bg-[#fffaf0] p-5 shadow-[0_14px_32px_rgba(42,49,56,0.08)]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b08927]">Предпросмотр сайта</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b08927]">Диагностика draft</p>
               <h3 className="mt-2 text-[24px] font-extrabold leading-none text-ink">Быстрая проверка</h3>
             </div>
             <button
@@ -4960,15 +5968,18 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-2">
                 <div className="rounded-2xl bg-white px-4 py-3">
                   <p className="break-words text-[11px] font-bold uppercase leading-tight tracking-[0.06em] text-[#9b8858]">
-                    Черновик
+                    Draft
                   </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.version}</p>
                 </div>
                 <div className="rounded-2xl bg-white px-4 py-3">
                   <p className="break-words text-[11px] font-bold uppercase leading-tight tracking-[0.06em] text-[#9b8858]">
-                    Блоков
+                    Контента
                   </p>
-                  <p className="mt-1 text-[22px] font-extrabold text-ink">{previewState.data.blocks.length}</p>
+                  <p className="mt-1 text-[22px] font-extrabold text-ink">
+                    {countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) +
+                      countConfiguredSitePageHeroes(previewState.data.config.extra ?? {})}
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-white px-4 py-3">
                   <p className="break-words text-[11px] font-bold uppercase leading-tight tracking-[0.06em] text-[#9b8858]">
@@ -4983,28 +5994,25 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   {previewState.data.config.brandName || 'Онлайн-запись'}
                 </p>
                 <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                  {previewState.data.blocks.length > 0
-                    ? `Первый блок: ${
-                        previewState.data.blocks[0]?.blockKey ||
-                        BLOCK_TYPE_LABELS[previewState.data.blocks[0]?.blockType ?? 'TEXT']
-                      }`
-                    : 'В предпросмотре пока нет блоков. Можно быстро перейти в публикацию и проверить структуру.'}
+                  {countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) > 0
+                    ? 'Проверка собрана по тем же hero- и booking-настройкам, которые использует сайт mari.'
+                    : 'Контент страницы записи пока в дефолтном состоянии. Можно перейти в раздел страницы и настроить тексты точечно.'}
                 </p>
                 <button
                   type="button"
                   onClick={() => openCategoryPage('publish')}
                   className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#1f2d39] px-4 py-3 text-[14px] font-extrabold text-white"
                 >
-                  Открыть публикацию
+                  Открыть состояние сайта
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
           ) : (
             <div className="mt-4 rounded-[22px] bg-white px-4 py-4">
-              <p className="text-[16px] font-extrabold text-ink">Предпросмотр ещё не загружен</p>
+              <p className="text-[16px] font-extrabold text-ink">Диагностика ещё не загружена</p>
               <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                Здесь появится быстрый черновой просмотр сайта прямо в боковой панели.
+                Здесь появится быстрый диагностический снимок draft-версии без отдельного шага публикации.
               </p>
             </div>
           )}
@@ -5059,7 +6067,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  {(activeMeta?.tags ?? ['контент', 'предпросмотр', 'публикация']).slice(0, 4).map((tag) => (
+                  {(activeMeta?.tags ?? ['контент', 'состояние', 'автопубликация']).slice(0, 4).map((tag) => (
                     <span
                       key={tag}
                       className="rounded-full border border-white/80 bg-white/90 px-4 py-2 text-[13px] font-bold text-[#495463] shadow-[0_8px_20px_rgba(42,49,56,0.05)]"
@@ -5091,7 +6099,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#e9d79f] bg-[#fff9e5] px-4 text-sm font-extrabold text-[#3f3a24] shadow-[0_10px_24px_rgba(244,201,0,0.12)] disabled:opacity-50"
                 >
                   {busyKey === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-                  Предпросмотр
+                  Проверить
                 </button>
                 <button
                   type="button"
