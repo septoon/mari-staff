@@ -26,6 +26,23 @@ import {
 import { ApiError, api } from '../../api';
 import { convertImageFileToWebp, uploadWebpImage } from '../media';
 import { PageSheet } from '../components/shared/PageSheet';
+import {
+  createSiteCardsDraft,
+  mergeSiteCardsIntoExtra,
+  type SiteCardsDraft,
+  type SiteLocationRecord,
+  type SiteNewsRecord,
+  type SiteOfferRecord,
+} from '../clientSiteCards';
+import {
+  SITE_PAGE_HERO_DEFINITIONS,
+  countConfiguredSitePageHeroes,
+  createSitePageHeroDraft,
+  mergeSitePageHeroesIntoExtra,
+  resolveSitePageHeroPreview,
+  type SitePageHeroDraft,
+  type SitePageHeroKey,
+} from '../clientSitePageHeroes';
 
 type ClientSiteEditorScreenProps = {
   onBack: () => void;
@@ -186,6 +203,11 @@ type ServiceRecord = {
   };
 };
 
+type ServiceCategoryRecord = {
+  id: string;
+  name: string;
+};
+
 type ReleaseRecord = {
   id: string;
   version: number;
@@ -259,6 +281,7 @@ type ScreenData = {
   blocks: Loadable<ListResponse<BlockRecord>>;
   specialists: Loadable<ListResponse<SpecialistRecord>>;
   services: Loadable<ListResponse<ServiceRecord>>;
+  serviceCategories: Loadable<ListResponse<ServiceCategoryRecord>>;
   releases: Loadable<ListResponse<ReleaseRecord>>;
 };
 
@@ -368,6 +391,65 @@ type BlockEditorState = {
   };
 };
 
+type ServiceEditorState = {
+  mode: 'create' | 'edit';
+  source: ServiceRecord | null;
+  draft: {
+    name: string;
+    nameOnline: string;
+    description: string;
+    categoryId: string;
+    durationMinutes: string;
+    priceMin: string;
+    priceMax: string;
+    isActive: boolean;
+  };
+};
+
+type OfferEditorState = {
+  mode: 'create' | 'edit';
+  sourceSlug: string | null;
+  draft: {
+    slug: string;
+    title: string;
+    subtitle: string;
+    description: string;
+    badge: string;
+    priceNote: string;
+    ctaHref: string;
+  };
+};
+
+type NewsEditorState = {
+  mode: 'create' | 'edit';
+  sourceSlug: string | null;
+  draft: {
+    slug: string;
+    title: string;
+    category: string;
+    publishedAt: string;
+    excerpt: string;
+    bodyText: string;
+  };
+};
+
+type LocationEditorState = {
+  mode: 'create' | 'edit';
+  sourceSlug: string | null;
+  source: SiteLocationRecord | null;
+  draft: {
+    slug: string;
+    name: string;
+    district: string;
+    address: string;
+    phone: string;
+    workingHours: string;
+    mapUrl: string;
+    description: string;
+    note: string;
+  };
+};
+
 const categories: CategoryMeta[] = [
   {
     key: 'general',
@@ -403,10 +485,10 @@ const categories: CategoryMeta[] = [
   },
   {
     key: 'page',
-    title: 'Блоки страницы',
-    description: 'Обычное содержимое страницы: баннеры, тексты, кнопки и раздел «Вопросы и ответы».',
-    note: 'Это основной конструктор страницы записи без промо и технастроек.',
-    tags: ['баннеры', 'текстовые блоки', 'кнопки', 'вопросы и ответы'],
+    title: 'Страницы сайта',
+    description: 'PageHero для страниц сайта и дополнительные блоки страницы записи.',
+    note: 'Здесь редактируются шапки страниц: eyebrow, title, description, а ниже дополнительные блоки страницы записи.',
+    tags: ['page hero', 'eyebrow', 'заголовок', 'описание'],
     icon: FileText,
   },
   {
@@ -453,6 +535,7 @@ const EMPTY_SCREEN_DATA: ScreenData = {
   blocks: { data: null, error: null },
   specialists: { data: null, error: null },
   services: { data: null, error: null },
+  serviceCategories: { data: null, error: null },
   releases: { data: null, error: null },
 };
 
@@ -978,6 +1061,76 @@ function createBlockEditorState(
   };
 }
 
+function createServiceEditorState(
+  service: ServiceRecord | null,
+  categories: ServiceCategoryRecord[],
+): ServiceEditorState {
+  return {
+    mode: service ? 'edit' : 'create',
+    source: service,
+    draft: {
+      name: service?.name ?? '',
+      nameOnline: service?.nameOnline ?? '',
+      description: service?.description ?? '',
+      categoryId: service?.category.id ?? categories[0]?.id ?? '',
+      durationMinutes: service ? String(Math.max(1, Math.round(service.durationSec / 60))) : '60',
+      priceMin: service ? String(service.priceMin) : '0',
+      priceMax: service?.priceMax === null || service?.priceMax === undefined ? '' : String(service.priceMax),
+      isActive: service?.isActive ?? true,
+    },
+  };
+}
+
+function createOfferEditorState(offer: SiteOfferRecord | null): OfferEditorState {
+  return {
+    mode: offer ? 'edit' : 'create',
+    sourceSlug: offer?.slug ?? null,
+    draft: {
+      slug: offer?.slug ?? '',
+      title: offer?.title ?? '',
+      subtitle: offer?.subtitle ?? '',
+      description: offer?.description ?? '',
+      badge: offer?.badge ?? '',
+      priceNote: offer?.priceNote ?? '',
+      ctaHref: offer?.ctaHref ?? '/booking',
+    },
+  };
+}
+
+function createNewsEditorState(article: SiteNewsRecord | null): NewsEditorState {
+  return {
+    mode: article ? 'edit' : 'create',
+    sourceSlug: article?.slug ?? null,
+    draft: {
+      slug: article?.slug ?? '',
+      title: article?.title ?? '',
+      category: article?.category ?? '',
+      publishedAt: article?.publishedAt ?? '',
+      excerpt: article?.excerpt ?? '',
+      bodyText: article?.body.join('\n\n') ?? '',
+    },
+  };
+}
+
+function createLocationEditorState(location: SiteLocationRecord | null): LocationEditorState {
+  return {
+    mode: location ? 'edit' : 'create',
+    sourceSlug: location?.slug ?? null,
+    source: location,
+    draft: {
+      slug: location?.slug ?? '',
+      name: location?.name ?? '',
+      district: location?.district ?? '',
+      address: location?.address ?? '',
+      phone: location?.phone ?? '',
+      workingHours: location?.workingHours ?? '',
+      mapUrl: location?.mapUrl ?? '',
+      description: location?.description ?? '',
+      note: location?.note ?? '',
+    },
+  };
+}
+
 function blockTitle(block: BlockRecord) {
   const title = typeof block.payload.title === 'string' ? block.payload.title : '';
   if (title) {
@@ -1216,6 +1369,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     maintenanceMode: false,
     maintenanceMessage: '',
   });
+  const [pageHeroDraft, setPageHeroDraft] = useState<SitePageHeroDraft>(() => createSitePageHeroDraft({}));
+  const [siteCardsDraft, setSiteCardsDraft] = useState<SiteCardsDraft>(() => createSiteCardsDraft({}));
   const [advancedDraft, setAdvancedDraft] = useState<AdvancedDraft>({
     featureFlagsJson: '{}',
     extraJson: '{}',
@@ -1225,6 +1380,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     () => createContactEditorState(null).draft,
   );
   const [specialistEditor, setSpecialistEditor] = useState<SpecialistEditorState | null>(null);
+  const [serviceEditor, setServiceEditor] = useState<ServiceEditorState | null>(null);
+  const [offerEditor, setOfferEditor] = useState<OfferEditorState | null>(null);
+  const [newsEditor, setNewsEditor] = useState<NewsEditorState | null>(null);
+  const [locationEditor, setLocationEditor] = useState<LocationEditorState | null>(null);
   const [blockEditor, setBlockEditor] = useState<BlockEditorState | null>(null);
   const [mediaPicker, setMediaPicker] = useState<MediaPickerState | null>(null);
   const [assetUrlMap, setAssetUrlMap] = useState<Record<string, string>>({});
@@ -1235,6 +1394,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const blocks = useMemo(() => screenData.blocks.data?.items ?? [], [screenData.blocks.data]);
   const specialists = useMemo(() => screenData.specialists.data?.items ?? [], [screenData.specialists.data]);
   const services = useMemo(() => screenData.services.data?.items ?? [], [screenData.services.data]);
+  const serviceCategories = useMemo<ServiceCategoryRecord[]>(
+    () =>
+      screenData.serviceCategories.data?.items ??
+      Array.from(new Map(services.map((item) => [item.category.id, { id: item.category.id, name: item.category.name }])).values()).sort(
+        (left, right) => left.name.localeCompare(right.name, 'ru'),
+      ),
+    [screenData.serviceCategories.data, services],
+  );
   const releases = useMemo(() => screenData.releases.data?.items ?? [], [screenData.releases.data]);
   const mediaPickerEntity = mediaPicker?.entity ?? null;
   const mediaPickerSearch = mediaPicker?.search ?? '';
@@ -1266,11 +1433,12 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     if (!options?.silent) {
       setLoading(true);
     }
-    const [nextConfig, nextBlocks, nextSpecialists, nextServices, nextReleases] = await Promise.all([
+    const [nextConfig, nextBlocks, nextSpecialists, nextServices, nextServiceCategories, nextReleases] = await Promise.all([
       safeGet<ClientConfigRecord>('/client-front/staff/config'),
       safeGet<ListResponse<BlockRecord>>('/client-front/staff/blocks'),
       safeGet<ListResponse<SpecialistRecord>>('/client-front/staff/specialists'),
       safeGet<ListResponse<ServiceRecord>>('/services'),
+      safeGet<ListResponse<ServiceCategoryRecord>>('/services/categories'),
       safeGet<ListResponse<ReleaseRecord>>('/client-front/staff/releases?page=1&limit=20'),
     ]);
     setScreenData({
@@ -1278,6 +1446,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       blocks: nextBlocks,
       specialists: nextSpecialists,
       services: nextServices,
+      serviceCategories: nextServiceCategories,
       releases: nextReleases,
     });
     setLastLoadedAt(new Date());
@@ -1318,6 +1487,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       maintenanceMode: config.maintenanceMode,
       maintenanceMessage: config.maintenanceMessage ?? '',
     });
+    setPageHeroDraft(createSitePageHeroDraft(config.extra ?? {}));
+    setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
       featureFlagsJson: toJsonText(config.featureFlags ?? {}),
       extraJson: toJsonText(config.extra ?? {}),
@@ -1455,7 +1626,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
     const featureFlags = Object.entries(config?.featureFlags ?? {});
     const featureRules = featureFlags.reduce((sum, [, item]) => sum + (item.rules?.length ?? 0), 0);
-    const servicesCategoriesCount = new Set(services.map((item) => item.category.id)).size;
+    const configuredPageHeroes = countConfiguredSitePageHeroes(config?.extra ?? {});
+    const servicesCategoriesCount = serviceCategories.length || new Set(services.map((item) => item.category.id)).size;
     const activeServices = services.filter((item) => item.isActive);
     const visibleSpecialists = specialists.filter((item) => item.isVisible);
 
@@ -1515,6 +1687,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   `Адрес: ${primaryAddress?.line1 || 'не задан'}`,
                   `Телефон: ${primaryPhone?.display || primaryPhone?.e164 || 'не задан'}`,
                   `Email: ${primaryEmail || 'не задан'}`,
+                  `Локаций: ${siteCardsDraft.locations.length}`,
                 ]
               : ['Контакты пока не заполнены.'],
             warning: screenData.config.error || undefined,
@@ -1523,22 +1696,28 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         case 'page':
           return {
             ...category,
-            stat: screenData.blocks.error ? screenData.blocks.error : `${pageBlocks.filter((item) => item.isEnabled).length}/${pageBlocks.length}`,
+            stat:
+              screenData.config.error || screenData.blocks.error
+                ? screenData.config.error || screenData.blocks.error || 'частично'
+                : `${configuredPageHeroes}/${SITE_PAGE_HERO_DEFINITIONS.length}`,
             details: [
-              `Баннеров: ${pageBlocks.filter((item) => item.blockType === 'BANNER').length}`,
-              `Текстов: ${pageBlocks.filter((item) => item.blockType === 'TEXT').length}`,
-              `Блоков «Вопросы и ответы»: ${pageBlocks.filter((item) => item.blockType === 'FAQ').length}`,
+              `Шапок страниц: ${SITE_PAGE_HERO_DEFINITIONS.length}`,
+              `С кастомным текстом: ${configuredPageHeroes}`,
+              `Доп. блоков страницы записи: ${pageBlocks.length}`,
             ],
-            warning: screenData.blocks.error || undefined,
+            warning:
+              screenData.config.error || screenData.blocks.error
+                ? 'Часть настроек страниц сейчас недоступна.'
+                : undefined,
           };
         case 'promo':
           return {
             ...category,
-            stat: screenData.blocks.error ? screenData.blocks.error : `${promoBlocks.filter((item) => item.isEnabled).length}/${promoBlocks.length}`,
+            stat: screenData.blocks.error ? screenData.blocks.error : `${siteCardsDraft.offers.length + siteCardsDraft.news.length}`,
             details: [
-              `Рекламных блоков: ${promoBlocks.filter((item) => item.blockType === 'PROMO').length}`,
-              `Подборок предложений: ${promoBlocks.filter((item) => item.blockType === 'OFFERS').length}`,
-              `Активных: ${promoBlocks.filter((item) => item.isEnabled).length}`,
+              `Карточек предложений: ${siteCardsDraft.offers.length}`,
+              `Карточек статей: ${siteCardsDraft.news.length}`,
+              `Маркетинговых блоков: ${promoBlocks.length}`,
             ],
             warning: screenData.blocks.error || undefined,
           };
@@ -1573,7 +1752,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, contacts, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, services, specialists]);
+  }, [blocks, config, contacts, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.locations.length, siteCardsDraft.news.length, siteCardsDraft.offers.length, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -1587,6 +1766,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         screenData.blocks.error,
         screenData.specialists.error,
         screenData.services.error,
+        screenData.serviceCategories.error,
         screenData.releases.error,
       ].filter(Boolean).length,
     [screenData],
@@ -1635,6 +1815,338 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     } finally {
       setBusyKey(null);
     }
+  };
+
+  const updatePageHeroField = (key: SitePageHeroKey, field: keyof SitePageHeroDraft[SitePageHeroKey], value: string) => {
+    setPageHeroDraft((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetPageHeroFields = (key: SitePageHeroKey) => {
+    setPageHeroDraft((prev) => ({
+      ...prev,
+      [key]: {
+        eyebrow: '',
+        title: '',
+        description: '',
+      },
+    }));
+  };
+
+  const savePageHeroes = async () => {
+    await saveConfigPatch(
+      {
+        extra: mergeSitePageHeroesIntoExtra(config?.extra ?? {}, pageHeroDraft),
+      },
+      'Шапки страниц сохранены',
+    );
+  };
+
+  const saveSiteCards = async (nextDraft: SiteCardsDraft, successMessage: string) => {
+    setBusyKey('site-cards');
+    setMessage(null);
+    try {
+      await api.patch('/client-front/staff/config', {
+        extra: mergeSiteCardsIntoExtra(config?.extra ?? {}, nextDraft),
+      });
+      await loadData({ silent: true });
+      setBanner('success', successMessage);
+      return true;
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+      return false;
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const toggleSpecialistVisibility = async (specialist: SpecialistRecord, isVisible: boolean) => {
+    setBusyKey(`specialist-visibility:${specialist.staffId}`);
+    setMessage(null);
+    try {
+      await api.patch(`/client-front/staff/specialists/${specialist.staffId}`, {
+        isVisible,
+      });
+      await loadData({ silent: true });
+      setBanner('success', isVisible ? 'Карточка специалиста добавлена на сайт' : 'Карточка специалиста скрыта с сайта');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const openServiceEditor = (service: ServiceRecord | null) => {
+    setMessage(null);
+    setServiceEditor(createServiceEditorState(service, serviceCategories));
+  };
+
+  const saveServiceEditor = async () => {
+    if (!serviceEditor) {
+      return;
+    }
+
+    if (!serviceEditor.draft.name.trim()) {
+      setBanner('error', 'Услуга должна иметь название');
+      return;
+    }
+    if (!serviceEditor.draft.categoryId) {
+      setBanner('error', 'Для услуги нужна категория');
+      return;
+    }
+
+    const durationMinutes = Number(serviceEditor.draft.durationMinutes);
+    const priceMin = Number(serviceEditor.draft.priceMin);
+    const priceMax = serviceEditor.draft.priceMax.trim() ? Number(serviceEditor.draft.priceMax) : null;
+
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 1) {
+      setBanner('error', 'Длительность должна быть больше 0 минут');
+      return;
+    }
+    if (!Number.isFinite(priceMin) || priceMin < 0) {
+      setBanner('error', 'Минимальная цена должна быть числом не меньше 0');
+      return;
+    }
+    if (priceMax !== null && (!Number.isFinite(priceMax) || priceMax < 0)) {
+      setBanner('error', 'Максимальная цена должна быть числом не меньше 0');
+      return;
+    }
+
+    setBusyKey(serviceEditor.mode === 'create' ? 'service-create' : `service-save:${serviceEditor.source?.id ?? 'draft'}`);
+    setMessage(null);
+    try {
+      const payload = {
+        name: serviceEditor.draft.name.trim(),
+        nameOnline: serviceEditor.draft.nameOnline.trim() || null,
+        description: serviceEditor.draft.description.trim() || undefined,
+        categoryId: serviceEditor.draft.categoryId,
+        durationSec: Math.round(durationMinutes * 60),
+        priceMin,
+        priceMax,
+        isActive: serviceEditor.draft.isActive,
+      };
+
+      if (serviceEditor.mode === 'create') {
+        await api.post('/services', payload);
+      } else if (serviceEditor.source) {
+        await api.patch(`/services/${serviceEditor.source.id}`, payload);
+      }
+
+      setServiceEditor(null);
+      await loadData({ silent: true });
+      setBanner('success', 'Карточка услуги сохранена');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const deleteService = async (service: ServiceRecord) => {
+    const confirmed = window.confirm(`Удалить услугу «${service.nameOnline || service.name}»?`);
+    if (!confirmed) {
+      return;
+    }
+    setBusyKey(`service-delete:${service.id}`);
+    setMessage(null);
+    try {
+      await api.delete(`/services/${service.id}`);
+      await loadData({ silent: true });
+      setBanner('success', 'Карточка услуги удалена');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const openOfferEditor = (offer: SiteOfferRecord | null) => {
+    setMessage(null);
+    setOfferEditor(createOfferEditorState(offer));
+  };
+
+  const saveOfferEditor = async () => {
+    if (!offerEditor) {
+      return;
+    }
+    const draft = offerEditor.draft;
+    if (!draft.slug.trim() || !draft.title.trim() || !draft.subtitle.trim() || !draft.description.trim() || !draft.badge.trim() || !draft.priceNote.trim() || !draft.ctaHref.trim()) {
+      setBanner('error', 'Для предложения заполните slug, title, subtitle, description, badge, priceNote и ctaHref');
+      return;
+    }
+
+    const nextItem: SiteOfferRecord = {
+      slug: slugify(draft.slug),
+      title: draft.title.trim(),
+      subtitle: draft.subtitle.trim(),
+      description: draft.description.trim(),
+      badge: draft.badge.trim(),
+      priceNote: draft.priceNote.trim(),
+      ctaHref: draft.ctaHref.trim(),
+    };
+    const nextDraft: SiteCardsDraft = {
+      ...siteCardsDraft,
+      offers: [
+        ...siteCardsDraft.offers.filter((item) => item.slug !== offerEditor.sourceSlug),
+        nextItem,
+      ].sort((left, right) => left.title.localeCompare(right.title, 'ru')),
+      news: siteCardsDraft.news,
+      locations: siteCardsDraft.locations,
+    };
+
+    const saved = await saveSiteCards(nextDraft, 'Офферы сохранены');
+    if (saved) {
+      setOfferEditor(null);
+    }
+  };
+
+  const deleteOffer = async (slug: string) => {
+    const confirmed = window.confirm('Удалить предложение?');
+    if (!confirmed) {
+      return;
+    }
+
+    const nextDraft: SiteCardsDraft = {
+      ...siteCardsDraft,
+      offers: siteCardsDraft.offers.filter((item) => item.slug !== slug),
+      news: siteCardsDraft.news,
+      locations: siteCardsDraft.locations,
+    };
+
+    await saveSiteCards(nextDraft, 'Предложение удалено');
+  };
+
+  const openNewsEditor = (article: SiteNewsRecord | null) => {
+    setMessage(null);
+    setNewsEditor(createNewsEditorState(article));
+  };
+
+  const saveNewsEditor = async () => {
+    if (!newsEditor) {
+      return;
+    }
+
+    const draft = newsEditor.draft;
+    const body = draft.bodyText
+      .split(/\n{2,}/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (!draft.slug.trim() || !draft.title.trim() || !draft.category.trim() || !draft.publishedAt.trim() || !draft.excerpt.trim() || body.length === 0) {
+      setBanner('error', 'Для статьи заполните slug, title, category, publishedAt, excerpt и body');
+      return;
+    }
+
+    const nextItem: SiteNewsRecord = {
+      slug: slugify(draft.slug),
+      title: draft.title.trim(),
+      category: draft.category.trim(),
+      publishedAt: draft.publishedAt.trim(),
+      excerpt: draft.excerpt.trim(),
+      body,
+    };
+
+    const nextDraft: SiteCardsDraft = {
+      ...siteCardsDraft,
+      offers: siteCardsDraft.offers,
+      news: [
+        ...siteCardsDraft.news.filter((item) => item.slug !== newsEditor.sourceSlug),
+        nextItem,
+      ].sort((left, right) => right.publishedAt.localeCompare(left.publishedAt)),
+      locations: siteCardsDraft.locations,
+    };
+
+    const saved = await saveSiteCards(nextDraft, 'Статьи сохранены');
+    if (saved) {
+      setNewsEditor(null);
+    }
+  };
+
+  const deleteNews = async (slug: string) => {
+    const confirmed = window.confirm('Удалить статью?');
+    if (!confirmed) {
+      return;
+    }
+
+    const nextDraft: SiteCardsDraft = {
+      ...siteCardsDraft,
+      offers: siteCardsDraft.offers,
+      news: siteCardsDraft.news.filter((item) => item.slug !== slug),
+      locations: siteCardsDraft.locations,
+    };
+
+    await saveSiteCards(nextDraft, 'Статья удалена');
+  };
+
+  const openLocationEditor = (location: SiteLocationRecord | null) => {
+    setMessage(null);
+    setLocationEditor(createLocationEditorState(location));
+  };
+
+  const saveLocationEditor = async () => {
+    if (!locationEditor) {
+      return;
+    }
+
+    const draft = locationEditor.draft;
+    if (!draft.slug.trim() || !draft.name.trim() || !draft.district.trim() || !draft.address.trim() || !draft.phone.trim() || !draft.workingHours.trim() || !draft.mapUrl.trim() || !draft.description.trim() || !draft.note.trim()) {
+      setBanner('error', 'Для локации заполните slug, name, district, address, phone, workingHours, mapUrl, description и note');
+      return;
+    }
+
+    const nextItem: SiteLocationRecord = {
+      ...(locationEditor.source ?? {
+        serviceSlugs: [],
+        masterSlugs: [],
+        features: [],
+        interiorMoments: [],
+      }),
+      slug: slugify(draft.slug),
+      name: draft.name.trim(),
+      district: draft.district.trim(),
+      address: draft.address.trim(),
+      phone: draft.phone.trim(),
+      workingHours: draft.workingHours.trim(),
+      mapUrl: draft.mapUrl.trim(),
+      description: draft.description.trim(),
+      note: draft.note.trim(),
+    };
+
+    const nextDraft: SiteCardsDraft = {
+      ...siteCardsDraft,
+      offers: siteCardsDraft.offers,
+      news: siteCardsDraft.news,
+      locations: [
+        ...siteCardsDraft.locations.filter((item) => item.slug !== locationEditor.sourceSlug),
+        nextItem,
+      ].sort((left, right) => left.name.localeCompare(right.name, 'ru')),
+    };
+
+    const saved = await saveSiteCards(nextDraft, 'Локации сохранены');
+    if (saved) {
+      setLocationEditor(null);
+    }
+  };
+
+  const deleteLocation = async (slug: string) => {
+    const confirmed = window.confirm('Удалить локацию?');
+    if (!confirmed) {
+      return;
+    }
+
+    const nextDraft: SiteCardsDraft = {
+      ...siteCardsDraft,
+      offers: siteCardsDraft.offers,
+      news: siteCardsDraft.news,
+      locations: siteCardsDraft.locations.filter((item) => item.slug !== slug),
+    };
+
+    await saveSiteCards(nextDraft, 'Локация удалена');
   };
 
   const saveGeneral = async () => {
@@ -3090,6 +3602,12 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const renderServicesDetail = () => {
     const visibleServices = services.filter((item) => item.isActive).slice(0, 8);
+    const orderedServices = [...services].sort((left, right) => {
+      if (left.isActive !== right.isActive) {
+        return left.isActive ? -1 : 1;
+      }
+      return (left.nameOnline || left.name).localeCompare(right.nameOnline || right.name, 'ru');
+    });
     return (
       <div className="space-y-5">
         <SectionCard
@@ -3146,18 +3664,89 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             )}
           </div>
         </SectionCard>
+
+        <SectionCard
+          title="Карточки услуг"
+          subtitle="Добавляйте, редактируйте и удаляйте услуги, из которых собираются ServiceCard на главной, в каталоге, у мастеров и в карточках услуг."
+          action={
+            <button
+              type="button"
+              onClick={() => openServiceEditor(null)}
+              disabled={serviceCategories.length === 0}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Добавить услугу
+            </button>
+          }
+        >
+          <div className="mb-4 rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+            Категория выбирается из существующих. Если услуга скрыта, карточка пропадает со всех клиентских страниц, где используется ServiceCard.
+          </div>
+          <div className="space-y-3">
+            {orderedServices.length === 0 ? (
+              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Услуг пока нет.</div>
+            ) : (
+              orderedServices.map((service) => (
+                <div key={service.id} className="rounded-2xl bg-white px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[18px] font-extrabold text-ink">{service.nameOnline || service.name}</p>
+                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                        {service.category.name} • {formatDuration(service.durationSec)} • {formatMoney(service.priceMin)}
+                        {service.priceMax && service.priceMax !== service.priceMin ? ` – ${formatMoney(service.priceMax)}` : ''}
+                      </p>
+                      <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                        {service.description || 'Без краткого описания.'}
+                      </p>
+                      <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
+                        {service.isActive ? 'Активна на сайте' : 'Скрыта с сайта'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openServiceEditor(service)}
+                        className="rounded-2xl border border-line p-3 text-[#6c7685]"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void deleteService(service);
+                        }}
+                        disabled={busyKey === `service-delete:${service.id}`}
+                        className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                      >
+                        {busyKey === `service-delete:${service.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SectionCard>
       </div>
     );
   };
 
   const renderSpecialistsDetail = () => (
     <div className="space-y-5">
-      <SectionCard title="Карточки специалистов" subtitle="Редактируются отдельно от общего списка сотрудников.">
+      <SectionCard title="Карточки специалистов" subtitle="Управляют MasterCard на клиентском сайте. Добавление и удаление карточки здесь означает показать или скрыть существующего мастера на сайте.">
         <div className="space-y-3">
           {specialists.length === 0 ? (
             <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Нет карточек специалистов.</div>
           ) : (
-            specialists.map((item) => (
+            [...specialists]
+              .sort((left, right) => {
+                if (left.isVisible !== right.isVisible) {
+                  return left.isVisible ? -1 : 1;
+                }
+                return left.name.localeCompare(right.name, 'ru');
+              })
+              .map((item) => (
               <div key={item.staffId} className="rounded-2xl bg-white px-4 py-4">
                 <div className="flex items-start gap-3">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2f7]">
@@ -3182,13 +3771,31 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                           Кнопка записи: {item.ctaText || 'Записаться'} • Услуг: {item.services.length}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => openSpecialistEditor(item)}
-                        className="rounded-2xl border border-line p-3 text-[#6c7685]"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void toggleSpecialistVisibility(item, !item.isVisible);
+                          }}
+                          disabled={busyKey === `specialist-visibility:${item.staffId}`}
+                          className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773] disabled:opacity-50"
+                        >
+                          {busyKey === `specialist-visibility:${item.staffId}` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : item.isVisible ? (
+                            'Скрыть'
+                          ) : (
+                            'На сайт'
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openSpecialistEditor(item)}
+                          className="rounded-2xl border border-line p-3 text-[#6c7685]"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3367,25 +3974,333 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </SectionCard>
 
         {renderBlockManager(contactBlocks, ['CONTACTS'], 'Контактные блоки', 'Если контакты выводятся отдельным блоком на клиентской странице.')}
+
+        <SectionCard
+          title="Карточки локаций"
+          subtitle="Редактор данных для LocationCard. Если эти карточки используются на клиентском сайте, изменения применятся после публикации."
+          action={
+            <button
+              type="button"
+              onClick={() => openLocationEditor(null)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+            >
+              <Plus className="h-4 w-4" />
+              Добавить локацию
+            </button>
+          }
+        >
+          <div className="space-y-3">
+            {siteCardsDraft.locations.length === 0 ? (
+              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Локаций пока нет.</div>
+            ) : (
+              siteCardsDraft.locations.map((location) => (
+                <div key={location.slug} className="rounded-2xl bg-white px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[18px] font-extrabold text-ink">{location.name}</p>
+                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                        {location.district} • {location.address}
+                      </p>
+                      <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{location.description}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openLocationEditor(location)}
+                        className="rounded-2xl border border-line p-3 text-[#6c7685]"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void deleteLocation(location.slug);
+                        }}
+                        disabled={busyKey === 'site-cards'}
+                        className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                      >
+                        {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SectionCard>
       </div>
     );
   };
 
-  const renderPageBlocksDetail = () =>
-    renderBlockManager(
-      blocks.filter((block) => ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'].includes(block.blockType)),
-      ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'],
-      'Основные блоки страницы',
-      'Редактор баннеров, текстовых блоков, кнопок и раздела «Вопросы и ответы» для страницы записи.',
-    );
+  const renderPageBlocksDetail = () => {
+    const pageBlocks = blocks.filter((block) => ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'].includes(block.blockType));
 
-  const renderPromoDetail = () =>
-    renderBlockManager(
-      blocks.filter((block) => ['PROMO', 'OFFERS'].includes(block.blockType)),
-      ['PROMO', 'OFFERS'],
-      'Акции и предложения',
-      'Редактор маркетинговых блоков и подборок предложений.',
+    return (
+      <div className="space-y-5">
+        <SectionCard
+          title="Шапки страниц"
+          subtitle="Редактируйте eyebrow, title и description для всех страниц, где используется PageHero. Пустое поле оставляет текущий текст по умолчанию."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                void savePageHeroes();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить
+            </button>
+          }
+        >
+          <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+            Для шаблонных страниц можно использовать переменные в фигурных скобках, например
+            {' '}
+            <span className="font-mono text-[13px] font-bold text-ink">{'{serviceName}'}</span>
+            {' '}
+            или
+            {' '}
+            <span className="font-mono text-[13px] font-bold text-ink">{'{masterName}'}</span>
+            .
+          </div>
+
+          <div className="mt-4 space-y-4">
+            {SITE_PAGE_HERO_DEFINITIONS.map((definition) => {
+              const draft = pageHeroDraft[definition.key];
+              const preview = resolveSitePageHeroPreview(definition, draft);
+
+              return (
+                <article key={definition.key} className="rounded-[24px] border border-line bg-white px-4 py-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">{definition.scope}</p>
+                      <h3 className="mt-2 text-[20px] font-extrabold text-ink">{definition.title}</h3>
+                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                        <span className="font-mono text-[13px] text-[#7a8493]">{definition.route}</span>
+                        {' • '}
+                        {definition.note}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => resetPageHeroFields(definition.key)}
+                      className="inline-flex items-center justify-center rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                    >
+                      Сбросить
+                    </button>
+                  </div>
+
+                  {definition.tokens.length > 0 ? (
+                    <div className="mt-4">
+                      <p className="text-[13px] font-semibold text-[#7a8493]">Можно использовать переменные:</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {definition.tokens.map((token) => (
+                          <span
+                            key={`${definition.key}-${token.token}`}
+                            className="rounded-full border border-[#d7dce5] bg-[#fbfcfe] px-3 py-1 text-[12px] font-bold text-[#586271]"
+                          >
+                            <span className="font-mono">{`{${token.token}}`}</span>
+                            {' · '}
+                            {token.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+                    <div className="grid gap-3">
+                      <TextField
+                        label="Eyebrow / подпись"
+                        value={draft.eyebrow}
+                        onChange={(value) => updatePageHeroField(definition.key, 'eyebrow', value)}
+                        placeholder={definition.defaults.eyebrow || 'Пусто = текст по умолчанию'}
+                      />
+                      <TextField
+                        label="Title / заголовок"
+                        value={draft.title}
+                        onChange={(value) => updatePageHeroField(definition.key, 'title', value)}
+                        placeholder={definition.defaults.title}
+                      />
+                      <TextAreaField
+                        label="Description / описание"
+                        value={draft.description}
+                        onChange={(value) => updatePageHeroField(definition.key, 'description', value)}
+                        rows={4}
+                        placeholder={definition.defaults.description}
+                      />
+                    </div>
+
+                    <div className="rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр</p>
+                      {preview.eyebrow ? (
+                        <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{preview.eyebrow}</p>
+                      ) : null}
+                      <p className="mt-3 text-[24px] font-extrabold leading-tight text-ink">{preview.title}</p>
+                      <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{preview.description}</p>
+
+                      {definition.tokens.length > 0 ? (
+                        <div className="mt-4 space-y-2 rounded-2xl bg-white px-3 py-3">
+                          {definition.tokens.slice(0, 4).map((token) => (
+                            <div key={`${definition.key}-example-${token.token}`} className="flex items-start justify-between gap-3">
+                              <span className="font-mono text-[12px] font-bold text-[#596373]">{`{${token.token}}`}</span>
+                              <span className="text-right text-[12px] font-semibold text-[#7a8493]">{token.example}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void savePageHeroes();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить шапки страниц
+            </button>
+          </div>
+        </SectionCard>
+
+        {renderBlockManager(
+          pageBlocks,
+          ['BANNER', 'TEXT', 'BUTTONS', 'FAQ'],
+          'Дополнительные блоки страницы записи',
+          'Редактор баннеров, текстовых блоков, кнопок и раздела «Вопросы и ответы» для страницы записи.',
+        )}
+      </div>
     );
+  };
+
+  const renderPromoDetail = () => (
+    <div className="space-y-5">
+      <SectionCard
+        title="Карточки предложений"
+        subtitle="Редактор OfferCard на странице /offers и в связанных переходах на запись."
+        action={
+          <button
+            type="button"
+            onClick={() => openOfferEditor(null)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить предложение
+          </button>
+        }
+      >
+        <div className="space-y-3">
+          {siteCardsDraft.offers.length === 0 ? (
+            <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Предложений пока нет.</div>
+          ) : (
+            siteCardsDraft.offers.map((offer) => (
+              <div key={offer.slug} className="rounded-2xl bg-white px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[18px] font-extrabold text-ink">{offer.title}</p>
+                    <p className="mt-1 text-[14px] font-semibold text-[#7d8795]">{offer.subtitle}</p>
+                    <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{offer.description}</p>
+                    <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
+                      {offer.badge} • {offer.ctaHref}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openOfferEditor(offer)}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685]"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void deleteOffer(offer.slug);
+                      }}
+                      disabled={busyKey === 'site-cards'}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                    >
+                      {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Карточки статей"
+        subtitle="Редактор ArticleCard и самих материалов на странице /news и в детальных новостях."
+        action={
+          <button
+            type="button"
+            onClick={() => openNewsEditor(null)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить статью
+          </button>
+        }
+      >
+        <div className="space-y-3">
+          {siteCardsDraft.news.length === 0 ? (
+            <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Статей пока нет.</div>
+          ) : (
+            siteCardsDraft.news.map((article) => (
+              <div key={article.slug} className="rounded-2xl bg-white px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[18px] font-extrabold text-ink">{article.title}</p>
+                    <p className="mt-1 text-[14px] font-medium text-[#5f6773]">
+                      {article.category} • {article.publishedAt}
+                    </p>
+                    <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{article.excerpt}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openNewsEditor(article)}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685]"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void deleteNews(article.slug);
+                      }}
+                      disabled={busyKey === 'site-cards'}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                    >
+                      {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SectionCard>
+
+      {renderBlockManager(
+        blocks.filter((block) => ['PROMO', 'OFFERS'].includes(block.blockType)),
+        ['PROMO', 'OFFERS'],
+        'Акции и предложения',
+        'Редактор маркетинговых блоков и подборок предложений.',
+      )}
+    </div>
+  );
 
   const renderAdvancedDetail = () => (
     <div className="space-y-5">
@@ -4703,6 +5618,258 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <Save className="h-4 w-4" />
               )}
               Сохранить карточку
+            </button>
+          </div>
+        ) : null}
+      </PageSheet>
+
+      <PageSheet
+        open={Boolean(serviceEditor)}
+        onDismiss={() => setServiceEditor(null)}
+        snapPoints={({ maxHeight }) => [Math.min(maxHeight, 720)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        {serviceEditor ? (
+          <div className="bg-white px-4 pb-6 pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">
+                  {serviceEditor.mode === 'create' ? 'Новая услуга' : 'Редактировать услугу'}
+                </h3>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют ServiceCard на клиентском сайте.</p>
+              </div>
+              <button type="button" onClick={() => setServiceEditor(null)} className="rounded-lg p-2 text-ink">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <TextField
+                label="Название в системе"
+                value={serviceEditor.draft.name}
+                onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, name: value } } : prev))}
+              />
+              <TextField
+                label="Название для клиента"
+                value={serviceEditor.draft.nameOnline}
+                onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, nameOnline: value } } : prev))}
+              />
+              <TextAreaField
+                label="Краткое описание"
+                value={serviceEditor.draft.description}
+                onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))}
+                rows={4}
+              />
+
+              <label className="block">
+                <span className="mb-1 block text-[14px] font-semibold text-muted">Категория</span>
+                <select
+                  value={serviceEditor.draft.categoryId}
+                  onChange={(event) =>
+                    setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, categoryId: event.target.value } } : prev))
+                  }
+                  className="w-full rounded-2xl border-[2px] border-line bg-white px-4 py-3 text-[17px] font-medium text-ink outline-none"
+                >
+                  {serviceCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <TextField
+                  label="Длительность, мин"
+                  value={serviceEditor.draft.durationMinutes}
+                  onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, durationMinutes: value } } : prev))}
+                  type="number"
+                />
+                <TextField
+                  label="Цена от"
+                  value={serviceEditor.draft.priceMin}
+                  onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, priceMin: value } } : prev))}
+                  type="number"
+                />
+                <TextField
+                  label="Цена до"
+                  value={serviceEditor.draft.priceMax}
+                  onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, priceMax: value } } : prev))}
+                  type="number"
+                />
+              </div>
+
+              <ToggleField
+                label="Показывать услугу на сайте"
+                checked={serviceEditor.draft.isActive}
+                onToggle={() =>
+                  setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, isActive: !prev.draft.isActive } } : prev))
+                }
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void saveServiceEditor();
+              }}
+              disabled={busyKey === 'service-create' || busyKey === `service-save:${serviceEditor.source?.id ?? 'draft'}`}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'service-create' || busyKey === `service-save:${serviceEditor.source?.id ?? 'draft'}` ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Сохранить услугу
+            </button>
+          </div>
+        ) : null}
+      </PageSheet>
+
+      <PageSheet
+        open={Boolean(offerEditor)}
+        onDismiss={() => setOfferEditor(null)}
+        snapPoints={({ maxHeight }) => [Math.min(maxHeight, 720)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        {offerEditor ? (
+          <div className="bg-white px-4 pb-6 pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">
+                  {offerEditor.mode === 'create' ? 'Новое предложение' : 'Редактировать предложение'}
+                </h3>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют OfferCard на клиентском сайте.</p>
+              </div>
+              <button type="button" onClick={() => setOfferEditor(null)} className="rounded-lg p-2 text-ink">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <TextField label="Slug" value={offerEditor.draft.slug} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, slug: value } } : prev))} />
+              <TextField label="Title" value={offerEditor.draft.title} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
+              <TextField label="Subtitle" value={offerEditor.draft.subtitle} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, subtitle: value } } : prev))} />
+              <TextAreaField label="Description" value={offerEditor.draft.description} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))} rows={4} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Badge" value={offerEditor.draft.badge} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, badge: value } } : prev))} />
+                <TextField label="CTA href" value={offerEditor.draft.ctaHref} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, ctaHref: value } } : prev))} />
+              </div>
+              <TextField label="Price note" value={offerEditor.draft.priceNote} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, priceNote: value } } : prev))} />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void saveOfferEditor();
+              }}
+              disabled={busyKey === 'site-cards'}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить предложение
+            </button>
+          </div>
+        ) : null}
+      </PageSheet>
+
+      <PageSheet
+        open={Boolean(newsEditor)}
+        onDismiss={() => setNewsEditor(null)}
+        snapPoints={({ maxHeight }) => [Math.min(maxHeight, 760)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        {newsEditor ? (
+          <div className="bg-white px-4 pb-6 pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">
+                  {newsEditor.mode === 'create' ? 'Новая статья' : 'Редактировать статью'}
+                </h3>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют ArticleCard и детальной страницей новости.</p>
+              </div>
+              <button type="button" onClick={() => setNewsEditor(null)} className="rounded-lg p-2 text-ink">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <TextField label="Slug" value={newsEditor.draft.slug} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, slug: value } } : prev))} />
+              <TextField label="Title" value={newsEditor.draft.title} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Category" value={newsEditor.draft.category} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, category: value } } : prev))} />
+                <TextField label="Published at" value={newsEditor.draft.publishedAt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, publishedAt: value } } : prev))} placeholder="2026-03-15" />
+              </div>
+              <TextAreaField label="Excerpt" value={newsEditor.draft.excerpt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, excerpt: value } } : prev))} rows={4} />
+              <TextAreaField
+                label="Body"
+                value={newsEditor.draft.bodyText}
+                onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, bodyText: value } } : prev))}
+                rows={10}
+                placeholder="Каждый абзац отделяйте пустой строкой."
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void saveNewsEditor();
+              }}
+              disabled={busyKey === 'site-cards'}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить статью
+            </button>
+          </div>
+        ) : null}
+      </PageSheet>
+
+      <PageSheet
+        open={Boolean(locationEditor)}
+        onDismiss={() => setLocationEditor(null)}
+        snapPoints={({ maxHeight }) => [Math.min(maxHeight, 760)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        {locationEditor ? (
+          <div className="bg-white px-4 pb-6 pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">
+                  {locationEditor.mode === 'create' ? 'Новая локация' : 'Редактировать локацию'}
+                </h3>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Базовые данные для LocationCard и связанных сценариев клиентского сайта.</p>
+              </div>
+              <button type="button" onClick={() => setLocationEditor(null)} className="rounded-lg p-2 text-ink">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <TextField label="Slug" value={locationEditor.draft.slug} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, slug: value } } : prev))} />
+              <TextField label="Название" value={locationEditor.draft.name} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, name: value } } : prev))} />
+              <TextField label="Район / формат" value={locationEditor.draft.district} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, district: value } } : prev))} />
+              <TextField label="Адрес" value={locationEditor.draft.address} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, address: value } } : prev))} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Телефон" value={locationEditor.draft.phone} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, phone: value } } : prev))} />
+                <TextField label="Часы работы" value={locationEditor.draft.workingHours} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, workingHours: value } } : prev))} />
+              </div>
+              <TextField label="Ссылка на карту" value={locationEditor.draft.mapUrl} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, mapUrl: value } } : prev))} />
+              <TextAreaField label="Описание" value={locationEditor.draft.description} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))} rows={4} />
+              <TextAreaField label="Примечание" value={locationEditor.draft.note} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, note: value } } : prev))} rows={3} />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void saveLocationEditor();
+              }}
+              disabled={busyKey === 'site-cards'}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'site-cards' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить локацию
             </button>
           </div>
         ) : null}
