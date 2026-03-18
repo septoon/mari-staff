@@ -6,6 +6,7 @@ import {
   BadgePercent,
   ChevronRight,
   FileText,
+  House,
   Image,
   Loader2,
   MapPin,
@@ -37,6 +38,14 @@ import {
   type SiteBookingPageDraft,
 } from '../clientSiteBookingPage';
 import {
+  SITE_HOME_PAGE_DEFAULTS,
+  SITE_HOME_PAGE_SECTION_COUNT,
+  countConfiguredSiteHomePageSections,
+  createSiteHomePageDraft,
+  mergeSiteHomePageIntoExtra,
+  type SiteHomePageDraft,
+} from '../clientSiteHomePage';
+import {
   createSiteCardsDraft,
   mergeSiteCardsIntoExtra,
   type SiteCardsDraft,
@@ -61,6 +70,7 @@ type ClientSiteEditorScreenProps = {
 };
 
 type CategoryKey =
+  | 'home'
   | 'general'
   | 'services'
   | 'specialists'
@@ -306,6 +316,7 @@ type CategorySnapshot = CategoryMeta & {
 const CLIENT_SITE_EDITOR_BASE_ROUTE = '/online-booking';
 
 const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
+  home: 'glavnaya',
   general: 'osnovnoe',
   services: 'uslugi',
   specialists: 'specialisty',
@@ -330,6 +341,14 @@ type AdvancedDraft = {
   featureFlagsJson: string;
   extraJson: string;
 };
+
+type HomePageObjectSectionKey =
+  | 'hero'
+  | 'categories'
+  | 'featuredServices'
+  | 'featuredSpecialists'
+  | 'contacts'
+  | 'bottomCta';
 
 const STANDARD_FEATURE_FLAGS_EXAMPLE = `{
   "booking.webBeta": {
@@ -515,6 +534,14 @@ type LocationEditorState = {
 };
 
 const categories: CategoryMeta[] = [
+  {
+    key: 'home',
+    title: 'Главная страница',
+    description: 'Первый экран сайта MARI, смысловые секции, карточки доверия и финальный CTA на маршруте /.',
+    note: 'Здесь редактируется именно главная страница сайта. Каталоги услуг и специалистов остаются в профильных разделах ниже.',
+    tags: ['hero', 'секции /', 'карточки доверия', 'cta'],
+    icon: House,
+  },
   {
     key: 'general',
     title: 'Основное',
@@ -1485,6 +1512,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const [bookingPageDraft, setBookingPageDraft] = useState<SiteBookingPageDraft>(() =>
     createSiteBookingPageDraft({})
   );
+  const [homePageDraft, setHomePageDraft] = useState<SiteHomePageDraft>(() =>
+    createSiteHomePageDraft({})
+  );
   const [siteCardsDraft, setSiteCardsDraft] = useState<SiteCardsDraft>(() => createSiteCardsDraft({}));
   const [advancedDraft, setAdvancedDraft] = useState<AdvancedDraft>({
     featureFlagsJson: '{}',
@@ -1604,6 +1634,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     });
     setPageHeroDraft(createSitePageHeroDraft(config.extra ?? {}));
     setBookingPageDraft(createSiteBookingPageDraft(config.extra ?? {}));
+    setHomePageDraft(createSiteHomePageDraft(config.extra ?? {}));
     setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
       featureFlagsJson: toJsonText(config.featureFlags ?? {}),
@@ -1750,6 +1781,19 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
     return categories.map((category) => {
       switch (category.key) {
+        case 'home':
+          return {
+            ...category,
+            stat: screenData.config.error
+              ? screenData.config.error
+              : `${countConfiguredSiteHomePageSections(config?.extra ?? {})}/${SITE_HOME_PAGE_SECTION_COUNT}`,
+            details: [
+              `Преимуществ: ${homePageDraft.valuePillars.items.length}`,
+              `Карточек доверия: ${homePageDraft.highlights.length}`,
+              'Карточки каталога и специалистов берутся из профильных разделов.',
+            ],
+            warning: screenData.config.error || undefined,
+          };
         case 'general':
           return {
             ...category,
@@ -1882,7 +1926,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
+  }, [blocks, config, homePageDraft.highlights.length, homePageDraft.valuePillars.items.length, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -1984,6 +2028,122 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         extra: mergeSitePageHeroesIntoExtra(config?.extra ?? {}, pageHeroDraft),
       },
       'Шапки страниц сохранены',
+    );
+  };
+
+  const updateHomePageField = <
+    TSection extends HomePageObjectSectionKey,
+    TField extends keyof SiteHomePageDraft[TSection]
+  >(
+    section: TSection,
+    field: TField,
+    value: string,
+  ) => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetHomePageSection = (section: HomePageObjectSectionKey) => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...SITE_HOME_PAGE_DEFAULTS[section],
+      },
+    }));
+  };
+
+  const resetHomePageHeroVisual = () => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      hero: {
+        ...prev.hero,
+        visualLabel: SITE_HOME_PAGE_DEFAULTS.hero.visualLabel,
+        visualTitle: SITE_HOME_PAGE_DEFAULTS.hero.visualTitle,
+        visualSubtitle: SITE_HOME_PAGE_DEFAULTS.hero.visualSubtitle,
+      },
+    }));
+  };
+
+  const updateHomePageValuePillarsField = (
+    field: keyof Omit<SiteHomePageDraft['valuePillars'], 'items'>,
+    value: string,
+  ) => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      valuePillars: {
+        ...prev.valuePillars,
+        [field]: value,
+      },
+    }));
+  };
+
+  const updateHomePageValuePillarItem = (
+    index: number,
+    field: keyof SiteHomePageDraft['valuePillars']['items'][number],
+    value: string,
+  ) => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      valuePillars: {
+        ...prev.valuePillars,
+        items: prev.valuePillars.items.map((item, currentIndex) =>
+          currentIndex === index
+            ? {
+                ...item,
+                [field]: value,
+              }
+            : item,
+        ),
+      },
+    }));
+  };
+
+  const resetHomePageValuePillars = () => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      valuePillars: {
+        ...SITE_HOME_PAGE_DEFAULTS.valuePillars,
+        items: SITE_HOME_PAGE_DEFAULTS.valuePillars.items.map((item) => ({ ...item })),
+      },
+    }));
+  };
+
+  const updateHomePageHighlightItem = (
+    index: number,
+    field: keyof SiteHomePageDraft['highlights'][number],
+    value: string,
+  ) => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      highlights: prev.highlights.map((item, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const resetHomePageHighlights = () => {
+    setHomePageDraft((prev) => ({
+      ...prev,
+      highlights: SITE_HOME_PAGE_DEFAULTS.highlights.map((item) => ({ ...item })),
+    }));
+  };
+
+  const saveHomePage = async () => {
+    await saveConfigPatch(
+      {
+        extra: mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+      },
+      'Главная страница сайта сохранена',
     );
   };
 
@@ -3807,7 +3967,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       <section className="rounded-[30px] border border-line bg-gradient-to-br from-white via-[#f7f7fb] to-[#edf1f7] p-5 shadow-[0_14px_36px_rgba(42,49,56,0.08)]">
         <p className="text-[24px] font-extrabold leading-tight text-ink">Категории управления клиентским сайтом</p>
         <p className="mt-3 text-[16px] font-medium leading-relaxed text-[#5f6773]">
-          Здесь собраны все разделы, которые влияют на то, что увидит клиент на сайте онлайн-записи.
+          Здесь собраны все разделы, которые влияют на то, что увидит клиент на сайте MARI и в онлайн-записи.
           Каждая карточка ниже открывает отдельную страницу нужного раздела.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -3826,7 +3986,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
         <div className="mt-4 rounded-2xl bg-white/90 px-4 py-3 text-[15px] font-semibold leading-relaxed text-[#5f6773]">
           Здесь удобно сначала понять, за что отвечает каждый раздел, а потом перейти внутрь и изменить нужный блок.
-          Редактор услуг остаётся отдельным разделом, а здесь показано, как услуги выглядят для клиента.
+          Редактор услуг остаётся отдельным разделом, а здесь показано, как весь клиентский сайт выглядит для гостя.
         </div>
       </section>
 
@@ -3856,6 +4016,442 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       </SectionCard>
     </>
   );
+
+  const renderHomeDetail = () => {
+    const contactPhone =
+      primaryContact?.phones.find((item) => item.primary)?.display ||
+      primaryContact?.phones.find((item) => item.primary)?.e164 ||
+      primaryContact?.phones[0]?.display ||
+      primaryContact?.phones[0]?.e164 ||
+      'Телефон из раздела «Контакты»';
+    const contactAddress =
+      primaryContact?.addresses[0]?.line1 ||
+      primaryContact?.addresses[0]?.comment ||
+      'Адрес из раздела «Контакты»';
+    const contactHours =
+      primaryContact?.workingHours?.slice(0, 3).map((item) => `${item.open} - ${item.close}`).join(' · ') ||
+      'Часы работы из раздела «Контакты»';
+
+    return (
+      <div className="space-y-5">
+        <SectionCard
+          title="Первый экран /"
+          subtitle="Hero, кнопки и редакционный визуал в верхней части главной страницы сайта MARI."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                void saveHomePage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
+            </button>
+          }
+        >
+          <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+            Здесь редактируется только смысл и подписи главной страницы.
+            Карточки категорий, услуг и специалистов сами по себе меняются в разделах
+            {' '}
+            <span className="font-semibold text-ink">«Услуги»</span>
+            {' '}
+            и
+            {' '}
+            <span className="font-semibold text-ink">«Специалисты»</span>
+            .
+          </div>
+
+          <article className="mt-4 rounded-[24px] border border-line bg-white px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">Hero и кнопки</h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  Верхний блок главной страницы со смысловым сообщением и двумя основными действиями.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => resetHomePageSection('hero')}
+                className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+              >
+                Сбросить секцию
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              <div className="grid gap-3">
+                <TextField label="Eyebrow / подпись" value={homePageDraft.hero.eyebrow} onChange={(value) => updateHomePageField('hero', 'eyebrow', value)} />
+                <TextAreaField label="Главный заголовок" value={homePageDraft.hero.title} onChange={(value) => updateHomePageField('hero', 'title', value)} rows={3} />
+                <TextAreaField label="Описание" value={homePageDraft.hero.description} onChange={(value) => updateHomePageField('hero', 'description', value)} rows={4} />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField label="Кнопка primary" value={homePageDraft.hero.primaryCtaLabel} onChange={(value) => updateHomePageField('hero', 'primaryCtaLabel', value)} />
+                  <TextField label="Кнопка secondary" value={homePageDraft.hero.secondaryCtaLabel} onChange={(value) => updateHomePageField('hero', 'secondaryCtaLabel', value)} />
+                </div>
+              </div>
+
+              <div className="rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр hero</p>
+                <p className="mt-3 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{homePageDraft.hero.eyebrow}</p>
+                <p className="mt-3 whitespace-pre-line text-[28px] font-extrabold leading-tight text-ink">{homePageDraft.hero.title}</p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{homePageDraft.hero.description}</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                    {homePageDraft.hero.primaryCtaLabel}
+                  </button>
+                  <button type="button" className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-ink">
+                    {homePageDraft.hero.secondaryCtaLabel}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className="mt-4 rounded-[24px] border border-line bg-white px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">Редакционный визуал справа</h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  Подписи, которые показываются в правом атмосферном блоке рядом с hero.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetHomePageHeroVisual}
+                className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+              >
+                Сбросить визуал
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              <div className="grid gap-3">
+                <TextField label="Label" value={homePageDraft.hero.visualLabel} onChange={(value) => updateHomePageField('hero', 'visualLabel', value)} />
+                <TextAreaField label="Заголовок визуала" value={homePageDraft.hero.visualTitle} onChange={(value) => updateHomePageField('hero', 'visualTitle', value)} rows={3} />
+                <TextAreaField label="Подзаголовок визуала" value={homePageDraft.hero.visualSubtitle} onChange={(value) => updateHomePageField('hero', 'visualSubtitle', value)} rows={4} />
+              </div>
+
+              <div className="rounded-[24px] bg-[#1d5055] px-4 py-4 text-white">
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-white/64">{homePageDraft.hero.visualLabel}</p>
+                <p className="mt-4 text-[28px] font-extrabold leading-tight">{homePageDraft.hero.visualTitle}</p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-white/76">{homePageDraft.hero.visualSubtitle}</p>
+              </div>
+            </div>
+          </article>
+        </SectionCard>
+
+        <SectionCard
+          title="Секции каталога и доверия"
+          subtitle="Заголовки главной страницы для каталога направлений, смыслового блока, витрины услуг и витрины специалистов."
+        >
+          <div className="grid gap-4">
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Популярные направления</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Заголовки секции с карточками категорий. Сами категории подтягиваются из каталога услуг.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetHomePageSection('categories')}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <TextField label="Eyebrow" value={homePageDraft.categories.eyebrow} onChange={(value) => updateHomePageField('categories', 'eyebrow', value)} />
+                <TextField label="Кнопка" value={homePageDraft.categories.actionLabel} onChange={(value) => updateHomePageField('categories', 'actionLabel', value)} />
+                <TextField label="Заголовок" value={homePageDraft.categories.title} onChange={(value) => updateHomePageField('categories', 'title', value)} />
+                <TextAreaField label="Описание" value={homePageDraft.categories.description} onChange={(value) => updateHomePageField('categories', 'description', value)} rows={4} />
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Почему выбирают нас</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Секция с четырьмя преимуществами на главной странице.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetHomePageValuePillars}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3">
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <TextField label="Eyebrow" value={homePageDraft.valuePillars.eyebrow} onChange={(value) => updateHomePageValuePillarsField('eyebrow', value)} />
+                  <TextField label="Заголовок" value={homePageDraft.valuePillars.title} onChange={(value) => updateHomePageValuePillarsField('title', value)} />
+                </div>
+                <TextAreaField label="Описание" value={homePageDraft.valuePillars.description} onChange={(value) => updateHomePageValuePillarsField('description', value)} rows={4} />
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {homePageDraft.valuePillars.items.map((item, index) => (
+                    <div key={`home-page-pillar-${index}`} className="rounded-2xl bg-[#f7f9fc] px-4 py-4">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Преимущество {index + 1}</p>
+                      <div className="mt-3 grid gap-3">
+                        <TextField label="Заголовок" value={item.title} onChange={(value) => updateHomePageValuePillarItem(index, 'title', value)} />
+                        <TextAreaField label="Текст" value={item.text} onChange={(value) => updateHomePageValuePillarItem(index, 'text', value)} rows={4} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-[20px] font-extrabold text-ink">Блок услуг</h3>
+                    <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                      Заголовки секции с популярными услугами.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => resetHomePageSection('featuredServices')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <TextField label="Eyebrow" value={homePageDraft.featuredServices.eyebrow} onChange={(value) => updateHomePageField('featuredServices', 'eyebrow', value)} />
+                  <TextField label="Заголовок" value={homePageDraft.featuredServices.title} onChange={(value) => updateHomePageField('featuredServices', 'title', value)} />
+                  <TextAreaField label="Описание" value={homePageDraft.featuredServices.description} onChange={(value) => updateHomePageField('featuredServices', 'description', value)} rows={4} />
+                  <TextField label="Кнопка" value={homePageDraft.featuredServices.actionLabel} onChange={(value) => updateHomePageField('featuredServices', 'actionLabel', value)} />
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-[20px] font-extrabold text-ink">Блок специалистов</h3>
+                    <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                      Заголовки секции с карточками специалистов.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => resetHomePageSection('featuredSpecialists')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <TextField label="Eyebrow" value={homePageDraft.featuredSpecialists.eyebrow} onChange={(value) => updateHomePageField('featuredSpecialists', 'eyebrow', value)} />
+                  <TextField label="Заголовок" value={homePageDraft.featuredSpecialists.title} onChange={(value) => updateHomePageField('featuredSpecialists', 'title', value)} />
+                  <TextAreaField label="Описание" value={homePageDraft.featuredSpecialists.description} onChange={(value) => updateHomePageField('featuredSpecialists', 'description', value)} rows={4} />
+                  <TextField label="Кнопка" value={homePageDraft.featuredSpecialists.actionLabel} onChange={(value) => updateHomePageField('featuredSpecialists', 'actionLabel', value)} />
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void saveHomePage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать секции
+            </button>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Контакты и карточки доверия"
+          subtitle="Нижний контактный блок и три правые карточки рядом с ним."
+        >
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="space-y-4">
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-[20px] font-extrabold text-ink">Контактный блок</h3>
+                    <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                      Тексты карточки слева. Адрес, телефон и часы работы автоматически берутся из раздела «Контакты».
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => resetHomePageSection('contacts')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <TextField label="Eyebrow" value={homePageDraft.contacts.eyebrow} onChange={(value) => updateHomePageField('contacts', 'eyebrow', value)} />
+                  <TextField label="Заголовок" value={homePageDraft.contacts.title} onChange={(value) => updateHomePageField('contacts', 'title', value)} />
+                  <TextAreaField label="Описание" value={homePageDraft.contacts.description} onChange={(value) => updateHomePageField('contacts', 'description', value)} rows={4} />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <TextField label="Кнопка primary" value={homePageDraft.contacts.primaryCtaLabel} onChange={(value) => updateHomePageField('contacts', 'primaryCtaLabel', value)} />
+                    <TextField label="Кнопка secondary" value={homePageDraft.contacts.secondaryCtaLabel} onChange={(value) => updateHomePageField('contacts', 'secondaryCtaLabel', value)} />
+                  </div>
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-[20px] font-extrabold text-ink">Карточки доверия справа</h3>
+                    <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                      Три небольшие карточки рядом с контактным блоком.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetHomePageHighlights}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-4">
+                  {homePageDraft.highlights.map((item, index) => (
+                    <div key={`home-page-highlight-${index}`} className="rounded-2xl bg-[#f7f9fc] px-4 py-4">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Карточка {index + 1}</p>
+                      <div className="mt-3 grid gap-3">
+                        <TextField label="Заголовок" value={item.title} onChange={(value) => updateHomePageHighlightItem(index, 'title', value)} />
+                        <TextAreaField label="Описание" value={item.description} onChange={(value) => updateHomePageHighlightItem(index, 'description', value)} rows={4} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+
+            <div className="space-y-4">
+              <article className="rounded-[24px] border border-line bg-[#fbfcfe] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр контактов</p>
+                <div className="mt-4 rounded-[24px] bg-white px-4 py-4">
+                  <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{homePageDraft.contacts.eyebrow}</p>
+                  <p className="mt-3 text-[28px] font-extrabold leading-tight text-ink">{homePageDraft.contacts.title}</p>
+                  <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{homePageDraft.contacts.description}</p>
+                  <div className="mt-5 grid gap-3 text-[14px] leading-relaxed text-[#5f6773]">
+                    <div className="rounded-2xl bg-[#f7f9fc] px-4 py-3">{contactAddress}</div>
+                    <div className="rounded-2xl bg-[#f7f9fc] px-4 py-3">{contactPhone}</div>
+                    <div className="rounded-2xl bg-[#f7f9fc] px-4 py-3">{contactHours}</div>
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                      {homePageDraft.contacts.primaryCtaLabel}
+                    </button>
+                    <button type="button" className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-ink">
+                      {homePageDraft.contacts.secondaryCtaLabel}
+                    </button>
+                  </div>
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-line bg-[#fbfcfe] px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#8d95a1]">Предпросмотр карточек</p>
+                <div className="mt-4 space-y-3">
+                  {homePageDraft.highlights.map((item, index) => (
+                    <div key={`home-page-highlight-preview-${index}`} className="rounded-2xl bg-white px-4 py-4">
+                      <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{item.title}</p>
+                      <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void saveHomePage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать блок
+            </button>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Финальный CTA"
+          subtitle="Последний призыв к записи в нижней части главной страницы."
+        >
+          <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[20px] font-extrabold text-ink">Нижний call to action</h3>
+                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  Секция завершения страницы с кнопками перехода к записи и специалистам.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => resetHomePageSection('bottomCta')}
+                className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+              >
+                Сбросить
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              <div className="grid gap-3">
+                <TextField label="Eyebrow" value={homePageDraft.bottomCta.eyebrow} onChange={(value) => updateHomePageField('bottomCta', 'eyebrow', value)} />
+                <TextField label="Заголовок" value={homePageDraft.bottomCta.title} onChange={(value) => updateHomePageField('bottomCta', 'title', value)} />
+                <TextAreaField label="Описание" value={homePageDraft.bottomCta.description} onChange={(value) => updateHomePageField('bottomCta', 'description', value)} rows={4} />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField label="Кнопка primary" value={homePageDraft.bottomCta.primaryCtaLabel} onChange={(value) => updateHomePageField('bottomCta', 'primaryCtaLabel', value)} />
+                  <TextField label="Кнопка secondary" value={homePageDraft.bottomCta.secondaryCtaLabel} onChange={(value) => updateHomePageField('bottomCta', 'secondaryCtaLabel', value)} />
+                </div>
+              </div>
+
+              <div className="rounded-[24px] bg-[#1f2d39] px-4 py-4 text-white">
+                <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-white/62">{homePageDraft.bottomCta.eyebrow}</p>
+                <p className="mt-3 text-[28px] font-extrabold leading-tight">{homePageDraft.bottomCta.title}</p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-white/76">{homePageDraft.bottomCta.description}</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-2xl bg-white px-4 py-3 text-[14px] font-extrabold text-[#1f2d39]">
+                    {homePageDraft.bottomCta.primaryCtaLabel}
+                  </button>
+                  <button type="button" className="rounded-2xl border border-white/24 bg-transparent px-4 py-3 text-[14px] font-extrabold text-white">
+                    {homePageDraft.bottomCta.secondaryCtaLabel}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void saveHomePage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать главную
+            </button>
+          </div>
+        </SectionCard>
+      </div>
+    );
+  };
 
   const renderGeneralDetail = () => (
     <div className="space-y-5">
@@ -5811,6 +6407,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </button>
         </div>
 
+        {activeCategory === 'home' ? renderHomeDetail() : null}
         {activeCategory === 'general' ? renderGeneralDetail() : null}
         {activeCategory === 'services' ? renderServicesDetail() : null}
         {activeCategory === 'specialists' ? renderSpecialistsDetail() : null}
@@ -5828,7 +6425,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const quickItems = activeCategory
       ? categorySnapshots.filter((item) => item.key !== activeCategory).slice(0, 3)
       : categorySnapshots.slice(0, 4);
-    const configuredBookingContentCount =
+    const configuredClientSiteContentCount =
+      countConfiguredSiteHomePageSections(config?.extra ?? {}) +
       countConfiguredSiteBookingPageSections(config?.extra ?? {}) +
       countConfiguredSitePageHeroes(config?.extra ?? {}) +
       siteCardsDraft.policy.sections.length;
@@ -5856,7 +6454,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               </div>
               <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Контента</p>
-                <p className="mt-2 text-[24px] font-extrabold text-white">{configuredBookingContentCount}</p>
+                <p className="mt-2 text-[24px] font-extrabold text-white">{configuredClientSiteContentCount}</p>
               </div>
               <div className="rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgba(255,255,255,0.64)]">Специалистов</p>
@@ -5977,7 +6575,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                     Контента
                   </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">
-                    {countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) +
+                    {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) +
+                      countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSitePageHeroes(previewState.data.config.extra ?? {})}
                   </p>
                 </div>
@@ -5994,9 +6593,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   {previewState.data.config.brandName || 'Онлайн-запись'}
                 </p>
                 <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                  {countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) > 0
-                    ? 'Проверка собрана по тем же hero- и booking-настройкам, которые использует сайт mari.'
-                    : 'Контент страницы записи пока в дефолтном состоянии. Можно перейти в раздел страницы и настроить тексты точечно.'}
+                  {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) > 0 ||
+                  countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) > 0
+                    ? 'Проверка собрана по тем же настройкам главной страницы и страницы записи, которые использует сайт mari.'
+                    : 'Главная страница и страница записи пока в дефолтном состоянии. Можно перейти в нужный раздел и настроить тексты точечно.'}
                 </p>
                 <button
                   type="button"
