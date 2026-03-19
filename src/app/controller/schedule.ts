@@ -23,7 +23,7 @@ export function toFlatWorkingHours(hours: Record<number, string[]>) {
         return;
       }
       items.push({
-        dayOfWeek: day,
+        dayOfWeek: day === 7 ? 0 : day,
         startTime: parsed.start,
         endTime: parsed.end,
       });
@@ -46,4 +46,3 @@ export function deriveEditorTimes(hours: Record<number, string[]>, days: number[
   }
   return { start, end };
 }
-

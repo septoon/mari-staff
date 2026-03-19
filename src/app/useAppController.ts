@@ -92,6 +92,8 @@ const EDIT_PERMISSION = {
   selfProfile: 'EDIT_SELF_PROFILE',
 } as const;
 
+const LIVE_SYNC_INTERVAL_MS = 20_000;
+
 const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   VIEW_JOURNAL: ['VIEW_JOURNAL', 'EDIT_JOURNAL', 'ACCESS_JOURNAL'],
   EDIT_JOURNAL: ['EDIT_JOURNAL', 'ACCESS_JOURNAL'],
@@ -967,6 +969,89 @@ export function useAppController(): AppController {
     }
     void loadWorkingHours(staff);
   }, [isAuthorized, loadWorkingHours, page, staff, tab]);
+
+  const syncLiveData = useCallback(
+    async ({ includeHistory = false }: { includeHistory?: boolean } = {}) => {
+      if (!isAuthorized) {
+        return;
+      }
+
+      const shouldSyncJournal =
+        canViewJournal &&
+        (tab === 'journal' ||
+          page === 'journalAppointment' ||
+          page === 'journalClient' ||
+          page === 'journalDayEdit' ||
+          page === 'journalDayRemove');
+      const shouldSyncSchedule =
+        canViewSchedule &&
+        staff.length > 0 &&
+        (tab === 'schedule' ||
+          page === 'scheduleEditor' ||
+          page === 'journalDayEdit' ||
+          page === 'journalDayRemove');
+
+      const tasks: Promise<unknown>[] = [];
+
+      if (shouldSyncJournal) {
+        tasks.push(loadAppointments(selectedDate));
+        tasks.push(loadJournalMarkedDates(selectedDate));
+        if (includeHistory) {
+          tasks.push(loadJournalListAppointments());
+        }
+      }
+
+      if (shouldSyncSchedule) {
+        tasks.push(loadWorkingHours(staff));
+      }
+
+      if (tasks.length > 0) {
+        await Promise.all(tasks);
+      }
+    },
+    [
+      canViewJournal,
+      canViewSchedule,
+      isAuthorized,
+      loadAppointments,
+      loadJournalListAppointments,
+      loadJournalMarkedDates,
+      loadWorkingHours,
+      page,
+      selectedDate,
+      staff,
+      tab,
+    ],
+  );
+
+  useEffect(() => {
+    if (!isAuthorized) {
+      return;
+    }
+
+    const handleForegroundSync = () => {
+      void syncLiveData({ includeHistory: true });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleForegroundSync();
+      }
+    };
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void syncLiveData();
+      }
+    }, LIVE_SYNC_INTERVAL_MS);
+
+    window.addEventListener('focus', handleForegroundSync);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleForegroundSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthorized, syncLiveData]);
 
   const closeStaffForm = useCallback(() => {
     setStaffFormMode(null);
