@@ -16,7 +16,6 @@ import {
   Rocket,
   Save,
   Search,
-  Settings2,
   Shield,
   SlidersHorizontal,
   Trash2,
@@ -46,6 +45,15 @@ import {
   type SiteHomePageDraft,
 } from '../clientSiteHomePage';
 import {
+  SITE_SPECIALISTS_PAGE_DEFAULTS,
+  SITE_SPECIALISTS_PAGE_SECTION_COUNT,
+  applySiteSpecialistsPageTemplate,
+  countConfiguredSiteSpecialistsPageSections,
+  createSiteSpecialistsPageDraft,
+  mergeSiteSpecialistsPageIntoExtra,
+  type SiteSpecialistsPageDraft,
+} from '../clientSiteSpecialistsPage';
+import {
   createSiteCardsDraft,
   mergeSiteCardsIntoExtra,
   type SiteCardsDraft,
@@ -71,7 +79,6 @@ type ClientSiteEditorScreenProps = {
 
 type CategoryKey =
   | 'home'
-  | 'general'
   | 'services'
   | 'specialists'
   | 'contacts'
@@ -317,7 +324,6 @@ const CLIENT_SITE_EDITOR_BASE_ROUTE = '/online-booking';
 
 const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
   home: 'glavnaya',
-  general: 'osnovnoe',
   services: 'uslugi',
   specialists: 'specialisty',
   contacts: 'kontakty',
@@ -543,14 +549,6 @@ const categories: CategoryMeta[] = [
     icon: House,
   },
   {
-    key: 'general',
-    title: 'Основное',
-    description: 'Бренд, техработы и базовые параметры клиентского сайта.',
-    note: 'Базовые настройки приложения и сайта без смешивания с контентом страницы.',
-    tags: ['бренд', 'техработы', 'версии приложения'],
-    icon: Settings2,
-  },
-  {
     key: 'services',
     title: 'Услуги',
     description: 'Витрина онлайн-записи: как существующие услуги выглядят для клиента.',
@@ -561,9 +559,9 @@ const categories: CategoryMeta[] = [
   {
     key: 'specialists',
     title: 'Специалисты',
-    description: 'Карточки мастеров для клиентского сайта и записи.',
-    note: 'Фото, специализация, текст кнопки записи, видимость и порядок карточек для клиента.',
-    tags: ['фото', 'специализация', 'видимость', 'кнопка записи'],
+    description: 'Карточки мастеров и тексты клиентских страниц `/masters` и `/masters/{slug}`.',
+    note: 'Фото, специализация, текст кнопки записи, видимость, порядок карточек и контент страниц специалистов для клиента.',
+    tags: ['фото', 'специализация', 'видимость', 'страница /masters'],
     icon: Users,
   },
   {
@@ -1515,6 +1513,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const [homePageDraft, setHomePageDraft] = useState<SiteHomePageDraft>(() =>
     createSiteHomePageDraft({})
   );
+  const [specialistsPageDraft, setSpecialistsPageDraft] = useState<SiteSpecialistsPageDraft>(() =>
+    createSiteSpecialistsPageDraft({})
+  );
   const [siteCardsDraft, setSiteCardsDraft] = useState<SiteCardsDraft>(() => createSiteCardsDraft({}));
   const [advancedDraft, setAdvancedDraft] = useState<AdvancedDraft>({
     featureFlagsJson: '{}',
@@ -1635,6 +1636,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setPageHeroDraft(createSitePageHeroDraft(config.extra ?? {}));
     setBookingPageDraft(createSiteBookingPageDraft(config.extra ?? {}));
     setHomePageDraft(createSiteHomePageDraft(config.extra ?? {}));
+    setSpecialistsPageDraft(createSiteSpecialistsPageDraft(config.extra ?? {}));
     setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
       featureFlagsJson: toJsonText(config.featureFlags ?? {}),
@@ -1794,19 +1796,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             ],
             warning: screenData.config.error || undefined,
           };
-        case 'general':
-          return {
-            ...category,
-            stat: screenData.config.error ? screenData.config.error : formatVersionNumber(config?.publishedVersion),
-            details: config
-              ? [
-                  `Бренд: ${config.brandName?.trim() || 'не задан'}`,
-                  `Техработы: ${config.maintenanceMode ? 'включены' : 'выключены'}`,
-                  `Минимальная версия iOS: ${config.minAppVersionIos || 'не задана'}`,
-                ]
-              : ['Конфигурация пока недоступна.'],
-            warning: config?.maintenanceMode ? config.maintenanceMessage || 'Техработы включены без текста.' : screenData.config.error || undefined,
-          };
         case 'services':
           return {
             ...category,
@@ -1827,6 +1816,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             details: specialists.length
               ? [
                   `Видимых карточек: ${visibleSpecialists.length}`,
+                  `Настроек страницы: ${countConfiguredSiteSpecialistsPageSections(config?.extra ?? {})}/${SITE_SPECIALISTS_PAGE_SECTION_COUNT}`,
                   `С фото: ${specialists.filter((item) => item.photoAssetId).length}`,
                   `С привязанными услугами: ${specialists.filter((item) => item.services.length > 0).length}`,
                 ]
@@ -2144,6 +2134,50 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         extra: mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
       },
       'Главная страница сайта сохранена',
+    );
+  };
+
+  const updateSpecialistsPageField = <
+    TSection extends keyof SiteSpecialistsPageDraft,
+    TField extends keyof SiteSpecialistsPageDraft[TSection]
+  >(
+    section: TSection,
+    field: TField,
+    value: string,
+  ) => {
+    setSpecialistsPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetSpecialistsPageSection = (section: keyof SiteSpecialistsPageDraft) => {
+    setSpecialistsPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...SITE_SPECIALISTS_PAGE_DEFAULTS[section],
+      },
+    }));
+  };
+
+  const saveSpecialistsPage = async () => {
+    const nextExtra = mergeSiteSpecialistsPageIntoExtra(config?.extra ?? {}, specialistsPageDraft);
+    const currentPageHero = asObjectRecord(asObjectRecord(config?.extra ?? {}).pageHero);
+
+    nextExtra.pageHero = {
+      ...currentPageHero,
+      masters: pageHeroDraft.masters,
+      masterDetails: pageHeroDraft.masterDetails,
+    };
+
+    await saveConfigPatch(
+      {
+        extra: nextExtra,
+      },
+      'Страницы специалистов сохранены',
     );
   };
 
@@ -4453,49 +4487,53 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
-  const renderGeneralDetail = () => (
-    <div className="space-y-5">
-      <SectionCard title="Основные настройки" subtitle="Управляют базовыми данными клиентского сайта: названием, техработами и ограничениями по версиям приложения.">
-        <div className="grid gap-4">
-          <TextField label="Бренд" value={generalDraft.brandName} onChange={(value) => setGeneralDraft((prev) => ({ ...prev, brandName: value }))} />
-          <TextField label="Юр. название" value={generalDraft.legalName} onChange={(value) => setGeneralDraft((prev) => ({ ...prev, legalName: value }))} />
-          <TextField
-            label="Мин. версия iOS"
-            value={generalDraft.minAppVersionIos}
-            onChange={(value) => setGeneralDraft((prev) => ({ ...prev, minAppVersionIos: value }))}
-            placeholder="1.0.0"
-          />
-          <TextField
-            label="Мин. версия Android"
-            value={generalDraft.minAppVersionAndroid}
-            onChange={(value) => setGeneralDraft((prev) => ({ ...prev, minAppVersionAndroid: value }))}
-            placeholder="1.0.0"
-          />
-          <ToggleField
-            label="Режим техработ"
-            checked={generalDraft.maintenanceMode}
-            onToggle={() => setGeneralDraft((prev) => ({ ...prev, maintenanceMode: !prev.maintenanceMode }))}
-          />
-          <TextAreaField
-            label="Сообщение о техработах"
-            value={generalDraft.maintenanceMessage}
-            onChange={(value) => setGeneralDraft((prev) => ({ ...prev, maintenanceMessage: value }))}
-            rows={4}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            void saveGeneral();
-          }}
-          disabled={busyKey === 'config'}
-          className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
-        >
-          {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Сохранить и опубликовать
-        </button>
-      </SectionCard>
-    </div>
+  const renderGeneralSettingsSection = () => (
+    <SectionCard
+      title="Базовая конфигурация сайта"
+      subtitle="Бренд, юр. данные, техработы и ограничения по версиям приложения теперь живут здесь вместо отдельной страницы."
+    >
+      <div className="rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#39516d]">
+        Эти поля не относятся к отдельной клиентской странице, но влияют на bootstrap сайта, сообщения о техработах и публикацию.
+      </div>
+      <div className="mt-4 grid gap-4">
+        <TextField label="Бренд" value={generalDraft.brandName} onChange={(value) => setGeneralDraft((prev) => ({ ...prev, brandName: value }))} />
+        <TextField label="Юр. название" value={generalDraft.legalName} onChange={(value) => setGeneralDraft((prev) => ({ ...prev, legalName: value }))} />
+        <TextField
+          label="Мин. версия iOS"
+          value={generalDraft.minAppVersionIos}
+          onChange={(value) => setGeneralDraft((prev) => ({ ...prev, minAppVersionIos: value }))}
+          placeholder="1.0.0"
+        />
+        <TextField
+          label="Мин. версия Android"
+          value={generalDraft.minAppVersionAndroid}
+          onChange={(value) => setGeneralDraft((prev) => ({ ...prev, minAppVersionAndroid: value }))}
+          placeholder="1.0.0"
+        />
+        <ToggleField
+          label="Режим техработ"
+          checked={generalDraft.maintenanceMode}
+          onToggle={() => setGeneralDraft((prev) => ({ ...prev, maintenanceMode: !prev.maintenanceMode }))}
+        />
+        <TextAreaField
+          label="Сообщение о техработах"
+          value={generalDraft.maintenanceMessage}
+          onChange={(value) => setGeneralDraft((prev) => ({ ...prev, maintenanceMessage: value }))}
+          rows={4}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          void saveGeneral();
+        }}
+        disabled={busyKey === 'config'}
+        className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+      >
+        {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        Сохранить и опубликовать конфигурацию
+      </button>
+    </SectionCard>
   );
 
   const renderServicesDetail = () => {
@@ -4639,80 +4677,448 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
-  const renderSpecialistsDetail = () => (
-    <div className="space-y-5">
-      <SectionCard title="Карточки специалистов" subtitle="Управляют MasterCard на клиентском сайте. Добавление и удаление карточки здесь означает показать или скрыть существующего мастера на сайте.">
-        <div className="space-y-3">
-          {specialists.length === 0 ? (
-            <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Нет карточек специалистов.</div>
-          ) : (
-            [...specialists]
-              .sort((left, right) => {
-                if (left.isVisible !== right.isVisible) {
-                  return left.isVisible ? -1 : 1;
-                }
-                return left.name.localeCompare(right.name, 'ru');
-              })
-              .map((item) => (
-              <div key={item.staffId} className="rounded-2xl bg-white px-4 py-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2f7]">
-                    {item.photo?.preferredUrl || item.photo?.originalUrl ? (
-                      <img
-                        src={item.photo?.preferredUrl || item.photo?.originalUrl || ''}
-                        alt={item.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Users className="h-6 w-6 text-[#68768a]" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[18px] font-extrabold text-ink">{item.name}</p>
-                        <p className="mt-1 text-[14px] font-medium text-[#5f6773]">
-                          {item.specialty || 'Без специализации'} • {item.isVisible ? 'Виден клиенту' : 'Скрыт'}
-                        </p>
-                        <p className="mt-1 text-[13px] font-semibold text-[#8590a0]">
-                          Кнопка записи: {item.ctaText || 'Записаться'} • Услуг: {item.services.length}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void toggleSpecialistVisibility(item, !item.isVisible);
-                          }}
-                          disabled={busyKey === `specialist-visibility:${item.staffId}`}
-                          className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773] disabled:opacity-50"
-                        >
-                          {busyKey === `specialist-visibility:${item.staffId}` ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : item.isVisible ? (
-                            'Скрыть'
-                          ) : (
-                            'На сайт'
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openSpecialistEditor(item)}
-                          className="rounded-2xl border border-line p-3 text-[#6c7685]"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+  const renderSpecialistsDetail = () => {
+    const mastersHeroDefinition =
+      SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'masters') ?? null;
+    const masterDetailsHeroDefinition =
+      SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'masterDetails') ?? null;
+
+    if (!mastersHeroDefinition || !masterDetailsHeroDefinition) {
+      return null;
+    }
+
+    const mastersHeroPreview = resolveSitePageHeroPreview(mastersHeroDefinition, pageHeroDraft.masters);
+    const masterDetailsHeroPreview = resolveSitePageHeroPreview(
+      masterDetailsHeroDefinition,
+      pageHeroDraft.masterDetails,
+    );
+    const previewListDetails = [
+      applySiteSpecialistsPageTemplate(specialistsPageDraft.listPage.detailsCountTemplate, {
+        count: Math.max(specialists.filter((item) => item.isVisible).length, 1),
+      }),
+      specialistsPageDraft.listPage.detailsFilterText,
+    ];
+    const previewDetailServices = applySiteSpecialistsPageTemplate(
+      specialistsPageDraft.detailPage.detailsServicesTemplate,
+      { count: 5 },
+    );
+    const previewDetailCategories = applySiteSpecialistsPageTemplate(
+      specialistsPageDraft.detailPage.detailsCategoriesTemplate,
+      { categories: 'Окрашивание, Уход, Укладки' },
+    );
+
+    return (
+      <div className="space-y-5">
+        <SectionCard
+          title="Страницы специалистов на клиентском сайте"
+          subtitle="Этот раздел теперь управляет не только карточками мастеров, но и реальными страницами `/masters` и `/masters/{slug}` в mari."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                void saveSpecialistsPage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
+            </button>
+          }
+        >
+          <div className="rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#39516d]">
+            <span className="font-extrabold text-ink">Связка:</span>
+            {' '}
+            `mari-staff` сохраняет карточки мастеров, hero-шаблоны и тексты страниц в
+            {' '}
+            `client-front`,
+            {' '}
+            сервер сразу публикует bootstrap,
+            {' '}
+            а `mari` из этих данных собирает `/masters` и {'`/masters/{slug}`'}.
+          </div>
+
+          <div className="mt-4 grid gap-5 xl:grid-cols-2">
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Страница `/masters`</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Hero, подписи деталей и финальный CTA списка специалистов.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => resetPageHeroFields('masters')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить hero
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetSpecialistsPageSection('listPage')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить тексты
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <TextField
+                  label="Hero eyebrow"
+                  value={pageHeroDraft.masters.eyebrow}
+                  onChange={(value) => updatePageHeroField('masters', 'eyebrow', value)}
+                  placeholder={mastersHeroDefinition.defaults.eyebrow || ''}
+                />
+                <TextField
+                  label="Hero title"
+                  value={pageHeroDraft.masters.title}
+                  onChange={(value) => updatePageHeroField('masters', 'title', value)}
+                  placeholder={mastersHeroDefinition.defaults.title}
+                />
+                <TextAreaField
+                  label="Hero description"
+                  value={pageHeroDraft.masters.description}
+                  onChange={(value) => updatePageHeroField('masters', 'description', value)}
+                  rows={4}
+                  placeholder={mastersHeroDefinition.defaults.description}
+                />
+                <TextField
+                  label="Кнопка hero"
+                  value={specialistsPageDraft.listPage.heroPrimaryCtaLabel}
+                  onChange={(value) => updateSpecialistsPageField('listPage', 'heroPrimaryCtaLabel', value)}
+                />
+                <TextField
+                  label="Подпись количества"
+                  value={specialistsPageDraft.listPage.detailsCountTemplate}
+                  onChange={(value) => updateSpecialistsPageField('listPage', 'detailsCountTemplate', value)}
+                  placeholder="{count} специалистов в каталоге."
+                />
+                <TextField
+                  label="Подпись фильтра"
+                  value={specialistsPageDraft.listPage.detailsFilterText}
+                  onChange={(value) => updateSpecialistsPageField('listPage', 'detailsFilterText', value)}
+                />
+                <TextField
+                  label="CTA eyebrow"
+                  value={specialistsPageDraft.listPage.ctaEyebrow}
+                  onChange={(value) => updateSpecialistsPageField('listPage', 'ctaEyebrow', value)}
+                />
+                <TextField
+                  label="CTA title"
+                  value={specialistsPageDraft.listPage.ctaTitle}
+                  onChange={(value) => updateSpecialistsPageField('listPage', 'ctaTitle', value)}
+                />
+                <TextAreaField
+                  label="CTA description"
+                  value={specialistsPageDraft.listPage.ctaDescription}
+                  onChange={(value) => updateSpecialistsPageField('listPage', 'ctaDescription', value)}
+                  rows={4}
+                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField
+                    label="CTA primary"
+                    value={specialistsPageDraft.listPage.ctaPrimaryLabel}
+                    onChange={(value) => updateSpecialistsPageField('listPage', 'ctaPrimaryLabel', value)}
+                  />
+                  <TextField
+                    label="CTA secondary"
+                    value={specialistsPageDraft.listPage.ctaSecondaryLabel}
+                    onChange={(value) => updateSpecialistsPageField('listPage', 'ctaSecondaryLabel', value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                {mastersHeroPreview.eyebrow ? (
+                  <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+                    {mastersHeroPreview.eyebrow}
+                  </p>
+                ) : null}
+                <p className="mt-3 text-[26px] font-extrabold leading-tight text-ink">{mastersHeroPreview.title}</p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {mastersHeroPreview.description}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                    {specialistsPageDraft.listPage.heroPrimaryCtaLabel}
+                  </button>
+                </div>
+                <div className="mt-4 space-y-2 rounded-2xl bg-white px-4 py-4 text-[14px] font-medium text-[#5f6773]">
+                  {previewListDetails.map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Шаблон `/masters/{'{slug}'}`</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Hero карточки мастера, подписи деталей, секция услуг и финальный CTA.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => resetPageHeroFields('masterDetails')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить hero
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetSpecialistsPageSection('detailPage')}
+                    className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                  >
+                    Сбросить тексты
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <TextField
+                  label="Hero eyebrow"
+                  value={pageHeroDraft.masterDetails.eyebrow}
+                  onChange={(value) => updatePageHeroField('masterDetails', 'eyebrow', value)}
+                  placeholder={masterDetailsHeroDefinition.defaults.eyebrow || ''}
+                />
+                <TextField
+                  label="Hero title"
+                  value={pageHeroDraft.masterDetails.title}
+                  onChange={(value) => updatePageHeroField('masterDetails', 'title', value)}
+                  placeholder={masterDetailsHeroDefinition.defaults.title}
+                />
+                <TextAreaField
+                  label="Hero description"
+                  value={pageHeroDraft.masterDetails.description}
+                  onChange={(value) => updatePageHeroField('masterDetails', 'description', value)}
+                  rows={4}
+                  placeholder={masterDetailsHeroDefinition.defaults.description}
+                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField
+                    label="Кнопка hero primary"
+                    value={specialistsPageDraft.detailPage.heroPrimaryCtaLabel}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'heroPrimaryCtaLabel', value)}
+                  />
+                  <TextField
+                    label="Кнопка hero secondary"
+                    value={specialistsPageDraft.detailPage.heroSecondaryCtaLabel}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'heroSecondaryCtaLabel', value)}
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <TextField
+                    label="Подпись количества услуг"
+                    value={specialistsPageDraft.detailPage.detailsServicesTemplate}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'detailsServicesTemplate', value)}
+                    placeholder="{count} услуг доступно для онлайн-записи."
+                  />
+                  <TextField
+                    label="Подпись направлений"
+                    value={specialistsPageDraft.detailPage.detailsCategoriesTemplate}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'detailsCategoriesTemplate', value)}
+                    placeholder="Направления: {categories}."
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <TextField
+                    label="О специалисте"
+                    value={specialistsPageDraft.detailPage.aboutEyebrow}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'aboutEyebrow', value)}
+                  />
+                  <TextField
+                    label="Лейбл специализации"
+                    value={specialistsPageDraft.detailPage.aboutSpecialtyLabel}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'aboutSpecialtyLabel', value)}
+                  />
+                  <TextField
+                    label="Лейбл категорий"
+                    value={specialistsPageDraft.detailPage.aboutCategoriesLabel}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'aboutCategoriesLabel', value)}
+                  />
+                </div>
+                <TextField
+                  label="Лейбл даты обновления"
+                  value={specialistsPageDraft.detailPage.aboutUpdatedLabel}
+                  onChange={(value) => updateSpecialistsPageField('detailPage', 'aboutUpdatedLabel', value)}
+                />
+                <TextField
+                  label="Approach eyebrow"
+                  value={specialistsPageDraft.detailPage.approachEyebrow}
+                  onChange={(value) => updateSpecialistsPageField('detailPage', 'approachEyebrow', value)}
+                />
+                <TextField
+                  label="Approach title"
+                  value={specialistsPageDraft.detailPage.approachTitle}
+                  onChange={(value) => updateSpecialistsPageField('detailPage', 'approachTitle', value)}
+                />
+                <TextAreaField
+                  label="Approach description"
+                  value={specialistsPageDraft.detailPage.approachDescription}
+                  onChange={(value) => updateSpecialistsPageField('detailPage', 'approachDescription', value)}
+                  rows={4}
+                />
+                <div className="grid gap-3">
+                  <TextField
+                    label="Eyebrow секции услуг"
+                    value={specialistsPageDraft.detailPage.servicesEyebrow}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'servicesEyebrow', value)}
+                  />
+                  <TextField
+                    label="Заголовок секции услуг"
+                    value={specialistsPageDraft.detailPage.servicesTitle}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'servicesTitle', value)}
+                  />
+                  <TextAreaField
+                    label="Описание секции услуг"
+                    value={specialistsPageDraft.detailPage.servicesDescription}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'servicesDescription', value)}
+                    rows={4}
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <TextField
+                    label="CTA eyebrow"
+                    value={specialistsPageDraft.detailPage.ctaEyebrow}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'ctaEyebrow', value)}
+                  />
+                  <TextField
+                    label="CTA title"
+                    value={specialistsPageDraft.detailPage.ctaTitle}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'ctaTitle', value)}
+                  />
+                  <TextAreaField
+                    label="CTA description"
+                    value={specialistsPageDraft.detailPage.ctaDescription}
+                    onChange={(value) => updateSpecialistsPageField('detailPage', 'ctaDescription', value)}
+                    rows={4}
+                  />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <TextField
+                      label="CTA primary"
+                      value={specialistsPageDraft.detailPage.ctaPrimaryLabel}
+                      onChange={(value) => updateSpecialistsPageField('detailPage', 'ctaPrimaryLabel', value)}
+                    />
+                    <TextField
+                      label="CTA secondary"
+                      value={specialistsPageDraft.detailPage.ctaSecondaryLabel}
+                      onChange={(value) => updateSpecialistsPageField('detailPage', 'ctaSecondaryLabel', value)}
+                    />
                   </div>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      </SectionCard>
-    </div>
-  );
+
+              <div className="mt-4 rounded-[24px] bg-[#f4f6f9] px-4 py-4">
+                {masterDetailsHeroPreview.eyebrow ? (
+                  <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+                    {masterDetailsHeroPreview.eyebrow}
+                  </p>
+                ) : null}
+                <p className="mt-3 text-[26px] font-extrabold leading-tight text-ink">{masterDetailsHeroPreview.title}</p>
+                <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                  {masterDetailsHeroPreview.description}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                    {specialistsPageDraft.detailPage.heroPrimaryCtaLabel}
+                  </button>
+                  <button type="button" className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-ink">
+                    {specialistsPageDraft.detailPage.heroSecondaryCtaLabel}
+                  </button>
+                </div>
+                <div className="mt-4 space-y-2 rounded-2xl bg-white px-4 py-4 text-[14px] font-medium text-[#5f6773]">
+                  <p>{previewDetailServices}</p>
+                  <p>{previewDetailCategories}</p>
+                  <p>{specialistsPageDraft.detailPage.approachTitle}</p>
+                  <p>{specialistsPageDraft.detailPage.servicesTitle}</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Карточки специалистов"
+          subtitle="Управляют карточками мастеров на клиентском сайте. Добавление и удаление карточки здесь означает показать или скрыть существующего мастера на сайте."
+        >
+          <div className="space-y-3">
+            {specialists.length === 0 ? (
+              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Нет карточек специалистов.</div>
+            ) : (
+              [...specialists]
+                .sort((left, right) => {
+                  if (left.isVisible !== right.isVisible) {
+                    return left.isVisible ? -1 : 1;
+                  }
+                  return left.name.localeCompare(right.name, 'ru');
+                })
+                .map((item) => (
+                  <div key={item.staffId} className="rounded-2xl bg-white px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#eef2f7]">
+                        {item.photo?.preferredUrl || item.photo?.originalUrl ? (
+                          <img
+                            src={item.photo?.preferredUrl || item.photo?.originalUrl || ''}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Users className="h-6 w-6 text-[#68768a]" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[18px] font-extrabold text-ink">{item.name}</p>
+                            <p className="mt-1 text-[14px] font-medium text-[#5f6773]">
+                              {item.specialty || 'Без специализации'} • {item.isVisible ? 'Виден клиенту' : 'Скрыт'}
+                            </p>
+                            <p className="mt-1 text-[13px] font-semibold text-[#8590a0]">
+                              Кнопка записи: {item.ctaText || 'Записаться'} • Услуг: {item.services.length}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void toggleSpecialistVisibility(item, !item.isVisible);
+                              }}
+                              disabled={busyKey === `specialist-visibility:${item.staffId}`}
+                              className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773] disabled:opacity-50"
+                            >
+                              {busyKey === `specialist-visibility:${item.staffId}` ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : item.isVisible ? (
+                                'Скрыть'
+                              ) : (
+                                'На сайт'
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openSpecialistEditor(item)}
+                              className="rounded-2xl border border-line p-3 text-[#6c7685]"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            )}
+          </div>
+        </SectionCard>
+      </div>
+    );
+  };
 
   const renderContactsDetail = () => {
     const primaryDisplayPhone = getContactPhoneInputValue(primaryContactDraft);
@@ -4804,7 +5210,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const bookingHeroDefinition =
       SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'booking') ?? null;
     const otherPageHeroDefinitions = SITE_PAGE_HERO_DEFINITIONS.filter(
-      (definition) => definition.key !== 'booking'
+      (definition) =>
+        definition.key !== 'booking' &&
+        definition.key !== 'masters' &&
+        definition.key !== 'masterDetails'
     );
 
     if (!bookingHeroDefinition) {
@@ -4834,12 +5243,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         >
           <div className="grid gap-3 xl:grid-cols-2">
             {[
-              {
-                key: 'general' as const,
-                title: 'Основное',
-                description:
-                  'Бренд, техработы и общие параметры сайта. Влияют на шапку сайта, сообщения техработ и публикацию.',
-              },
               {
                 key: 'services' as const,
                 title: 'Услуги',
@@ -5470,7 +5873,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               <article className="rounded-[24px] border border-line bg-white px-4 py-4">
                 <h3 className="text-[20px] font-extrabold text-ink">Левый блок «Кратко»</h3>
                 <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                  Это фиксированный summary-блок слева на странице политики. Значения оператора, почты и адреса подставляются из раздела `Контакты` и `Основное`.
+                  Это фиксированный summary-блок слева на странице политики. Значения оператора, почты и адреса подставляются из разделов `Контакты` и `Служебные настройки`.
                 </p>
                 <div className="mt-4 grid gap-3 xl:grid-cols-2">
                   <TextField label="Eyebrow" value={siteCardsDraft.policy.summaryEyebrow} onChange={(value) => updatePolicyField('summaryEyebrow', value)} />
@@ -5631,6 +6034,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
   const renderAdvancedDetail = () => (
     <div className="space-y-5">
+      {renderGeneralSettingsSection()}
+
       <SectionCard
         title="Служебные настройки"
         subtitle="Технический раздел для редких случаев. Если вы меняете обычный текст, кнопки, контакты, услуги или специалистов, сюда заходить не нужно."
@@ -6408,7 +6813,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
 
         {activeCategory === 'home' ? renderHomeDetail() : null}
-        {activeCategory === 'general' ? renderGeneralDetail() : null}
         {activeCategory === 'services' ? renderServicesDetail() : null}
         {activeCategory === 'specialists' ? renderSpecialistsDetail() : null}
         {activeCategory === 'contacts' ? renderContactsDetail() : null}
@@ -6427,6 +6831,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       : categorySnapshots.slice(0, 4);
     const configuredClientSiteContentCount =
       countConfiguredSiteHomePageSections(config?.extra ?? {}) +
+      countConfiguredSiteSpecialistsPageSections(config?.extra ?? {}) +
       countConfiguredSiteBookingPageSections(config?.extra ?? {}) +
       countConfiguredSitePageHeroes(config?.extra ?? {}) +
       siteCardsDraft.policy.sections.length;
@@ -6576,6 +6981,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">
                     {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) +
+                      countConfiguredSiteSpecialistsPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSitePageHeroes(previewState.data.config.extra ?? {})}
                   </p>
@@ -6594,9 +7000,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 </p>
                 <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
                   {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) > 0 ||
+                  countConfiguredSiteSpecialistsPageSections(previewState.data.config.extra ?? {}) > 0 ||
                   countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) > 0
-                    ? 'Проверка собрана по тем же настройкам главной страницы и страницы записи, которые использует сайт mari.'
-                    : 'Главная страница и страница записи пока в дефолтном состоянии. Можно перейти в нужный раздел и настроить тексты точечно.'}
+                    ? 'Проверка собрана по тем же настройкам главной страницы, специалистов и страницы записи, которые использует сайт mari.'
+                    : 'Главная страница, специалисты и страница записи пока в дефолтном состоянии. Можно перейти в нужный раздел и настроить тексты точечно.'}
                 </p>
                 <button
                   type="button"

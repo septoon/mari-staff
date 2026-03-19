@@ -23,7 +23,7 @@ test('maps online-booking section routes to client site editor page', () => {
 });
 
 test('keeps online-booking section routes compatible with client site editor state', () => {
-  expect(isRouteCompatibleWithState('/online-booking/osnovnoe', 'clientSiteEditor', 'more')).toBe(true);
+  expect(isRouteCompatibleWithState('/online-booking/specialisty', 'clientSiteEditor', 'more')).toBe(true);
   expect(isRouteCompatibleWithState('/online-booking/publikatsiya', 'clientSiteEditor', 'more')).toBe(true);
   expect(isRouteCompatibleWithState('/services', 'clientSiteEditor', 'more')).toBe(false);
 });
