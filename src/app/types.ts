@@ -339,6 +339,7 @@ export type ControllerActions = {
   handleCloseClientHistory: () => void;
   handleOpenJournalAppointment: (appointment: AppointmentItem) => void;
   handleCloseJournalAppointment: () => void;
+  handleDeleteJournalAppointment: () => Promise<void>;
   handleUpdateJournalAppointmentStatus: (
     status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED',
   ) => Promise<void>;
@@ -352,7 +353,7 @@ export type ControllerActions = {
   handleCallClient: () => void;
   handleSmsClient: () => void;
   handleWhatsAppClient: () => void;
-  handleDeleteClient: () => void;
+  handleDeleteClient: (client?: ClientItem) => Promise<boolean>;
   handleImportClientsFromContacts: (
     contacts: Array<{ name: string; phone: string }>,
   ) => Promise<{ imported: number; skipped: number }>;

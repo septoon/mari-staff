@@ -21,6 +21,7 @@ import {
   PhoneCall,
   Repeat2,
   Square,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react';
@@ -55,6 +56,7 @@ type JournalAppointmentScreenProps = {
   onCall: () => void;
   onSms: () => void;
   onWhatsApp: () => void;
+  onDelete: () => void;
 };
 
 type DesktopAppointmentDraft = {
@@ -328,6 +330,7 @@ export function JournalAppointmentScreen({
   onCall,
   onSms,
   onWhatsApp,
+  onDelete,
 }: JournalAppointmentScreenProps) {
   const [desktopEditing, setDesktopEditing] = useState(false);
   const [desktopDraft, setDesktopDraft] = useState<DesktopAppointmentDraft>(() =>
@@ -630,6 +633,18 @@ export function JournalAppointmentScreen({
 
         {loading ? (
           <p className="mt-3 text-[15px] font-semibold text-muted">Сохраняю изменения...</p>
+        ) : null}
+
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={loading}
+            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 text-sm font-semibold text-[#bc5941] disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Удалить запись
+          </button>
         ) : null}
       </div>
 
@@ -1161,6 +1176,16 @@ export function JournalAppointmentScreen({
                     ) : null}
 
                     <div className="mt-4 flex items-center justify-end gap-3">
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={onDelete}
+                          disabled={loading}
+                          className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-5 text-sm font-semibold text-[#bc5941] transition hover:border-[#e5b8ae] disabled:opacity-50"
+                        >
+                          Удалить запись
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={onBack}

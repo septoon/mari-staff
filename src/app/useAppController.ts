@@ -1768,6 +1768,56 @@ export function useAppController(): AppController {
     setTab('journal');
   };
 
+  const removeAppointmentFromLocalState = (appointmentId: string) => {
+    setAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
+    setJournalListAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
+    setJournalClientHistory((prev) => prev.filter((item) => item.id !== appointmentId));
+    setClientHistoryAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
+  };
+
+  const removeClientFromLocalState = (clientId: string) => {
+    setClients((prev) => prev.filter((item) => item.id !== clientId));
+    setAppointments((prev) => prev.filter((item) => item.clientId !== clientId));
+    setJournalListAppointments((prev) => prev.filter((item) => item.clientId !== clientId));
+    setJournalClientHistory((prev) => prev.filter((item) => item.clientId !== clientId));
+    setClientHistoryAppointments((prev) => prev.filter((item) => item.clientId !== clientId));
+    setClientActionsFor((prev) => (prev?.id === clientId ? null : prev));
+    setClientHistoryTarget((prev) => (prev?.id === clientId ? null : prev));
+    setJournalClientTarget((prev) => (prev?.id === clientId ? null : prev));
+    setJournalAppointmentTarget((prev) => (prev?.clientId === clientId ? null : prev));
+  };
+
+  const handleDeleteJournalAppointment = async () => {
+    const appointment = journalAppointmentTarget;
+    if (!appointment) {
+      return;
+    }
+    if (!canEdit(EDIT_PERMISSION.journal)) {
+      setToast('Нет прав на редактирование журнала');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Внимание: запись будет удалена навсегда вместе с оплатами и привязанным промокодом. Продолжить?',
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.delete<unknown>(`/appointments/${appointment.id}`);
+      removeAppointmentFromLocalState(appointment.id);
+      handleCloseJournalAppointment();
+      await loadAppointmentsForSelectedDate();
+      setToast('Запись удалена');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const handleUpdateJournalAppointmentStatus = async (
     status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED',
   ) => {
@@ -2018,9 +2068,59 @@ export function useAppController(): AppController {
     window.open(`https://wa.me/${digits}`, '_blank', 'noopener,noreferrer');
   };
 
-  const handleDeleteClient = () => {
-    setClientActionsFor(null);
-    setToast('Удаление клиента недоступно в текущем API');
+  const handleDeleteClient = async (clientArg?: ClientItem) => {
+    const client = clientArg ?? clientActionsFor;
+    if (!client) {
+      return false;
+    }
+    if (!canEdit(EDIT_PERMISSION.clients)) {
+      setToast('Нет прав на удаление клиентов');
+      return false;
+    }
+
+    const confirmed = window.confirm(
+      `Внимание: клиент "${client.name}" будет удален навсегда вместе с его историей записей, оплатами и активными сессиями. Продолжить?`,
+    );
+    if (!confirmed) {
+      return false;
+    }
+
+    const shouldCloseJournal =
+      journalAppointmentTarget?.clientId === client.id || journalClientTarget?.id === client.id;
+    const shouldCloseClientHistory = clientHistoryTarget?.id === client.id;
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const data = await api.delete<unknown>(`/clients/${client.id}`);
+      const response = toRecord(data);
+      const deletedAppointmentsCount = toNumber(response?.deletedAppointmentsCount) ?? 0;
+
+      removeClientFromLocalState(client.id);
+      setClientActionsFor(null);
+
+      if (shouldCloseJournal) {
+        handleCloseJournalAppointment();
+      }
+      if (shouldCloseClientHistory) {
+        setClientHistoryAppointments([]);
+        setPage('tabs');
+        setTab('clients');
+      }
+
+      await Promise.all([loadClients(debouncedClientsQuery), loadAppointmentsForSelectedDate()]);
+
+      setToast(
+        deletedAppointmentsCount > 0
+          ? `Клиент удален. Удалено записей: ${deletedAppointmentsCount}`
+          : 'Клиент удален',
+      );
+      return true;
+    } catch (error) {
+      setToast(toErrorMessage(error));
+      return false;
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
   };
 
   const handleImportClientsFromContacts = async (
@@ -3940,6 +4040,7 @@ export function useAppController(): AppController {
       handleCloseClientHistory,
       handleOpenJournalAppointment,
       handleCloseJournalAppointment,
+      handleDeleteJournalAppointment,
       handleUpdateJournalAppointmentStatus,
       handleOpenJournalClient,
       handleCloseJournalClient,

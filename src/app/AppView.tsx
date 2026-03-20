@@ -676,6 +676,9 @@ export function AppView({ controller }: AppViewProps) {
               onCall={actions.handleCallJournalClient}
               onSms={actions.handleSmsJournalClient}
               onWhatsApp={actions.handleWhatsAppJournalClient}
+              onDelete={() => {
+                void actions.handleDeleteJournalAppointment();
+              }}
             />
           </div>
         ) : null}
@@ -800,6 +803,7 @@ export function AppView({ controller }: AppViewProps) {
               void actions.resetAndLoadClients();
             }}
             onOpenClientActions={actions.handleOpenClientActions}
+            onDeleteClient={actions.handleDeleteClient}
           />
         ) : null}
         {state.page === 'tabs' && state.tab === 'analytics' ? (

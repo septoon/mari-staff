@@ -52,6 +52,7 @@ type ClientsScreenProps = {
   onOpenTools: () => void;
   onReload: () => void;
   onOpenClientActions: (client: ClientItem) => void;
+  onDeleteClient: (client: ClientItem) => Promise<boolean>;
 };
 
 type ClientSegment = 'all' | 'new' | 'repeat' | 'lost';
@@ -553,6 +554,7 @@ export function ClientsScreen({
   onOpenTools,
   onReload,
   onOpenClientActions,
+  onDeleteClient,
 }: ClientsScreenProps) {
   const [desktopClient, setDesktopClient] = useState<ClientItem | null>(null);
   const [desktopTab, setDesktopTab] = useState<ClientModalTab>('card');
@@ -1239,6 +1241,20 @@ export function ClientsScreen({
       return;
     }
     window.open(`https://t.me/${normalizePhoneForLink(activeClient.phone)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDeleteActiveClient = async () => {
+    if (!activeClient) {
+      return;
+    }
+
+    const deleted = await onDeleteClient(activeClient);
+    if (deleted) {
+      setDesktopClient(null);
+      setDraft(null);
+      setEditMode(false);
+      setDraftError('');
+    }
   };
 
   return (
@@ -2061,6 +2077,20 @@ export function ClientsScreen({
                         <p className="mt-2 text-sm font-extrabold text-ink">{formatDateTime(activeSummary?.lastVisit || null)}</p>
                       </div>
                     </div>
+
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleDeleteActiveClient();
+                        }}
+                        disabled={draftSaving || loading}
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 text-sm font-semibold text-[#bc5941] disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Удалить клиента
+                      </button>
+                    ) : null}
                   </div>
                 </section>
               </div>
@@ -2711,6 +2741,20 @@ export function ClientsScreen({
                           <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{activeSummary?.noShows ?? 0}</p>
                         </div>
                       </section>
+
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleDeleteActiveClient();
+                          }}
+                          disabled={draftSaving || loading}
+                          className="inline-flex h-12 items-center justify-center gap-2 self-start rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-5 text-sm font-semibold text-[#bc5941] disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Удалить клиента
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
 
