@@ -211,28 +211,19 @@ export function StaffEditorScreen({
             <ChevronRight className="h-7 w-7 text-muted" />
           </button>
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center justify-between gap-4 pt-1">
             <div>
               <p className="text-[20px] font-medium text-ink">Доступ к сервису</p>
               <p className="max-w-[260px] text-[14px] font-medium text-muted">
                 Сотрудник сможет пользоваться системой в соответствии с установленной ролью
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => onAccessChange(!hasAccess)}
-              className={clsx(
-                'relative h-10 w-20 rounded-full transition-colors',
-                hasAccess ? 'bg-accent' : 'bg-[#d7dce5]',
-              )}
-            >
-              <span
-                className={clsx(
-                  'absolute top-1 h-8 w-8 rounded-full bg-white transition-transform',
-                  hasAccess ? 'left-[44px]' : 'left-1',
-                )}
-              />
-            </button>
+            <PrimeSwitch
+              checked={hasAccess}
+              onChange={onAccessChange}
+              size="staff"
+              ariaLabel="Доступ к сервису"
+            />
           </div>
 
           <label className="block">
@@ -394,21 +385,12 @@ export function StaffEditorScreen({
                     Управляет входом в систему и набором доступных действий.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onAccessChange(!hasAccess)}
-                  className={clsx(
-                    'relative h-10 w-20 shrink-0 overflow-hidden rounded-full transition-colors',
-                    hasAccess ? 'bg-accent' : 'bg-[#d7dce5]',
-                  )}
-                >
-                  <span
-                    className={clsx(
-                      'absolute top-1 h-8 w-8 rounded-full bg-white transition-transform',
-                      hasAccess ? 'left-[44px]' : 'left-1',
-                    )}
-                  />
-                </button>
+                <PrimeSwitch
+                  checked={hasAccess}
+                  onChange={onAccessChange}
+                  size="staff"
+                  ariaLabel="Аккаунт сотрудника"
+                />
               </div>
             </section>
 

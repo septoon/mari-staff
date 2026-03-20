@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { InputSwitch } from 'primereact/inputswitch';
 import type { CSSProperties } from 'react';
 
-type PrimeSwitchSize = 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
+type PrimeSwitchSize = 'sm' | 'md' | 'staff' | 'lg' | 'xl' | 'xxl';
 
 type PrimeSwitchProps = {
   checked: boolean;
@@ -29,6 +29,13 @@ const SIZE_STYLES: Record<PrimeSwitchSize, CSSProperties> = {
     ['--mari-switch-padding' as string]: '0.1875rem',
     ['--mari-switch-thumb-size' as string]: '1.5rem',
     ['--mari-switch-translate' as string]: '1.375rem',
+  },
+  staff: {
+    ['--mari-switch-width' as string]: '3.1rem',
+    ['--mari-switch-height' as string]: '1.7rem',
+    ['--mari-switch-padding' as string]: '0.2rem',
+    ['--mari-switch-thumb-size' as string]: '1.15rem',
+    ['--mari-switch-translate' as string]: '1.55rem',
   },
   lg: {
     ['--mari-switch-width' as string]: '4rem',

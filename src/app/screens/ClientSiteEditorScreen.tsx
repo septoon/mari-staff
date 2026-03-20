@@ -4016,7 +4016,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
       </section>
 
-      <section className="mt-6 grid gap-5 md:grid-cols-[repeat(auto-fit,minmax(280px,1fr))] xl:gap-6">
+      <section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-[repeat(auto-fit,minmax(280px,1fr))] xl:gap-6">
         {categorySnapshots.map((item) => (
           <CategorySummaryCard key={item.key} item={item} onOpen={() => openCategoryPage(item.key)} />
         ))}

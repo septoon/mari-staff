@@ -83,7 +83,7 @@ function TextField({
   step?: number;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">{label}</p>
       <input
         type={type}
@@ -92,7 +92,7 @@ function TextField({
         min={type === 'number' ? 15 : undefined}
         step={step ?? (type === 'number' ? 15 : undefined)}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 h-12 w-full rounded-2xl border border-[#d9dfe8] bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#c2cad6]"
+        className="mt-3 h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-[#d9dfe8] bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#c2cad6]"
       />
     </label>
   );
@@ -110,12 +110,12 @@ function SelectField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">{label}</p>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 h-12 w-full rounded-2xl border border-[#d9dfe8] bg-white px-4 text-sm font-semibold text-ink outline-none transition focus:border-[#c2cad6]"
+        className="mt-3 h-12 w-full min-w-0 max-w-full rounded-2xl border border-[#d9dfe8] bg-white px-4 text-sm font-semibold text-ink outline-none transition focus:border-[#c2cad6]"
       >
         {options.map((item) => (
           <option key={item.value} value={item.value}>
@@ -189,7 +189,7 @@ function Content({
         title="Контакт для записи"
         description="Минимальный набор для создания: имя и телефон. Остальное можно дополнить позже из карточки визита."
       >
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
           <label className="relative block">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Имя клиента</p>
             <input
@@ -248,7 +248,7 @@ function Content({
         title="Дата, время и исполнитель"
         description="Дата по умолчанию берётся из текущего дня журнала. При необходимости её можно поменять прямо здесь."
       >
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
           <TextField
             label="Дата записи"
             type="date"
@@ -452,8 +452,14 @@ export function JournalCreateScreen({
         </div>
       </div>
 
-      <div className="fixed inset-0 z-[80] hidden bg-[rgba(34,43,51,0.38)] backdrop-blur-[2px] md:block">
-        <div className="absolute inset-y-0 right-0 flex w-full max-w-[620px] flex-col border-l border-[#dfe4ec] bg-[#f3f5f8] shadow-[-24px_0_60px_rgba(34,43,51,0.16)]">
+      <div
+        className="fixed inset-0 z-[80] hidden bg-[rgba(34,43,51,0.38)] backdrop-blur-[2px] md:block"
+        onClick={onBack}
+      >
+        <div
+          className="absolute inset-y-0 right-0 flex w-full max-w-[620px] flex-col border-l border-[#dfe4ec] bg-[#f3f5f8] shadow-[-24px_0_60px_rgba(34,43,51,0.16)]"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="flex items-start justify-between gap-4 border-b border-[#e0e5ed] bg-[#fcfcfd] px-6 py-6">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Журнал</p>
