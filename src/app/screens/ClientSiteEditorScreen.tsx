@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { ApiError, api } from '../../api';
+import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import { buildRuPhoneValue } from '../helpers';
 import { convertImageFileToWebp, uploadWebpImage } from '../media';
 import { PageSheet } from '../components/shared/PageSheet';
@@ -1468,24 +1469,15 @@ function ToggleField({
   onToggle: () => void;
 }) {
   return (
-    <button type="button" onClick={onToggle} className="flex items-center gap-3 text-left">
-      <span
-        className={
-          checked
-            ? 'relative h-9 w-20 rounded-full bg-accent'
-            : 'relative h-9 w-20 rounded-full bg-[#d7dce5]'
-        }
-      >
-        <span
-          className={
-            checked
-              ? 'absolute left-[46px] top-1 h-7 w-7 rounded-full bg-white'
-              : 'absolute left-1 top-1 h-7 w-7 rounded-full bg-white'
-          }
-        />
-      </span>
+    <div className="flex items-center justify-between gap-3 text-left">
       <span className="text-[16px] font-semibold text-ink">{label}</span>
-    </button>
+      <PrimeSwitch
+        checked={checked}
+        onChange={onToggle}
+        size="xl"
+        ariaLabel={label}
+      />
+    </div>
   );
 }
 

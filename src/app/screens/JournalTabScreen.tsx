@@ -16,7 +16,14 @@ import {
   JOURNAL_TIME_COLUMN_WIDTH,
 } from '../constants';
 import { formatDateLabel, formatRub, formatTime, toISODate } from '../helpers';
-import type { AppointmentItem, JournalCard, StaffItem, TabItem, TabKey } from '../types';
+import type {
+  AppointmentItem,
+  JournalCard,
+  JournalSettings,
+  StaffItem,
+  TabItem,
+  TabKey,
+} from '../types';
 import { AppointmentCard } from '../components/shared/AppointmentCard';
 import { JournalDatePickerSheet } from '../components/shared/JournalDatePickerSheet';
 import { StaffChip } from '../components/shared/StaffChip';
@@ -27,6 +34,7 @@ type JournalTabScreenProps = {
   journalHours: string[];
   cards: JournalCard[];
   listAppointments: AppointmentItem[];
+  journalSettings: JournalSettings;
   loading: boolean;
   datePickerOpen: boolean;
   markedDates: string[];
@@ -48,6 +56,41 @@ const DESKTOP_FILTER_INPUT_CLASS =
   'h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#b7c0cd]';
 const JOURNAL_PAGE_SIZE = 25;
 const JOURNAL_LIST_SKELETON_ROWS = 8;
+
+function resolveDateFilterPreset(selectedDate: Date, preset: JournalSettings['defaultPeriod']) {
+  if (preset === 'all') {
+    return { dateFrom: '', dateTo: '' };
+  }
+
+  const end = new Date(selectedDate);
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+
+  if (preset === '7d') {
+    start.setDate(start.getDate() - 6);
+  } else if (preset === '30d') {
+    start.setDate(start.getDate() - 29);
+  }
+
+  return {
+    dateFrom: toISODate(start),
+    dateTo: toISODate(end),
+  };
+}
+
+function formatDurationLabel(startAt: Date, endAt: Date) {
+  const minutes = Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / 60000));
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+
+  if (hours > 0 && restMinutes > 0) {
+    return `${hours}ч ${restMinutes}м`;
+  }
+  if (hours > 0) {
+    return `${hours}ч`;
+  }
+  return `${restMinutes}м`;
+}
 
 function normalizeJournalStatus(value: string) {
   if (value === 'ARRIVED' || value === 'NO_SHOW' || value === 'CONFIRMED') {
@@ -82,9 +125,16 @@ function journalStatusClass(value: string) {
   return 'bg-[#fff3d4] text-[#8d6700]';
 }
 
-function JournalListSkeletonRow() {
+function JournalListSkeletonRow({ showAmount }: { showAmount: boolean }) {
   return (
-    <div className="grid w-full gap-4 px-6 py-5 md:grid-cols-[120px_repeat(2,minmax(0,1fr))] xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]">
+    <div
+      className={clsx(
+        'grid w-full gap-4 px-6 py-5 md:grid-cols-[120px_repeat(2,minmax(0,1fr))]',
+        showAmount
+          ? 'xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]'
+          : 'xl:grid-cols-[110px_1.2fr_1fr_0.95fr_0.9fr]',
+      )}
+    >
       <div className="animate-pulse">
         <div className="h-8 w-16 rounded-full bg-[#e8edf3]" />
         <div className="mt-3 h-4 w-20 rounded-full bg-[#eef2f6]" />
@@ -108,10 +158,11 @@ function JournalListSkeletonRow() {
       <div className="animate-pulse">
         <div className="h-10 w-28 rounded-full bg-[#eef2f6]" />
       </div>
-
-      <div className="animate-pulse">
-        <div className="h-6 w-16 rounded-full bg-[#e8edf3]" />
-      </div>
+      {showAmount ? (
+        <div className="animate-pulse">
+          <div className="h-6 w-16 rounded-full bg-[#e8edf3]" />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -122,6 +173,7 @@ export function JournalTabScreen({
   journalHours,
   cards,
   listAppointments,
+  journalSettings,
   loading,
   datePickerOpen,
   markedDates,
@@ -141,10 +193,26 @@ export function JournalTabScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceQuery, setServiceQuery] = useState('');
   const [staffFilterId, setStaffFilterId] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFromFilter, setDateFromFilter] = useState('');
-  const [dateToFilter, setDateToFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<JournalSettings['defaultStatus']>(
+    journalSettings.defaultStatus,
+  );
+  const initialDatePreset = resolveDateFilterPreset(selectedDate, journalSettings.defaultPeriod);
+  const [dateFromFilter, setDateFromFilter] = useState(initialDatePreset.dateFrom);
+  const [dateToFilter, setDateToFilter] = useState(initialDatePreset.dateTo);
   const [currentPage, setCurrentPage] = useState(1);
+  const desktopGridClassName = journalSettings.showAmount
+    ? 'xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]'
+    : 'xl:grid-cols-[110px_1.2fr_1fr_0.95fr_0.9fr]';
+  const rowSpacingClassName = journalSettings.density === 'compact' ? 'py-4' : 'py-5';
+  const timeTextClassName =
+    journalSettings.density === 'compact'
+      ? 'text-[24px] font-extrabold leading-none text-ink'
+      : 'text-[28px] font-extrabold leading-none text-ink';
+  const primaryTextClassName =
+    journalSettings.density === 'compact'
+      ? 'text-[18px] font-extrabold leading-tight text-ink'
+      : 'text-[20px] font-extrabold leading-tight text-ink';
+  const secondaryTextClassName = 'mt-2 text-sm font-semibold text-[#838b97]';
 
   const columnsCount = Math.max(1, staff.length);
   const gridTemplateColumns = `${JOURNAL_TIME_COLUMN_WIDTH}px repeat(${columnsCount}, ${JOURNAL_CARD_COLUMN_WIDTH}px)`;
@@ -231,6 +299,16 @@ export function JournalTabScreen({
   useEffect(() => {
     setCurrentPage((prev) => Math.min(prev, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    setStatusFilter(journalSettings.defaultStatus);
+  }, [journalSettings.defaultStatus]);
+
+  useEffect(() => {
+    const nextPreset = resolveDateFilterPreset(selectedDate, journalSettings.defaultPeriod);
+    setDateFromFilter(nextPreset.dateFrom);
+    setDateToFilter(nextPreset.dateTo);
+  }, [journalSettings.defaultPeriod, selectedDate]);
 
   return (
     <>
@@ -406,7 +484,9 @@ export function JournalTabScreen({
 
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as JournalSettings['defaultStatus'])
+                }
                 className={DESKTOP_FILTER_INPUT_CLASS}
               >
                 <option value="all">Все статусы</option>
@@ -467,19 +547,27 @@ export function JournalTabScreen({
               ) : null}
             </div>
 
-            <div className="hidden border-b border-[#eef2f6] px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#97a0ad] xl:grid xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px] xl:gap-4">
+            <div
+              className={clsx(
+                'hidden border-b border-[#eef2f6] px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#97a0ad] xl:grid xl:gap-4',
+                desktopGridClassName,
+              )}
+            >
               <span>Время</span>
               <span>Клиент</span>
               <span>Услуга</span>
               <span>Сотрудник</span>
               <span>Статус</span>
-              <span>Сумма</span>
+              {journalSettings.showAmount ? <span>Сумма</span> : null}
             </div>
 
             {loading ? (
               <div className="divide-y divide-[#eef2f6]">
                 {Array.from({ length: JOURNAL_LIST_SKELETON_ROWS }).map((_, index) => (
-                  <JournalListSkeletonRow key={`journal-skeleton-${index}`} />
+                  <JournalListSkeletonRow
+                    key={`journal-skeleton-${index}`}
+                    showAmount={journalSettings.showAmount}
+                  />
                 ))}
               </div>
             ) : filteredCards.length === 0 ? (
@@ -495,49 +583,59 @@ export function JournalTabScreen({
                   {paginatedCards.map((card) => {
                     const normalizedStatus = normalizeJournalStatus(card.status);
                     const amount = card.amountAfterDiscount ?? card.amountBeforeDiscount;
+                    const serviceMeta = `${formatTime(card.startAt)}-${formatTime(card.endAt)} • ${formatDurationLabel(
+                      card.startAt,
+                      card.endAt,
+                    )}`;
                     return (
                       <button
                         key={card.id}
                         type="button"
                         onClick={() => onCardClick(card)}
-                        className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-[#f7f9fc] md:grid-cols-[120px_repeat(2,minmax(0,1fr))] xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]"
+                        className={clsx(
+                          'grid w-full gap-4 px-6 text-left transition hover:bg-[#f7f9fc] md:grid-cols-[120px_repeat(2,minmax(0,1fr))] xl:gap-4',
+                          rowSpacingClassName,
+                          desktopGridClassName,
+                        )}
                       >
                         <div>
-                          <p className="text-[28px] font-extrabold leading-none text-ink">
-                            {formatTime(card.startAt)}
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
+                          <p className={timeTextClassName}>{formatTime(card.startAt)}</p>
+                          <p className={secondaryTextClassName}>
                             {formatDateLabel(card.startAt)}
                           </p>
                         </div>
 
                         <div>
-                          <p className="text-[20px] font-extrabold leading-tight text-ink">
+                          <p className={primaryTextClassName}>
                             {card.clientName || 'Клиент'}
                           </p>
-                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                            {card.clientPhone || 'Телефон не указан'}
-                          </p>
+                          {journalSettings.showClientPhone ? (
+                            <p className={secondaryTextClassName}>
+                              {card.clientPhone || 'Телефон не указан'}
+                            </p>
+                          ) : null}
                         </div>
 
                         <div>
                           <p className="text-[18px] font-bold leading-tight text-ink">
                             {card.serviceName || 'Без услуги'}
                           </p>
-                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                            {`${formatTime(card.startAt)}-${formatTime(card.endAt)}`}
-                          </p>
+                          {journalSettings.showServiceTime ? (
+                            <p className={secondaryTextClassName}>{serviceMeta}</p>
+                          ) : null}
                         </div>
 
                         <div>
                           <p className="text-[18px] font-bold leading-tight text-ink">{card.staffName}</p>
-                          <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                            {card.createdAt.toLocaleDateString('ru-RU', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })}
-                          </p>
+                          {journalSettings.showCreatedDate ? (
+                            <p className={secondaryTextClassName}>
+                              {card.createdAt.toLocaleDateString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          ) : null}
                         </div>
 
                         <div>
@@ -551,11 +649,13 @@ export function JournalTabScreen({
                           </span>
                         </div>
 
-                        <div>
-                          <p className="text-[18px] font-extrabold text-ink">
-                            {amount !== null ? formatRub(amount) : '—'}
-                          </p>
-                        </div>
+                        {journalSettings.showAmount ? (
+                          <div>
+                            <p className="text-[18px] font-extrabold text-ink">
+                              {amount !== null ? formatRub(amount) : '—'}
+                            </p>
+                          </div>
+                        ) : null}
                       </button>
                     );
                   })}

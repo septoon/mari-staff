@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../api';
 import {
+  DEFAULT_JOURNAL_SETTINGS,
   DEFAULT_STAFF_ROLE,
   EMPTY_OWNER_DRAFT,
   EMPTY_SERVICE_DRAFT,
@@ -11,6 +12,7 @@ import {
   JOURNAL_CARD_COLUMN_WIDTH,
   JOURNAL_GRID_GAP,
   JOURNAL_END_HOUR,
+  JOURNAL_SETTINGS_STORAGE_KEY,
   JOURNAL_START_HOUR,
   JOURNAL_TIME_COLUMN_WIDTH,
   MORE_MENU,
@@ -33,6 +35,11 @@ import {
   toString,
 } from './helpers';
 import {
+  buildJournalCreateAppointmentPayload,
+  isJournalCreateStartAligned,
+  JOURNAL_CREATE_STEP_MINUTES,
+} from './journalCreate';
+import {
   extractItems,
   parseAppointment,
   parseScheduleCalendar,
@@ -43,6 +50,7 @@ import {
   getServerMediaDirHint,
   uploadWebpImage,
 } from './media';
+import { sendAppointmentToTelegramChannel } from './appointmentTelegram';
 import {
   isRouteCompatibleWithState,
   PUBLIC_UNAUTHORIZED_ROUTES,
@@ -57,6 +65,7 @@ import type {
   AppController,
   AppointmentItem,
   ClientItem,
+  JournalCreateDraft,
   JournalCard,
   ScheduleEditorOpenOptions,
   ServiceCategoryItem,
@@ -91,8 +100,6 @@ const EDIT_PERMISSION = {
   staff: 'EDIT_STAFF',
   selfProfile: 'EDIT_SELF_PROFILE',
 } as const;
-
-const LIVE_SYNC_INTERVAL_MS = 20_000;
 
 const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   VIEW_JOURNAL: ['VIEW_JOURNAL', 'EDIT_JOURNAL', 'ACCESS_JOURNAL'],
@@ -143,6 +150,53 @@ function resolveAllowedTabKeys(sessionData: StaffSession): TabKey[] {
 
 function resolveDefaultTab(sessionData: StaffSession): TabKey {
   return resolveAllowedTabKeys(sessionData)[0] ?? 'more';
+}
+
+function formatJournalCreateDateValue(date: Date) {
+  return toISODate(date);
+}
+
+function combineJournalCreateDateTime(dateValue: string, timeValue: string) {
+  const dateMatch = dateValue.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = timeValue.trim().match(/^(\d{2}):(\d{2})$/);
+  if (!dateMatch || !timeMatch) {
+    return null;
+  }
+
+  const [, year, month, day] = dateMatch;
+  const [, hours, minutes] = timeMatch;
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hours),
+    Number(minutes),
+    0,
+    0,
+  );
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildJournalCreateDraft(
+  selectedDate: Date,
+  staff: StaffItem[],
+  services: ServiceItem[],
+): JournalCreateDraft {
+  const firstStaff = staff[0];
+  const firstService = services[0];
+  const durationMin = firstService
+    ? Math.max(15, Math.round(firstService.durationSec / 60))
+    : 60;
+
+  return {
+    clientName: '',
+    clientPhone: '',
+    dateValue: formatJournalCreateDateValue(selectedDate),
+    startTime: '10:00',
+    durationMin,
+    staffId: firstStaff?.id || '',
+    serviceId: firstService?.id || '',
+  };
 }
 
 export function useAppController(): AppController {
@@ -251,6 +305,14 @@ export function useAppController(): AppController {
     setJournalDayStart,
     journalDayEnd,
     setJournalDayEnd,
+    journalSettings,
+    setJournalSettings,
+    journalCreateDraft,
+    setJournalCreateDraft,
+    journalCreateServiceIdsByStaff,
+    setJournalCreateServiceIdsByStaff,
+    journalCreateServicesLoading,
+    setJournalCreateServicesLoading,
     servicesCategorySearch,
     setServicesCategorySearch,
     servicesItemsSearch,
@@ -328,6 +390,17 @@ export function useAppController(): AppController {
     pageRef.current = page;
     tabRef.current = tab;
   }, [page, tab]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(JOURNAL_SETTINGS_STORAGE_KEY, JSON.stringify(journalSettings));
+    } catch {
+      // ignore storage errors
+    }
+  }, [journalSettings]);
 
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const isAuthorized = Boolean(session);
@@ -899,6 +972,115 @@ export function useAppController(): AppController {
   }, [journalAppointmentTarget, journalClientTarget, page, setPage, setTab]);
 
   useEffect(() => {
+    if (page !== 'journalCreate') {
+      return;
+    }
+    if (journalStaff.length === 0 || services.length === 0) {
+      setPage('tabs');
+      setTab('journal');
+      return;
+    }
+    setJournalCreateDraft((current) => ({
+      ...current,
+      dateValue: current.dateValue || formatJournalCreateDateValue(selectedDate),
+      staffId: current.staffId || journalStaff[0]?.id || '',
+      serviceId: current.serviceId || services[0]?.id || '',
+      durationMin:
+        current.durationMin > 0 ? current.durationMin : Math.max(15, Math.round(services[0].durationSec / 60)),
+    }));
+  }, [journalStaff, page, selectedDate, services, setJournalCreateDraft, setPage, setTab]);
+
+  useEffect(() => {
+    if (page !== 'journalCreate') {
+      return;
+    }
+    const staffId = journalCreateDraft.staffId.trim();
+    if (!staffId) {
+      return;
+    }
+    if (journalCreateServiceIdsByStaff[staffId]) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      setJournalCreateServicesLoading(true);
+      try {
+        const ids = await getStaffServiceIds(staffId);
+        if (cancelled) {
+          return;
+        }
+        setJournalCreateServiceIdsByStaff((prev) => ({
+          ...prev,
+          [staffId]: ids,
+        }));
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setToast(toErrorMessage(error));
+        setJournalCreateServiceIdsByStaff((prev) => ({
+          ...prev,
+          [staffId]: [],
+        }));
+      } finally {
+        if (!cancelled) {
+          setJournalCreateServicesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    journalCreateDraft.staffId,
+    journalCreateServiceIdsByStaff,
+    page,
+    setJournalCreateServiceIdsByStaff,
+    setJournalCreateServicesLoading,
+    setToast,
+  ]);
+
+  useEffect(() => {
+    if (page !== 'journalCreate') {
+      return;
+    }
+    const staffId = journalCreateDraft.staffId.trim();
+    if (!staffId) {
+      return;
+    }
+
+    const allowedServiceIds = journalCreateServiceIdsByStaff[staffId];
+    if (!allowedServiceIds) {
+      return;
+    }
+
+    const allowedServices = services.filter((item) => allowedServiceIds.includes(item.id));
+    const fallbackService = allowedServices[0] || null;
+    const selectedAllowed = allowedServices.find((item) => item.id === journalCreateDraft.serviceId) || null;
+
+    if (selectedAllowed) {
+      return;
+    }
+
+    setJournalCreateDraft((current) => ({
+      ...current,
+      serviceId: fallbackService?.id || '',
+      durationMin: fallbackService
+        ? Math.max(15, Math.round(fallbackService.durationSec / 60))
+        : current.durationMin,
+    }));
+  }, [
+    journalCreateDraft.serviceId,
+    journalCreateServiceIdsByStaff,
+    journalCreateDraft.staffId,
+    page,
+    services,
+    setJournalCreateDraft,
+  ]);
+
+  useEffect(() => {
     if (!isAuthorized) {
       initialDataLoadedRef.current = false;
       return;
@@ -979,6 +1161,8 @@ export function useAppController(): AppController {
       const shouldSyncJournal =
         canViewJournal &&
         (tab === 'journal' ||
+          page === 'journalCreate' ||
+          page === 'journalSettings' ||
           page === 'journalAppointment' ||
           page === 'journalClient' ||
           page === 'journalDayEdit' ||
@@ -1028,6 +1212,9 @@ export function useAppController(): AppController {
     if (!isAuthorized) {
       return;
     }
+    if (journalSettings.autoRefreshSeconds <= 0) {
+      return;
+    }
 
     const handleForegroundSync = () => {
       void syncLiveData({ includeHistory: true });
@@ -1041,7 +1228,7 @@ export function useAppController(): AppController {
       if (document.visibilityState === 'visible') {
         void syncLiveData();
       }
-    }, LIVE_SYNC_INTERVAL_MS);
+    }, journalSettings.autoRefreshSeconds * 1000);
 
     window.addEventListener('focus', handleForegroundSync);
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -1051,7 +1238,7 @@ export function useAppController(): AppController {
       window.removeEventListener('focus', handleForegroundSync);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isAuthorized, syncLiveData]);
+  }, [isAuthorized, journalSettings.autoRefreshSeconds, syncLiveData]);
 
   const closeStaffForm = useCallback(() => {
     setStaffFormMode(null);
@@ -1295,6 +1482,26 @@ export function useAppController(): AppController {
   const closeSettingsPage = () => {
     setPage('tabs');
     setTab('more');
+  };
+
+  const closeJournalCreatePage = () => {
+    setPage('tabs');
+    setTab('journal');
+    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalStaff, services));
+  };
+
+  const openJournalSettingsPage = () => {
+    setPage('journalSettings');
+    setTab('journal');
+  };
+
+  const closeJournalSettingsPage = () => {
+    setPage('tabs');
+    setTab('journal');
+  };
+
+  const resetJournalSettings = () => {
+    setJournalSettings(DEFAULT_JOURNAL_SETTINGS);
   };
 
   const openSettingsNotificationsPage = () => {
@@ -1736,6 +1943,7 @@ export function useAppController(): AppController {
       email: '',
       comment: '',
     });
+    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalStaff, services));
     setJournalClientHistory([]);
     setJournalClientLoading(true);
     setPage('journalAppointment');
@@ -1797,11 +2005,13 @@ export function useAppController(): AppController {
       return;
     }
 
-    const confirmed = window.confirm(
-      'Внимание: запись будет удалена навсегда вместе с оплатами и привязанным промокодом. Продолжить?',
-    );
-    if (!confirmed) {
-      return;
+    if (journalSettings.confirmDelete) {
+      const confirmed = window.confirm(
+        'Внимание: запись будет удалена навсегда вместе с оплатами и привязанным промокодом. Продолжить?',
+      );
+      if (!confirmed) {
+        return;
+      }
     }
 
     setLoadingKey(setLoading, 'action', true);
@@ -1828,6 +2038,19 @@ export function useAppController(): AppController {
     if (!canEdit(EDIT_PERMISSION.journal)) {
       setToast('Нет прав на редактирование журнала');
       return;
+    }
+    if (journalSettings.confirmStatusChange) {
+      const nextStatusLabel =
+        status === 'ARRIVED'
+          ? 'Пришел'
+          : status === 'NO_SHOW'
+            ? 'Не пришел'
+            : status === 'CONFIRMED'
+              ? 'Подтвержден'
+              : 'Ожидание';
+      if (!window.confirm(`Изменить статус записи на «${nextStatusLabel}»?`)) {
+        return;
+      }
     }
     setLoadingKey(setLoading, 'action', true);
     try {
@@ -2212,70 +2435,103 @@ export function useAppController(): AppController {
       setToast('Нет данных staff/services для создания записи');
       return;
     }
+    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalStaff, services));
+    setPage('journalCreate');
+    setTab('journal');
+  };
 
-    const clientName = prompt('Имя клиента');
+  const saveJournalCreateAppointment = async () => {
+    if (!canEdit(EDIT_PERMISSION.journal)) {
+      setToast('Нет прав на редактирование журнала');
+      return;
+    }
+
+    const clientName = journalCreateDraft.clientName.trim();
+    const phone = journalCreateDraft.clientPhone.trim();
     if (!clientName) {
+      setToast('Укажите имя клиента');
       return;
     }
-    const phone = prompt('Телефон клиента в формате +7...');
     if (!phone) {
+      setToast('Укажите телефон клиента');
       return;
     }
-    const time = prompt('Время начала HH:mm', '10:00');
-    if (!time) {
+    if (!isValidTime(journalCreateDraft.startTime)) {
+      setToast('Неверное время начала');
       return;
     }
-    const durationMin = Number(prompt('Длительность (мин)', '60') || '60');
-    const duration = Number.isFinite(durationMin) && durationMin > 0 ? durationMin : 60;
-
-    const [hh, mm] = time.split(':').map(Number);
-    if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
-      setToast('Неверное время');
+    if (!journalCreateDraft.dateValue) {
+      setToast('Укажите дату записи');
+      return;
+    }
+    const selectedStaffId = journalCreateDraft.staffId || staff[0]?.id || '';
+    const selectedServiceId = journalCreateDraft.serviceId || services[0]?.id || '';
+    const selectedStaff =
+      journalStaff.find((item) => item.id === selectedStaffId) ||
+      staff.find((item) => item.id === selectedStaffId) ||
+      null;
+    const selectedService = services.find((item) => item.id === selectedServiceId) || null;
+    if (!selectedStaffId || !selectedServiceId) {
+      setToast('Не выбраны сотрудник или услуга');
       return;
     }
 
-    const start = new Date(selectedDate);
-    start.setHours(hh, mm, 0, 0);
-    const end = new Date(start.getTime() + duration * 60_000);
+    const start = combineJournalCreateDateTime(
+      journalCreateDraft.dateValue,
+      journalCreateDraft.startTime,
+    );
+    if (!start) {
+      setToast('Неверная дата или время записи');
+      return;
+    }
+    if (!isJournalCreateStartAligned(start)) {
+      setToast(`Время записи должно быть кратно ${JOURNAL_CREATE_STEP_MINUTES} минутам`);
+      return;
+    }
 
-    const staffId = staff[0].id;
-    const serviceId = services[0].id;
-    const payloadCandidates: Record<string, unknown>[] = [
-      {
-        startAt: start.toISOString(),
-        staffId,
-        anyStaff: false,
-        serviceIds: [serviceId],
-        clientName,
-        phone,
-      },
-      {
-        startAt: start.toISOString(),
-        endAt: end.toISOString(),
-        staffId,
-        anyStaff: false,
-        serviceId,
-        client: {
-          name: clientName,
-          phone,
-        },
-      },
-    ];
+    const payload = buildJournalCreateAppointmentPayload({
+      startAt: start,
+      staffId: selectedStaffId,
+      serviceId: selectedServiceId,
+      clientName,
+      clientPhone: phone,
+    });
 
     setLoadingKey(setLoading, 'action', true);
     try {
-      let lastError: unknown = null;
-      for (const payload of payloadCandidates) {
-        try {
-          await api.post<unknown>('/appointments', payload);
-          setToast('Запись создана');
-          await loadAppointments(selectedDate);
-          return;
-        } catch (error) {
-          lastError = error;
-        }
+      const created = await api.post<unknown>('/appointments', payload);
+      const parsed = parseAppointment(created);
+      setSelectedDate(start);
+      let telegramError = false;
+      try {
+        await sendAppointmentToTelegramChannel({
+          created,
+          draft: journalCreateDraft,
+          staff: selectedStaff,
+          service: selectedService,
+          createdByName: session?.staff.name ?? null,
+        });
+      } catch {
+        telegramError = true;
       }
-      throw lastError;
+      setToast(
+        telegramError
+          ? 'Запись создана, но сообщение в Telegram не отправлено'
+          : 'Запись создана',
+      );
+      await Promise.all([
+        loadAppointments(start),
+        loadJournalListAppointments(),
+        loadJournalMarkedDates(start),
+      ]);
+      if (parsed) {
+        handleOpenJournalAppointment(parsed);
+        setPage('journalAppointment');
+        setTab('journal');
+      } else {
+        setPage('tabs');
+        setTab('journal');
+      }
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -3977,6 +4233,10 @@ export function useAppController(): AppController {
       journalActionStaff,
       journalDayStart,
       journalDayEnd,
+      journalSettings,
+      journalCreateDraft,
+      journalCreateServiceIdsByStaff,
+      journalCreateServicesLoading,
       staffAvatarPreviewUrl,
       serviceImagePreviewUrl,
       staffAvatarServerDirHint,
@@ -4058,6 +4318,13 @@ export function useAppController(): AppController {
       closeJournalDatePicker,
       selectJournalDate,
       handleCreateAppointment,
+      closeJournalCreatePage,
+      saveJournalCreateAppointment,
+      setJournalCreateDraft,
+      openJournalSettingsPage,
+      closeJournalSettingsPage,
+      resetJournalSettings,
+      setJournalSettings,
       handleScheduleEdit,
       openScheduleEditorForStaff,
       closeScheduleEditor,

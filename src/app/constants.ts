@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import type {
+  JournalSettings,
   MoreActionItem,
   OwnerDraft,
   StaffCreateRole,
@@ -23,6 +24,7 @@ import type {
 } from './types';
 
 export const SESSION_STORAGE_KEY = 'mari.staff.session.v1';
+export const JOURNAL_SETTINGS_STORAGE_KEY = 'mari.staff.journal-settings.v1';
 export const HOUR_HEIGHT = 76;
 export const JOURNAL_START_HOUR = 10;
 export const JOURNAL_END_HOUR = 18;
@@ -131,4 +133,18 @@ export const EMPTY_SERVICE_DRAFT: ServiceDraft = {
   priceMin: 0,
   priceMax: 0,
   isActive: true,
+};
+
+export const DEFAULT_JOURNAL_SETTINGS: JournalSettings = {
+  density: 'comfortable',
+  showClientPhone: true,
+  showServiceTime: true,
+  showCreatedDate: true,
+  showAmount: true,
+  showMarkedDates: true,
+  defaultPeriod: 'all',
+  defaultStatus: 'all',
+  autoRefreshSeconds: 20,
+  confirmStatusChange: true,
+  confirmDelete: true,
 };

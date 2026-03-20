@@ -22,10 +22,12 @@ import { ClientHistoryScreen } from './screens/ClientHistoryScreen';
 import { ClientSiteEditorScreen } from './screens/ClientSiteEditorScreen';
 import { ClientsScreen } from './screens/ClientsScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
+import { JournalCreateScreen } from './screens/JournalCreateScreen';
 import { JournalDayEditScreen } from './screens/JournalDayEditScreen';
 import { JournalDayRemoveScreen } from './screens/JournalDayRemoveScreen';
 import { JournalAppointmentScreen } from './screens/JournalAppointmentScreen';
 import { JournalClientScreen } from './screens/JournalClientScreen';
+import { JournalSettingsScreen } from './screens/JournalSettingsScreen';
 import { JournalTabScreen } from './screens/JournalTabScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { OwnerEditScreen } from './screens/OwnerEditScreen';
@@ -43,9 +45,7 @@ import { StaffManagementScreen } from './screens/StaffManagementScreen';
 import { StaffServicesEditorScreen } from './screens/StaffServicesEditorScreen';
 import {
   appointmentMatchesClient,
-  formatRub,
   normalizePhoneForLink,
-  toISODate,
 } from './helpers';
 import type { AppController, ClientItem, StaffItem } from './types';
 
@@ -67,6 +67,16 @@ type NavigatorWithContacts = Navigator & {
     ) => Promise<ContactPickerRecord[]>;
   };
 };
+
+function ToastBanner({ message }: { message: string }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+18px)] z-[140] flex justify-center px-4">
+      <div className="max-w-[min(100%,560px)] rounded-[22px] bg-[#222b33] px-5 py-3 text-sm font-bold text-white shadow-[0_22px_48px_rgba(34,43,51,0.28)]">
+        {message}
+      </div>
+    </div>
+  );
+}
 
 function toLocalErrorMessage(error: unknown) {
   if (error instanceof Error) {
@@ -135,12 +145,17 @@ export function AppView({ controller }: AppViewProps) {
   const isJournalMainPage = state.page === 'tabs' && state.tab === 'journal';
   const isScheduleMainPage = state.page === 'tabs' && state.tab === 'schedule';
   const isJournalDesktopOverlayPage =
-    state.tab === 'journal' && state.page === 'journalAppointment';
+    state.tab === 'journal' &&
+    (state.page === 'journalCreate' ||
+      state.page === 'journalAppointment' ||
+      state.page === 'journalSettings');
   const showGlobalLoader =
     state.clientHistoryLoading ||
     Object.entries(state.loading).some(
-      ([key, isLoading]) => key !== 'boot' && key !== 'appointments' && Boolean(isLoading),
+      ([key, isLoading]) =>
+        key !== 'boot' && key !== 'appointments' && key !== 'action' && Boolean(isLoading),
     );
+  const toastNode = state.toast ? <ToastBanner message={state.toast} /> : null;
   const normalizedClientsQuery = state.clientsQuery.trim().toLowerCase();
   const normalizedClientsDigits = state.clientsQuery.replace(/\D/g, '');
   const rawSessionPermissions = state.session?.staff.permissions;
@@ -207,31 +222,29 @@ export function AppView({ controller }: AppViewProps) {
     ),
   );
   const showDesktopRail = Boolean(state.session) && !isPinEntryRoute;
-  const desktopRailMarkedDates = state.tab === 'schedule' ? scheduleMarkedDates : state.journalMarkedDates;
-  const showOwnerDaySummary = state.session?.staff.role === 'OWNER';
-  const desktopRailTodaySummary = useMemo(() => {
-    const todayIso = toISODate(new Date());
-    const todayAppointments = state.journalListAppointments.filter(
-      (item) => toISODate(item.startAt) === todayIso,
-    );
-    const confirmed = todayAppointments.filter((item) => {
-      const status = item.status;
-      return status === 'CONFIRMED' || status === 'ARRIVED';
-    }).length;
-    const revenue = todayAppointments.reduce((sum, item) => {
-      const amount = item.amountAfterDiscount ?? item.amountBeforeDiscount ?? 0;
-      return sum + amount;
-    }, 0);
-
-    return {
-      total: todayAppointments.length,
-      confirmed,
-      revenue,
-    };
-  }, [state.journalListAppointments]);
+  const desktopRailMarkedDates =
+    state.tab === 'schedule'
+      ? scheduleMarkedDates
+      : state.journalSettings.showMarkedDates
+        ? state.journalMarkedDates
+        : [];
   const currentStaff = state.session
     ? state.staff.find((item) => item.id === state.session?.staff.id) ?? null
     : null;
+  const journalCreateServices = useMemo(() => {
+    const selectedStaffId = state.journalCreateDraft.staffId.trim();
+    if (!selectedStaffId) {
+      return state.services;
+    }
+
+    const allowedIds = state.journalCreateServiceIdsByStaff[selectedStaffId];
+    if (!allowedIds) {
+      return [];
+    }
+
+    const allowedSet = new Set(allowedIds);
+    return state.services.filter((item) => allowedSet.has(item.id));
+  }, [state.journalCreateDraft.staffId, state.journalCreateServiceIdsByStaff, state.services]);
 
   const closeClientsTools = () => {
     setClientsToolsOpen(false);
@@ -381,6 +394,7 @@ export function AppView({ controller }: AppViewProps) {
             }}
           />
           {showGlobalLoader ? <GlobalLoaderOverlay /> : null}
+          {toastNode}
         </Shell>
       );
     }
@@ -398,6 +412,7 @@ export function AppView({ controller }: AppViewProps) {
             }}
           />
           {showGlobalLoader ? <GlobalLoaderOverlay /> : null}
+          {toastNode}
         </Shell>
       );
     }
@@ -416,6 +431,7 @@ export function AppView({ controller }: AppViewProps) {
           }}
         />
         {showGlobalLoader ? <GlobalLoaderOverlay /> : null}
+        {toastNode}
       </Shell>
     );
   }
@@ -443,35 +459,6 @@ export function AppView({ controller }: AppViewProps) {
                 onSelectDate={actions.setSelectedDate}
               />
             </div>
-            {showOwnerDaySummary ? (
-              <section className="mt-5 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
-                  Сводка дня
-                </p>
-                <div className="mt-4 grid gap-3">
-                  <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
-                    <p className="text-sm font-semibold text-[#7b8390]">Всего записей</p>
-                    <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
-                      {desktopRailTodaySummary.total}
-                    </p>
-                  </div>
-                  <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
-                    <p className="text-sm font-semibold text-[#7b8390]">Подтверждены</p>
-                    <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
-                      {desktopRailTodaySummary.confirmed}
-                    </p>
-                  </div>
-                  <div className="rounded-[20px] bg-[#f5f7fa] px-4 py-3">
-                    <p className="text-sm font-semibold text-[#7b8390]">Оборот дня</p>
-                    <p className="mt-1 text-[28px] font-extrabold leading-none text-ink">
-                      {desktopRailTodaySummary.revenue > 0
-                        ? formatRub(desktopRailTodaySummary.revenue)
-                        : '—'}
-                    </p>
-                  </div>
-                </div>
-              </section>
-            ) : null}
           </div>
         </div>
       ) : null}
@@ -595,9 +582,10 @@ export function AppView({ controller }: AppViewProps) {
             journalHours={state.journalHours}
             cards={state.journalCards}
             listAppointments={state.journalListAppointments}
+            journalSettings={state.journalSettings}
             loading={state.loading.appointments}
             datePickerOpen={state.journalDatePickerOpen}
-            markedDates={state.journalMarkedDates}
+            markedDates={state.journalSettings.showMarkedDates ? state.journalMarkedDates : []}
             visibleTabs={state.visibleTabs}
             activeTab={state.tab}
             showOwnerDaySummary={false}
@@ -611,7 +599,7 @@ export function AppView({ controller }: AppViewProps) {
               void actions.loadAppointmentsForSelectedDate();
             }}
             onSettings={() => {
-              void actions.refreshAll();
+              actions.openJournalSettingsPage();
             }}
             onTabChange={actions.handleTabChange}
             onStaffClick={actions.handleOpenJournalStaffActions}
@@ -625,16 +613,17 @@ export function AppView({ controller }: AppViewProps) {
               staff={state.journalStaff}
               journalHours={state.journalHours}
               cards={state.journalCards}
-            listAppointments={state.journalListAppointments}
-            loading={state.loading.appointments}
-            datePickerOpen={state.journalDatePickerOpen}
-            markedDates={state.journalMarkedDates}
-            visibleTabs={state.visibleTabs}
-            activeTab={state.tab}
-            showOwnerDaySummary={false}
-            onSetDate={actions.handleSetDate}
-            onCloseDatePicker={actions.closeJournalDatePicker}
-            onSelectDate={actions.selectJournalDate}
+              listAppointments={state.journalListAppointments}
+              journalSettings={state.journalSettings}
+              loading={state.loading.appointments}
+              datePickerOpen={state.journalDatePickerOpen}
+              markedDates={state.journalSettings.showMarkedDates ? state.journalMarkedDates : []}
+              visibleTabs={state.visibleTabs}
+              activeTab={state.tab}
+              showOwnerDaySummary={false}
+              onSetDate={actions.handleSetDate}
+              onCloseDatePicker={actions.closeJournalDatePicker}
+              onSelectDate={actions.selectJournalDate}
               onCreate={() => {
                 void actions.handleCreateAppointment();
               }}
@@ -642,13 +631,41 @@ export function AppView({ controller }: AppViewProps) {
                 void actions.loadAppointmentsForSelectedDate();
               }}
               onSettings={() => {
-                void actions.refreshAll();
+                actions.openJournalSettingsPage();
               }}
               onTabChange={actions.handleTabChange}
               onStaffClick={actions.handleOpenJournalStaffActions}
               onCardClick={actions.handleOpenJournalAppointment}
             />
           </div>
+        ) : null}
+        {state.page === 'journalSettings' ? (
+          <JournalSettingsScreen
+            settings={state.journalSettings}
+            onBack={actions.closeJournalSettingsPage}
+            onUpdate={(patch) => {
+              actions.setJournalSettings((prev) => ({ ...prev, ...patch }));
+            }}
+            onReset={actions.resetJournalSettings}
+          />
+        ) : null}
+        {state.page === 'journalCreate' ? (
+          <JournalCreateScreen
+            draft={state.journalCreateDraft}
+            selectedDate={state.selectedDate}
+            clients={state.clients}
+            staff={state.journalStaff}
+            services={journalCreateServices}
+            loading={state.loading.action}
+            servicesLoading={state.journalCreateServicesLoading}
+            onBack={actions.closeJournalCreatePage}
+            onDraftChange={(patch) => {
+              actions.setJournalCreateDraft((prev) => ({ ...prev, ...patch }));
+            }}
+            onSave={() => {
+              void actions.saveJournalCreateAppointment();
+            }}
+          />
         ) : null}
         {state.page === 'journalAppointment' || state.page === 'journalClient' ? (
           <div className={state.page === 'journalClient' ? 'hidden md:block' : undefined}>
@@ -684,20 +701,20 @@ export function AppView({ controller }: AppViewProps) {
         ) : null}
         {state.page === 'journalClient' ? (
           <div className="md:hidden">
-          <JournalClientScreen
-            client={state.journalClientTarget}
-            draft={state.journalClientDraft}
-            appointments={state.journalClientHistory}
-            loading={state.journalClientLoading}
-            saving={state.journalClientSaving}
-            canEdit={state.canEditClients}
-            onBack={actions.handleCloseJournalClient}
-            onDraftChange={actions.setJournalClientDraft}
-            onSave={() => {
-              void actions.handleSaveJournalClient();
-            }}
-            onOpenAppointment={actions.handleOpenJournalAppointment}
-          />
+            <JournalClientScreen
+              client={state.journalClientTarget}
+              draft={state.journalClientDraft}
+              appointments={state.journalClientHistory}
+              loading={state.journalClientLoading}
+              saving={state.journalClientSaving}
+              canEdit={state.canEditClients}
+              onBack={actions.handleCloseJournalClient}
+              onDraftChange={actions.setJournalClientDraft}
+              onSave={() => {
+                void actions.handleSaveJournalClient();
+              }}
+              onOpenAppointment={actions.handleOpenJournalAppointment}
+            />
           </div>
         ) : null}
         {state.page === 'journalDayEdit' ? (
@@ -1053,6 +1070,7 @@ export function AppView({ controller }: AppViewProps) {
       />
       <InfoPanel panel={state.panel} onClose={actions.closePanel} />
       {showGlobalLoader ? <GlobalLoaderOverlay /> : null}
+      {toastNode}
     </Shell>
   );
 }

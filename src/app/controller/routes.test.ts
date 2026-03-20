@@ -9,6 +9,14 @@ test('maps settings routes to separate settings pages', () => {
     page: 'settingsNotifications',
     tab: 'more',
   });
+  expect(routeToState('/journal/new')).toEqual({
+    page: 'journalCreate',
+    tab: 'journal',
+  });
+  expect(routeToState('/journal/settings')).toEqual({
+    page: 'journalSettings',
+    tab: 'journal',
+  });
 });
 
 test('maps online-booking section routes to client site editor page', () => {
@@ -32,4 +40,7 @@ test('keeps settings routes compatible with their own pages', () => {
   expect(isRouteCompatibleWithState('/settings', 'settings', 'more')).toBe(true);
   expect(isRouteCompatibleWithState('/settings/notifications', 'settingsNotifications', 'more')).toBe(true);
   expect(isRouteCompatibleWithState('/settings', 'settingsNotifications', 'more')).toBe(false);
+  expect(isRouteCompatibleWithState('/journal/new', 'journalCreate', 'journal')).toBe(true);
+  expect(isRouteCompatibleWithState('/journal/settings', 'journalSettings', 'journal')).toBe(true);
+  expect(isRouteCompatibleWithState('/journal', 'journalSettings', 'journal')).toBe(false);
 });

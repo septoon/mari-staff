@@ -1,7 +1,7 @@
-import * as Switch from '@radix-ui/react-switch';
 import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import clsx from 'clsx';
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Trash2, UserRound } from 'lucide-react';
+import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import { buildRuPhoneValue, getRuPhoneLocalDigits, roleLabel } from '../helpers';
 import type { StaffCreateRole, StaffDraft, StaffPermissionCatalogItem } from '../types';
 
@@ -564,18 +564,14 @@ export function StaffEditorScreen({
                                       {item.description}
                                     </p>
                                   </div>
-                                  <Switch.Root
+                                  <PrimeSwitch
                                     checked={isEnabled}
-                                    onCheckedChange={(checked) => onTogglePermission(item.code, checked)}
-                                    disabled={isBusy}
-                                    className="relative mt-0.5 inline-flex h-[30px] w-[52px] shrink-0 cursor-pointer items-center rounded-full border border-transparent bg-[#d7dce5] p-0.5 shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)] outline-none transition-[background-color,box-shadow] duration-200 data-[state=checked]:bg-accent focus-visible:ring-2 focus-visible:ring-[#f4c900]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-default disabled:opacity-70"
-                                  >
-                                    <Switch.Thumb className="flex h-6 w-6 translate-x-0 items-center justify-center rounded-full bg-white shadow-[0_1px_4px_rgba(15,23,42,0.18)] transition-transform duration-200 will-change-transform data-[state=checked]:translate-x-5">
-                                      {isBusy ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />
-                                      ) : null}
-                                    </Switch.Thumb>
-                                  </Switch.Root>
+                                    onChange={(checked) => onTogglePermission(item.code, checked)}
+                                    loading={isBusy}
+                                    size="md"
+                                    className="mt-0.5"
+                                    ariaLabel={item.title}
+                                  />
                                 </div>
                               );
                             })}

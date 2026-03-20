@@ -24,6 +24,8 @@ const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs'>, string> = {
   staffEditor: '/staff/editor',
   staffServicesEditor: '/staff/services',
   clientHistory: '/clients/history',
+  journalCreate: '/journal/new',
+  journalSettings: '/journal/settings',
   journalAppointment: '/journal/appointment',
   journalClient: '/journal/client',
   journalDayEdit: '/journal/day/edit',
@@ -91,6 +93,10 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'staffServicesEditor', tab: 'more' };
     case '/clients/history':
       return { page: 'clientHistory', tab: 'clients' };
+    case '/journal/new':
+      return { page: 'journalCreate', tab: 'journal' };
+    case '/journal/settings':
+      return { page: 'journalSettings', tab: 'journal' };
     case '/journal/appointment':
       return { page: 'journalAppointment', tab: 'journal' };
     case '/journal/client':

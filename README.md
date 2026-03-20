@@ -25,13 +25,18 @@ Mobile-first админка салона красоты `Mari`, реализов
 
 ```bash
 npm install
-REACT_APP_API_BASE_URL=https://api.maribeauty.ru npm start
+REACT_APP_API_BASE_URL=https://api.maribeauty.ru \
+REACT_APP_BOT_ID=123456:telegram-bot-token \
+REACT_APP_CHANNEL_ID=-1001234567890 \
+npm start
 ```
 
 Или через `.env`:
 
 ```bash
 echo "REACT_APP_API_BASE_URL=https://api.maribeauty.ru" > .env
+echo "REACT_APP_BOT_ID=123456:telegram-bot-token" >> .env
+echo "REACT_APP_CHANNEL_ID=-1001234567890" >> .env
 npm start
 ```
 

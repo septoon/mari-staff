@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
-import clsx from 'clsx';
 import { ArrowLeft, Check, ChevronRight, ImagePlus, Loader2, Trash2, UserRound, X } from 'lucide-react';
 import { PageSheet } from '../components/shared/PageSheet';
+import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import type { ServiceCategoryItem, ServiceDraft, StaffItem } from '../types';
 
 const DESKTOP_PANEL_CLASS =
@@ -147,25 +147,14 @@ export function ServiceEditorScreen({
             </div>
           </label>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => onDraftChange((prev) => ({ ...prev, isActive: !prev.isActive }))}
-              className={
-                draft.isActive
-                  ? 'relative h-10 w-24 rounded-full bg-accent'
-                  : 'relative h-10 w-24 rounded-full bg-[#d7dce5]'
-              }
-            >
-              <span
-                className={
-                  draft.isActive
-                    ? 'absolute left-[54px] top-1 h-8 w-8 rounded-full bg-white'
-                    : 'absolute left-1 top-1 h-8 w-8 rounded-full bg-white'
-                }
-              />
-            </button>
+          <div className="flex items-center justify-between gap-3">
             <span className="text-[20px] font-medium text-ink">Доступна для онлайн-записи</span>
+            <PrimeSwitch
+              checked={draft.isActive}
+              onChange={(value) => onDraftChange((prev) => ({ ...prev, isActive: value }))}
+              size="xxl"
+              ariaLabel="Доступна для онлайн-записи"
+            />
           </div>
 
           <label className="block">
@@ -462,21 +451,12 @@ export function ServiceEditorScreen({
                 <div>
                   <div className='flex justify-between items-center'>
                     <p className="text-[24px] font-extrabold text-ink">Онлайн-запись</p>
-                    <button
-                      type="button"
-                      onClick={() => onDraftChange((prev) => ({ ...prev, isActive: !prev.isActive }))}
-                      className={clsx(
-                        'relative h-8 w-16 rounded-full transition-colors',
-                        draft.isActive ? 'bg-accent' : 'bg-[#d7dce5]',
-                      )}
-                    >
-                      <span
-                        className={clsx(
-                          'absolute top-1 h-6 w-6 rounded-full bg-white transition-transform',
-                          draft.isActive ? 'left-[36px]' : 'left-1',
-                        )}
-                      />
-                    </button>
+                    <PrimeSwitch
+                      checked={draft.isActive}
+                      onChange={(value) => onDraftChange((prev) => ({ ...prev, isActive: value }))}
+                      size="lg"
+                      ariaLabel="Онлайн-запись"
+                    />
                   </div>
                   
                   <p className="mt-2 text-sm font-semibold leading-6 text-[#7c8491]">

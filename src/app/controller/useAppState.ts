@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
 import {
+  DEFAULT_JOURNAL_SETTINGS,
   DEFAULT_STAFF_ROLE,
   EMPTY_OWNER_DRAFT,
   EMPTY_SERVICE_DRAFT,
   EMPTY_STAFF_DRAFT,
   EMPTY_STAFF_FILTER,
+  JOURNAL_SETTINGS_STORAGE_KEY,
 } from '../constants';
 import type {
   AppPage,
@@ -13,6 +15,7 @@ import type {
   InfoPanelState,
   LoadingState,
   OwnerDraft,
+  JournalSettings,
   ServiceCategoryItem,
   ServiceDraft,
   ServiceItem,
@@ -25,8 +28,92 @@ import type {
   StaffSession,
   TabKey,
   JournalClientDraft,
+  JournalCreateDraft,
   WorkingHoursMap,
 } from '../types';
+
+function loadJournalSettings(): JournalSettings {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return DEFAULT_JOURNAL_SETTINGS;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(JOURNAL_SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_JOURNAL_SETTINGS;
+    }
+    const parsed = JSON.parse(raw) as Partial<JournalSettings> | null;
+    if (!parsed || typeof parsed !== 'object') {
+      return DEFAULT_JOURNAL_SETTINGS;
+    }
+
+    return {
+      density: parsed.density === 'compact' ? 'compact' : DEFAULT_JOURNAL_SETTINGS.density,
+      showClientPhone:
+        typeof parsed.showClientPhone === 'boolean'
+          ? parsed.showClientPhone
+          : DEFAULT_JOURNAL_SETTINGS.showClientPhone,
+      showServiceTime:
+        typeof parsed.showServiceTime === 'boolean'
+          ? parsed.showServiceTime
+          : DEFAULT_JOURNAL_SETTINGS.showServiceTime,
+      showCreatedDate:
+        typeof parsed.showCreatedDate === 'boolean'
+          ? parsed.showCreatedDate
+          : DEFAULT_JOURNAL_SETTINGS.showCreatedDate,
+      showAmount:
+        typeof parsed.showAmount === 'boolean'
+          ? parsed.showAmount
+          : DEFAULT_JOURNAL_SETTINGS.showAmount,
+      showMarkedDates:
+        typeof parsed.showMarkedDates === 'boolean'
+          ? parsed.showMarkedDates
+          : DEFAULT_JOURNAL_SETTINGS.showMarkedDates,
+      defaultPeriod:
+        parsed.defaultPeriod === 'today' ||
+        parsed.defaultPeriod === '7d' ||
+        parsed.defaultPeriod === '30d'
+          ? parsed.defaultPeriod
+          : DEFAULT_JOURNAL_SETTINGS.defaultPeriod,
+      defaultStatus:
+        parsed.defaultStatus === 'PENDING' ||
+        parsed.defaultStatus === 'CONFIRMED' ||
+        parsed.defaultStatus === 'ARRIVED' ||
+        parsed.defaultStatus === 'NO_SHOW'
+          ? parsed.defaultStatus
+          : DEFAULT_JOURNAL_SETTINGS.defaultStatus,
+      autoRefreshSeconds:
+        parsed.autoRefreshSeconds === 0 ||
+        parsed.autoRefreshSeconds === 20 ||
+        parsed.autoRefreshSeconds === 60 ||
+        parsed.autoRefreshSeconds === 300
+          ? parsed.autoRefreshSeconds
+          : DEFAULT_JOURNAL_SETTINGS.autoRefreshSeconds,
+      confirmStatusChange:
+        typeof parsed.confirmStatusChange === 'boolean'
+          ? parsed.confirmStatusChange
+          : DEFAULT_JOURNAL_SETTINGS.confirmStatusChange,
+      confirmDelete:
+        typeof parsed.confirmDelete === 'boolean'
+          ? parsed.confirmDelete
+          : DEFAULT_JOURNAL_SETTINGS.confirmDelete,
+    };
+  } catch {
+    return DEFAULT_JOURNAL_SETTINGS;
+  }
+}
+
+function buildEmptyJournalCreateDraft(): JournalCreateDraft {
+  return {
+    clientName: '',
+    clientPhone: '',
+    dateValue: '',
+    startTime: '10:00',
+    durationMin: 60,
+    staffId: '',
+    serviceId: '',
+  };
+}
 
 export function useAppState() {
   const [page, setPage] = useState<AppPage>('tabs');
@@ -85,6 +172,14 @@ export function useAppState() {
   const [journalActionStaff, setJournalActionStaff] = useState<StaffItem | null>(null);
   const [journalDayStart, setJournalDayStart] = useState('10:00');
   const [journalDayEnd, setJournalDayEnd] = useState('18:00');
+  const [journalSettings, setJournalSettings] = useState<JournalSettings>(loadJournalSettings);
+  const [journalCreateDraft, setJournalCreateDraft] = useState<JournalCreateDraft>(
+    buildEmptyJournalCreateDraft,
+  );
+  const [journalCreateServiceIdsByStaff, setJournalCreateServiceIdsByStaff] = useState<
+    Record<string, string[]>
+  >({});
+  const [journalCreateServicesLoading, setJournalCreateServicesLoading] = useState(false);
   const [servicesCategorySearch, setServicesCategorySearch] = useState('');
   const [servicesItemsSearch, setServicesItemsSearch] = useState('');
   const [localServiceCategories, setLocalServiceCategories] = useState<ServiceCategoryItem[]>([]);
@@ -239,6 +334,14 @@ export function useAppState() {
     setJournalDayStart,
     journalDayEnd,
     setJournalDayEnd,
+    journalSettings,
+    setJournalSettings,
+    journalCreateDraft,
+    setJournalCreateDraft,
+    journalCreateServiceIdsByStaff,
+    setJournalCreateServiceIdsByStaff,
+    journalCreateServicesLoading,
+    setJournalCreateServicesLoading,
     servicesCategorySearch,
     setServicesCategorySearch,
     servicesItemsSearch,

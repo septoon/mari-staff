@@ -9,6 +9,7 @@ import {
   Loader2,
   Mail,
 } from 'lucide-react';
+import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import type { SettingsNotificationSection } from '../types';
 
 type SettingsNotificationsScreenProps = {
@@ -20,38 +21,6 @@ type SettingsNotificationsScreenProps = {
   onSaveMinNotice: (value: number) => Promise<boolean>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
 };
-
-function NotificationToggle({
-  enabled,
-  disabled,
-  onClick,
-}: {
-  enabled: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={clsx(
-        'relative inline-flex h-7 w-12 shrink-0 rounded-full border transition',
-        enabled
-          ? 'border-[#f4c900] bg-[#f4c900]'
-          : 'border-[#d9dfe7] bg-[#edf1f6]',
-        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-      )}
-    >
-      <span
-        className={clsx(
-          'absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow-[0_4px_14px_rgba(24,31,38,0.16)] transition',
-          enabled ? 'left-[23px]' : 'left-[3px]',
-        )}
-      />
-    </button>
-  );
-}
 
 export function SettingsNotificationsScreen({
   sections,
@@ -196,13 +165,8 @@ export function SettingsNotificationsScreen({
                           {group.items.map((item) => (
                             <div
                               key={item.id}
-                              className="flex items-center gap-3 rounded-[20px] px-2 py-3"
+                              className="flex items-center justify-between gap-3 rounded-[20px] px-2 py-3"
                             >
-                              <NotificationToggle
-                                enabled={item.enabled}
-                                disabled={!canEdit || loading}
-                                onClick={() => void onToggle(item.id, !item.enabled)}
-                              />
                               <div className="min-w-0 flex-1">
                                 <p className="text-[15px] font-semibold leading-6 text-ink">{item.title}</p>
                                 <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#eff3f7] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.16em] text-[#5e6776]">
@@ -210,6 +174,13 @@ export function SettingsNotificationsScreen({
                                   {item.channelLabel}
                                 </span>
                               </div>
+                              <PrimeSwitch
+                                checked={item.enabled}
+                                disabled={!canEdit || loading}
+                                onChange={(enabled) => void onToggle(item.id, enabled)}
+                                size="sm"
+                                ariaLabel={item.title}
+                              />
                             </div>
                           ))}
                         </div>
@@ -350,22 +321,26 @@ export function SettingsNotificationsScreen({
                               <div
                                 key={item.id}
                                 className={clsx(
-                                  'flex items-center gap-4 px-5 py-4',
+                                  'flex items-center justify-between gap-4 px-5 py-4',
                                   index > 0 ? 'border-t border-[#edf1f5]' : undefined,
                                 )}
                               >
-                                <NotificationToggle
-                                  enabled={item.enabled}
-                                  disabled={!canEdit || loading}
-                                  onClick={() => void onToggle(item.id, !item.enabled)}
-                                />
                                 <div className="min-w-0 flex-1">
                                   <p className="text-[17px] font-semibold leading-7 text-ink">{item.title}</p>
                                 </div>
-                                <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#eff3f7] px-3 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#5e6776]">
-                                  <Mail className="h-3.5 w-3.5" />
-                                  {item.channelLabel}
-                                </span>
+                                <div className="flex shrink-0 items-center gap-4">
+                                  <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#eff3f7] px-3 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#5e6776]">
+                                    <Mail className="h-3.5 w-3.5" />
+                                    {item.channelLabel}
+                                  </span>
+                                  <PrimeSwitch
+                                    checked={item.enabled}
+                                    disabled={!canEdit || loading}
+                                    onChange={(enabled) => void onToggle(item.id, enabled)}
+                                    size="sm"
+                                    ariaLabel={item.title}
+                                  />
+                                </div>
                               </div>
                             ))}
                           </div>

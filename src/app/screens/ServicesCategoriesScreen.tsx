@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
+import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import { PageSheet } from '../components/shared/PageSheet';
 import { formatGroupedRub } from '../helpers';
 import type { ServiceCategoryItem, ServiceItem } from '../types';
@@ -69,35 +70,6 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
-}
-
-function InlineToggle({
-  checked,
-  disabled,
-  onClick,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={clsx(
-        'relative inline-flex h-8 w-14 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-[#f4c900]' : 'bg-[#d4dbe5]',
-      )}
-    >
-      <span
-        className={clsx(
-          'absolute top-1 h-6 w-6 rounded-full bg-white shadow-[0_6px_14px_rgba(34,43,51,0.16)] transition',
-          checked ? 'left-7' : 'left-1',
-        )}
-      />
-    </button>
-  );
 }
 
 export function ServicesCategoriesScreen({
@@ -573,17 +545,16 @@ export function ServicesCategoriesScreen({
                                 {service.name}
                               </button>
 
-                              <div className="flex items-center gap-3">
-                                <InlineToggle
+                              <div className="flex items-center justify-between gap-3">
+                                <PrimeSwitch
                                   checked={service.isActive}
                                   disabled={isPending}
-                                  onClick={() => {
-                                    void handleToggleService(service.id, !service.isActive);
+                                  onChange={(enabled) => {
+                                    void handleToggleService(service.id, enabled);
                                   }}
+                                  size="lg"
+                                  ariaLabel={`Онлайн-запись для услуги ${service.name}`}
                                 />
-                                <span className="text-sm font-bold text-ink">
-                                  {isPending ? '...' : service.isActive ? 'Вкл' : 'Выкл'}
-                                </span>
                               </div>
 
                               <div className="text-[18px] font-bold text-ink">

@@ -16,6 +16,8 @@ export type AppPage =
   | 'staffEditor'
   | 'staffServicesEditor'
   | 'clientHistory'
+  | 'journalCreate'
+  | 'journalSettings'
   | 'journalAppointment'
   | 'journalClient'
   | 'journalDayEdit'
@@ -138,6 +140,40 @@ export type JournalClientDraft = {
   phone: string;
   email: string;
   comment: string;
+};
+
+export type JournalSettingsDensity = 'comfortable' | 'compact';
+export type JournalSettingsPeriodPreset = 'all' | 'today' | '7d' | '30d';
+export type JournalSettingsStatusFilter =
+  | 'all'
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'ARRIVED'
+  | 'NO_SHOW';
+export type JournalSettingsAutoRefreshSeconds = 0 | 20 | 60 | 300;
+
+export type JournalSettings = {
+  density: JournalSettingsDensity;
+  showClientPhone: boolean;
+  showServiceTime: boolean;
+  showCreatedDate: boolean;
+  showAmount: boolean;
+  showMarkedDates: boolean;
+  defaultPeriod: JournalSettingsPeriodPreset;
+  defaultStatus: JournalSettingsStatusFilter;
+  autoRefreshSeconds: JournalSettingsAutoRefreshSeconds;
+  confirmStatusChange: boolean;
+  confirmDelete: boolean;
+};
+
+export type JournalCreateDraft = {
+  clientName: string;
+  clientPhone: string;
+  dateValue: string;
+  startTime: string;
+  durationMin: number;
+  staffId: string;
+  serviceId: string;
 };
 
 export type JournalCard = AppointmentItem & {
@@ -275,6 +311,10 @@ export type ControllerState = {
   journalActionStaff: StaffItem | null;
   journalDayStart: string;
   journalDayEnd: string;
+  journalSettings: JournalSettings;
+  journalCreateDraft: JournalCreateDraft;
+  journalCreateServiceIdsByStaff: Record<string, string[]>;
+  journalCreateServicesLoading: boolean;
   staffAvatarPreviewUrl: string;
   serviceImagePreviewUrl: string;
   staffAvatarServerDirHint: string;
@@ -359,6 +399,13 @@ export type ControllerActions = {
   ) => Promise<{ imported: number; skipped: number }>;
   handleSetDate: () => void;
   handleCreateAppointment: () => Promise<void>;
+  closeJournalCreatePage: () => void;
+  saveJournalCreateAppointment: () => Promise<void>;
+  setJournalCreateDraft: Dispatch<SetStateAction<JournalCreateDraft>>;
+  openJournalSettingsPage: () => void;
+  closeJournalSettingsPage: () => void;
+  resetJournalSettings: () => void;
+  setJournalSettings: Dispatch<SetStateAction<JournalSettings>>;
   handleScheduleEdit: () => Promise<void>;
   openScheduleEditorForStaff: (item: StaffItem, options?: ScheduleEditorOpenOptions) => Promise<void>;
   closeScheduleEditor: () => void;
