@@ -38,6 +38,10 @@ type ServiceGroup = {
   totalCount: number;
 };
 
+const DESKTOP_SERVICES_TABLE_COLUMNS =
+  'minmax(320px,2.2fr) 168px 120px 150px 160px 180px 170px 56px';
+const DESKTOP_SERVICES_TABLE_MIN_WIDTH = '1324px';
+
 function formatDuration(durationSec: number) {
   if (durationSec <= 0) {
     return '0 мин';
@@ -505,100 +509,98 @@ export function ServicesCategoriesScreen({
 
                   {expanded ? (
                     <div className="px-5 pb-5 pt-2">
-                      <div
-                        className="grid items-center gap-4 border-b border-[#edf1f5] px-4 py-4 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]"
-                        style={{
-                          gridTemplateColumns:
-                            'minmax(0,2.2fr) 168px 120px 150px 160px 180px 170px 56px',
-                        }}
-                      >
-                        <div>Имя</div>
-                        <div>Онлайн-запись</div>
-                        <div>Цена</div>
-                        <div>Длительность</div>
-                        <div>Тех. перерыв</div>
-                        <div>Тех. карта</div>
-                        <div>Сотрудники</div>
-                        <div />
-                      </div>
+                      <div className="overflow-x-auto overscroll-x-contain">
+                        <div style={{ minWidth: DESKTOP_SERVICES_TABLE_MIN_WIDTH }}>
+                          <div
+                            className="grid items-center gap-4 border-b border-[#edf1f5] px-4 py-4 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae]"
+                            style={{ gridTemplateColumns: DESKTOP_SERVICES_TABLE_COLUMNS }}
+                          >
+                            <div>Имя</div>
+                            <div>Онлайн-запись</div>
+                            <div>Цена</div>
+                            <div>Длительность</div>
+                            <div>Тех. перерыв</div>
+                            <div>Тех. карта</div>
+                            <div>Сотрудники</div>
+                            <div />
+                          </div>
 
-                      {group.services.length > 0 ? (
-                        group.services.map((service, index) => {
-                          const isPending = pendingServiceIds.includes(service.id);
-                          return (
-                            <div
-                              key={service.id}
-                              className={clsx(
-                                'grid items-center gap-4 px-4 py-4 text-sm font-semibold text-[#55606f]',
-                                index > 0 ? 'border-t border-[#edf1f5]' : undefined,
-                              )}
-                              style={{
-                                gridTemplateColumns:
-                                  'minmax(0,2.2fr) 168px 120px 150px 160px 180px 170px 56px',
-                              }}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => onOpenService(service.id)}
-                                className="truncate text-left text-[18px] font-extrabold text-ink transition hover:text-[#2d5fd6]"
-                              >
-                                {service.name}
-                              </button>
+                          {group.services.length > 0 ? (
+                            group.services.map((service, index) => {
+                              const isPending = pendingServiceIds.includes(service.id);
+                              return (
+                                <div
+                                  key={service.id}
+                                  className={clsx(
+                                    'grid items-center gap-4 px-4 py-4 text-sm font-semibold text-[#55606f]',
+                                    index > 0 ? 'border-t border-[#edf1f5]' : undefined,
+                                  )}
+                                  style={{ gridTemplateColumns: DESKTOP_SERVICES_TABLE_COLUMNS }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenService(service.id)}
+                                    className="truncate text-left text-[18px] font-extrabold text-ink transition hover:text-[#2d5fd6]"
+                                  >
+                                    {service.name}
+                                  </button>
 
-                              <div className="flex items-center justify-between gap-3">
-                                <PrimeSwitch
-                                  checked={service.isActive}
-                                  disabled={isPending}
-                                  onChange={(enabled) => {
-                                    void handleToggleService(service.id, enabled);
-                                  }}
-                                  size="lg"
-                                  ariaLabel={`Онлайн-запись для услуги ${service.name}`}
-                                />
-                              </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <PrimeSwitch
+                                      checked={service.isActive}
+                                      disabled={isPending}
+                                      onChange={(enabled) => {
+                                        void handleToggleService(service.id, enabled);
+                                      }}
+                                      size="lg"
+                                      ariaLabel={`Онлайн-запись для услуги ${service.name}`}
+                                    />
+                                  </div>
 
-                              <div className="text-[18px] font-bold text-ink">
-                                {formatGroupedRub(service.priceMin)}
-                              </div>
+                                  <div className="text-[18px] font-bold text-ink">
+                                    {formatGroupedRub(service.priceMin)}
+                                  </div>
 
-                              <div>{formatDuration(service.durationSec)}</div>
+                                  <div>{formatDuration(service.durationSec)}</div>
 
-                              <div className="text-[#7d8693]">Без перерыва</div>
+                                  <div className="text-[#7d8693]">Без перерыва</div>
 
-                              <button
-                                type="button"
-                                onClick={() => onOpenService(service.id)}
-                                className="truncate text-left font-bold text-[#2d5fd6] transition hover:text-[#2148a3]"
-                              >
-                                {service.description ? 'Описание заполнено' : 'Открыть редактор'}
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenService(service.id)}
+                                    className="truncate text-left font-bold text-[#2d5fd6] transition hover:text-[#2148a3]"
+                                  >
+                                    {service.description ? 'Описание заполнено' : 'Открыть редактор'}
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => onOpenService(service.id)}
-                                className="truncate text-left font-bold text-[#2d5fd6] transition hover:text-[#2148a3]"
-                              >
-                                Настроить
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenService(service.id)}
+                                    className="truncate text-left font-bold text-[#2d5fd6] transition hover:text-[#2148a3]"
+                                  >
+                                    Настроить
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => onOpenService(service.id)}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white text-[#6e7784] transition hover:text-ink"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenService(service.id)}
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white text-[#6e7784] transition hover:text-ink"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="px-4 py-8 text-center">
+                              <p className="text-lg font-extrabold text-ink">В этой категории пока нет услуг</p>
+                              <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                                Создай первую услугу прямо из списка.
+                              </p>
                             </div>
-                          );
-                        })
-                      ) : (
-                        <div className="px-4 py-8 text-center">
-                          <p className="text-lg font-extrabold text-ink">В этой категории пока нет услуг</p>
-                          <p className="mt-2 text-sm font-semibold text-[#7d8693]">
-                            Создай первую услугу прямо из списка.
-                          </p>
+                          )}
                         </div>
-                      )}
+                      </div>
 
                       <div className="border-t border-[#edf1f5] px-4 py-4">
                         <button
