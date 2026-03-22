@@ -97,6 +97,7 @@ export function AppView({ controller }: AppViewProps) {
   const { state, actions } = controller;
   const location = useLocation();
   const mainScrollRef = useRef<HTMLElement | null>(null);
+  const [isMobileBottomNavVisible, setIsMobileBottomNavVisible] = useState(true);
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
   const setPinToken = new URLSearchParams(location.search).get('token') || '';
   const isPinEntryRoute = pathname === '/staff/set-pin' || pathname === '/staff/reset-pin';
@@ -141,6 +142,74 @@ export function AppView({ controller }: AppViewProps) {
       // Ignore environments without element scrolling support.
     }
   }, [pathname]);
+
+  useEffect(() => {
+    setIsMobileBottomNavVisible(true);
+  }, [pathname, state.session]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !state.session) {
+      return;
+    }
+
+    const scrollContainer = mainScrollRef.current;
+    const isMobileViewport = () => window.innerWidth < 768;
+    const getScrollTop = () =>
+      Math.max(
+        scrollContainer?.scrollTop ?? 0,
+        window.scrollY,
+        document.documentElement.scrollTop,
+        document.body.scrollTop,
+      );
+    let previousScrollTop = getScrollTop();
+    let frameId = 0;
+
+    const updateVisibility = () => {
+      const nextScrollTop = getScrollTop();
+      const delta = nextScrollTop - previousScrollTop;
+
+      if (!isMobileViewport()) {
+        setIsMobileBottomNavVisible(true);
+      } else if (nextScrollTop <= 24 || delta <= -8) {
+        setIsMobileBottomNavVisible(true);
+      } else if (delta >= 8) {
+        setIsMobileBottomNavVisible(false);
+      }
+
+      previousScrollTop = nextScrollTop;
+    };
+
+    const handleScroll = () => {
+      if (frameId !== 0) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = 0;
+        updateVisibility();
+      });
+    };
+
+    const handleResize = () => {
+      previousScrollTop = getScrollTop();
+      if (!isMobileViewport()) {
+        setIsMobileBottomNavVisible(true);
+      }
+    };
+
+    scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
+    updateVisibility();
+
+    return () => {
+      scrollContainer?.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [pathname, state.session]);
 
   const isJournalMainPage = state.page === 'tabs' && state.tab === 'journal';
   const isScheduleMainPage = state.page === 'tabs' && state.tab === 'schedule';
@@ -981,8 +1050,12 @@ export function AppView({ controller }: AppViewProps) {
 
       {isJournalMainPage ? (
         <div
-          className="fixed left-1/2 z-40 w-full px-4 -translate-x-1/2 md:hidden"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 110px)' }}
+          className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-4 transition-all duration-300 md:hidden"
+          style={{
+            bottom: isMobileBottomNavVisible
+              ? 'calc(env(safe-area-inset-bottom) + 110px)'
+              : 'calc(env(safe-area-inset-bottom) + 20px)',
+          }}
         >
           <JournalWeekStrip
             selectedDate={state.selectedDate}
@@ -993,12 +1066,16 @@ export function AppView({ controller }: AppViewProps) {
       ) : null}
       <div
         className={clsx(
-          'fixed left-1/2 z-[45] w-full -translate-x-1/2 px-8',
+          'fixed left-1/2 z-[45] w-full -translate-x-1/2 px-4 transition-[bottom] duration-300 ease-out',
           Boolean(state.session)
             ? 'md:hidden'
             : undefined,
         )}
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}
+        style={{
+          bottom: isMobileBottomNavVisible
+            ? 'calc(env(safe-area-inset-bottom) + 20px)'
+            : 'calc(-1 * (env(safe-area-inset-bottom) + 120px))',
+        }}
       >
         <BottomNav active={state.tab} items={mobileVisibleTabs} onChange={actions.handleTabChange} />
       </div>
