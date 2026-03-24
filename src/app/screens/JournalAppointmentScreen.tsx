@@ -46,6 +46,8 @@ type JournalAppointmentScreenProps = {
   historyOpen: boolean;
   loading: boolean;
   canEdit: boolean;
+  canOpenClient: boolean;
+  canViewClientPhone: boolean;
   visitsCount: number;
   noShowCount: number;
   onBack: () => void;
@@ -320,6 +322,8 @@ export function JournalAppointmentScreen({
   historyOpen,
   loading,
   canEdit,
+  canOpenClient,
+  canViewClientPhone,
   visitsCount,
   noShowCount,
   onBack,
@@ -500,7 +504,9 @@ export function JournalAppointmentScreen({
   );
   const displayClientName =
     clientDraft.name.trim() || client?.name || appointment.clientName || 'Клиент';
-  const displayClientPhone = clientDraft.phone.trim() || client?.phone || appointment.clientPhone || '';
+  const displayClientPhone = canViewClientPhone
+    ? clientDraft.phone.trim() || client?.phone || appointment.clientPhone || ''
+    : '';
   const daysSincePreviousVisit = previousVisit
     ? Math.max(
         0,
@@ -534,6 +540,12 @@ export function JournalAppointmentScreen({
       return;
     }
     void navigator.clipboard.writeText(displayClientPhone).catch(() => undefined);
+  };
+  const openClientDetails = () => {
+    if (!canOpenClient) {
+      return;
+    }
+    onOpenClient();
   };
 
   return (
@@ -569,32 +581,42 @@ export function JournalAppointmentScreen({
 
         <div className="mt-5 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={onOpenClient}
-              className="text-left text-[42px] font-extrabold leading-none text-ink"
-            >
-              <span className="text-[52%]">{appointment.clientName || 'Клиент'}</span>
-            </button>
-            <p className="mt-1 text-[20px] font-medium text-muted">
-              {appointment.clientPhone || 'нет телефона'}
-            </p>
+            {canOpenClient ? (
+              <button
+                type="button"
+                onClick={openClientDetails}
+                className="text-left text-[42px] font-extrabold leading-none text-ink"
+              >
+                <span className="text-[52%]">{appointment.clientName || 'Клиент'}</span>
+              </button>
+            ) : (
+              <p className="text-[42px] font-extrabold leading-none text-ink">
+                <span className="text-[52%]">{appointment.clientName || 'Клиент'}</span>
+              </p>
+            )}
+            {canViewClientPhone ? (
+              <p className="mt-1 text-[20px] font-medium text-muted">
+                {appointment.clientPhone || 'нет телефона'}
+              </p>
+            ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={onCall} className="rounded-xl bg-[#e6e9ef] p-3 text-ink">
-              <PhoneCall className="h-6 w-6" />
-            </button>
-            <button type="button" onClick={onSms} className="rounded-xl bg-[#e6e9ef] p-3 text-ink">
-              <MessageSquare className="h-6 w-6" />
-            </button>
-            <button
-              type="button"
-              onClick={onWhatsApp}
-              className="rounded-xl bg-[#e6e9ef] p-3 text-ink"
-            >
-              <MessageCircle className="h-6 w-6" />
-            </button>
-          </div>
+          {canViewClientPhone ? (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={onCall} className="rounded-xl bg-[#e6e9ef] p-3 text-ink">
+                <PhoneCall className="h-6 w-6" />
+              </button>
+              <button type="button" onClick={onSms} className="rounded-xl bg-[#e6e9ef] p-3 text-ink">
+                <MessageSquare className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                onClick={onWhatsApp}
+                className="rounded-xl bg-[#e6e9ef] p-3 text-ink"
+              >
+                <MessageCircle className="h-6 w-6" />
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <p className="mt-5 text-[20px] font-medium text-ink">{`Визитов: ${visitsCount} (${noShowCount} неявок)`}</p>
@@ -1053,68 +1075,84 @@ export function JournalAppointmentScreen({
                 <aside className="flex min-h-0 flex-col overflow-y-auto overscroll-contain border-l border-[#e3e8ef] bg-white px-5 pb-5 pt-5">
                   <div className="pr-10">
                     <p className="text-sm font-semibold text-[#8f97a5]">Клиент</p>
-                    <button
-                      type="button"
-                      onClick={onOpenClient}
-                      className="mt-3 text-left text-[34px] font-extrabold leading-none tracking-[-0.03em] text-ink"
-                    >
-                      {displayClientName}
-                    </button>
-                    <div className="mt-3 flex items-center gap-2 text-[18px] font-semibold text-[#6c7481]">
-                      <span>{displayClientPhone || 'Телефон не указан'}</span>
-                      {displayClientPhone ? (
-                        <button
-                          type="button"
-                          onClick={handleCopyClientPhone}
-                          className="rounded-lg p-1 text-[#8d95a1] transition hover:bg-[#f4f6fa] hover:text-ink"
-                          aria-label="Скопировать телефон"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                      ) : null}
-                    </div>
+                    {canOpenClient ? (
+                      <button
+                        type="button"
+                        onClick={openClientDetails}
+                        className="mt-3 text-left text-[34px] font-extrabold leading-none tracking-[-0.03em] text-ink"
+                      >
+                        {displayClientName}
+                      </button>
+                    ) : (
+                      <p className="mt-3 text-[34px] font-extrabold leading-none tracking-[-0.03em] text-ink">
+                        {displayClientName}
+                      </p>
+                    )}
+                    {canViewClientPhone ? (
+                      <div className="mt-3 flex items-center gap-2 text-[18px] font-semibold text-[#6c7481]">
+                        <span>{displayClientPhone || 'Телефон не указан'}</span>
+                        {displayClientPhone ? (
+                          <button
+                            type="button"
+                            onClick={handleCopyClientPhone}
+                            className="rounded-lg p-1 text-[#8d95a1] transition hover:bg-[#f4f6fa] hover:text-ink"
+                            aria-label="Скопировать телефон"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-5 flex items-center gap-2">
-                    <button type="button" onClick={onOpenClient} className={actionButtonClass(false)}>
-                      <UserRound className="h-5 w-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onCall}
-                      disabled={!displayClientPhone}
-                      className={actionButtonClass(!displayClientPhone)}
-                    >
-                      <PhoneCall className="h-5 w-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onSms}
-                      disabled={!displayClientPhone}
-                      className={actionButtonClass(!displayClientPhone)}
-                    >
-                      <MessageSquare className="h-5 w-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onWhatsApp}
-                      disabled={!displayClientPhone}
-                      className={actionButtonClass(!displayClientPhone)}
-                    >
-                      <MessageCircle className="h-5 w-5" />
-                    </button>
+                    {canOpenClient ? (
+                      <button type="button" onClick={openClientDetails} className={actionButtonClass(false)}>
+                        <UserRound className="h-5 w-5" />
+                      </button>
+                    ) : null}
+                    {canViewClientPhone ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={onCall}
+                          disabled={!displayClientPhone}
+                          className={actionButtonClass(!displayClientPhone)}
+                        >
+                          <PhoneCall className="h-5 w-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onSms}
+                          disabled={!displayClientPhone}
+                          className={actionButtonClass(!displayClientPhone)}
+                        >
+                          <MessageSquare className="h-5 w-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onWhatsApp}
+                          disabled={!displayClientPhone}
+                          className={actionButtonClass(!displayClientPhone)}
+                        >
+                          <MessageCircle className="h-5 w-5" />
+                        </button>
+                      </>
+                    ) : null}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={onOpenClient}
-                    className="mt-6 flex h-20 w-[120px] flex-col items-center justify-center rounded-[22px] border border-[#dde3eb] bg-white text-[#3f4652] transition hover:border-[#c8d0da] hover:bg-[#eef2f6]"
-                  >
-                    <History className="h-5 w-5" />
-                    <span className="mt-2 text-center text-[16px] font-semibold leading-tight">
-                      История посещений
-                    </span>
-                  </button>
+                  {canOpenClient ? (
+                    <button
+                      type="button"
+                      onClick={openClientDetails}
+                      className="mt-6 flex h-20 w-[120px] flex-col items-center justify-center rounded-[22px] border border-[#dde3eb] bg-white text-[#3f4652] transition hover:border-[#c8d0da] hover:bg-[#eef2f6]"
+                    >
+                      <History className="h-5 w-5" />
+                      <span className="mt-2 text-center text-[16px] font-semibold leading-tight">
+                        История посещений
+                      </span>
+                    </button>
+                  ) : null}
 
                   <div className="mt-5 flex flex-wrap gap-2">
                     <span className="inline-flex rounded-xl bg-[#eef4ff] px-3 py-2 text-sm font-semibold text-[#305fd0]">
@@ -1193,13 +1231,15 @@ export function JournalAppointmentScreen({
                       >
                         Закрыть
                       </button>
-                      <button
-                        type="button"
-                        onClick={onOpenClient}
-                        className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)]"
-                      >
-                        История посещений
-                      </button>
+                      {canOpenClient ? (
+                        <button
+                          type="button"
+                          onClick={openClientDetails}
+                          className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)]"
+                        >
+                          История посещений
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </aside>
@@ -1222,25 +1262,29 @@ export function JournalAppointmentScreen({
                         <p className="truncate text-[18px] font-extrabold text-ink">
                           {displayClientName}
                         </p>
-                        <div className="mt-2 flex items-center gap-2 text-[16px] font-semibold text-[#757e8a]">
-                          <span>{displayClientPhone || 'Телефон не указан'}</span>
-                          {displayClientPhone ? (
-                            <button
-                              type="button"
-                              onClick={handleCopyClientPhone}
-                              className="rounded-lg p-1 text-[#8d95a1] transition hover:bg-[#f4f6fa] hover:text-ink"
-                              aria-label="Скопировать телефон"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </button>
-                          ) : null}
-                        </div>
+                        {canViewClientPhone ? (
+                          <div className="mt-2 flex items-center gap-2 text-[16px] font-semibold text-[#757e8a]">
+                            <span>{displayClientPhone || 'Телефон не указан'}</span>
+                            {displayClientPhone ? (
+                              <button
+                                type="button"
+                                onClick={handleCopyClientPhone}
+                                className="rounded-lg p-1 text-[#8d95a1] transition hover:bg-[#f4f6fa] hover:text-ink"
+                                aria-label="Скопировать телефон"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={onOpenClient} className={actionButtonClass(false)}>
-                          <UserRound className="h-5 w-5" />
-                        </button>
+                        {canOpenClient ? (
+                          <button type="button" onClick={openClientDetails} className={actionButtonClass(false)}>
+                            <UserRound className="h-5 w-5" />
+                          </button>
+                        ) : null}
                         <button type="button" className={actionButtonClass(false)}>
                           <MoreHorizontal className="h-5 w-5" />
                         </button>

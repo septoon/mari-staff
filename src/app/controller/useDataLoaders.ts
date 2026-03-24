@@ -34,6 +34,7 @@ type UseDataLoadersParams = {
   sessionRole: StaffRole | null;
   sessionStaffId: string | null;
   sessionStaffName: string | null;
+  useFullJournalEndpoint: boolean;
   canViewStaff: boolean;
   canViewServices: boolean;
   canViewClients: boolean;
@@ -74,6 +75,7 @@ export function useDataLoaders({
   sessionRole,
   sessionStaffId,
   sessionStaffName,
+  useFullJournalEndpoint,
   canViewStaff,
   canViewServices,
   canViewClients,
@@ -246,7 +248,8 @@ export function useDataLoaders({
     [canViewClients, isAuthorized, setAppError, setClients, setLoading],
   );
 
-  const appointmentsBasePath = sessionRole === 'MASTER' ? '/master/appointments' : '/appointments';
+  const appointmentsBasePath =
+    sessionRole === 'MASTER' && !useFullJournalEndpoint ? '/master/appointments' : '/appointments';
 
   const fetchAppointmentsRange = useCallback(
     async ({

@@ -41,6 +41,8 @@ type JournalTabScreenProps = {
   visibleTabs: TabItem[];
   activeTab: TabKey;
   showOwnerDaySummary: boolean;
+  canCreate: boolean;
+  canOpenSettings: boolean;
   onSetDate: () => void;
   onCloseDatePicker: () => void;
   onSelectDate: (value: Date) => void;
@@ -180,6 +182,8 @@ export function JournalTabScreen({
   visibleTabs,
   activeTab,
   showOwnerDaySummary,
+  canCreate,
+  canOpenSettings,
   onSetDate,
   onCloseDatePicker,
   onSelectDate,
@@ -332,7 +336,12 @@ export function JournalTabScreen({
               <RefreshCcw className="h-4 w-4 text-[#8892a2]" />
               Обновить
             </button>
-            <button type="button" onClick={onSettings} className="rounded-xl p-2 text-ink">
+            <button
+              type="button"
+              onClick={onSettings}
+              disabled={!canOpenSettings}
+              className="rounded-xl p-2 text-ink disabled:opacity-40"
+            >
               <Settings2 className="h-6 w-6 text-ink" />
             </button>
           </div>
@@ -345,7 +354,8 @@ export function JournalTabScreen({
                 <button
                   type="button"
                   onClick={onCreate}
-                  className="w-full text-4xl font-normal leading-none text-accent"
+                  disabled={!canCreate}
+                  className="w-full text-4xl font-normal leading-none text-accent disabled:opacity-35"
                 >
                   +
                 </button>
@@ -398,6 +408,7 @@ export function JournalTabScreen({
                   topTone={card.topTone}
                   client={card.clientName}
                   phone={card.clientPhone}
+                  showPhone={journalSettings.showClientPhone}
                   service={card.serviceName}
                   onClick={() => onCardClick(card)}
                 />
@@ -442,7 +453,8 @@ export function JournalTabScreen({
                 <button
                   type="button"
                   onClick={onSettings}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-ink"
+                  disabled={!canOpenSettings}
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-ink disabled:opacity-45"
                 >
                   <Settings2 className="h-4 w-4 text-[#8892a2]" />
                   Настройки
@@ -450,7 +462,8 @@ export function JournalTabScreen({
                 <button
                   type="button"
                   onClick={onCreate}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)]"
+                  disabled={!canCreate}
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)] disabled:opacity-45"
                 >
                   <Plus className="h-4 w-4" />
                   Новая запись

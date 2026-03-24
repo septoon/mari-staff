@@ -19,6 +19,17 @@ test('maps settings routes to separate settings pages', () => {
   });
 });
 
+test('maps profile routes to profile page state', () => {
+  expect(routeToState('/profile')).toEqual({
+    page: 'owner',
+    tab: 'more',
+  });
+  expect(routeToState('/owner')).toEqual({
+    page: 'owner',
+    tab: 'more',
+  });
+});
+
 test('maps online-booking section routes to client site editor page', () => {
   expect(routeToState('/online-booking/uslugi')).toEqual({
     page: 'clientSiteEditor',

@@ -230,6 +230,7 @@ export function useAppState() {
     settings: false,
     action: false,
   });
+  const [accessDeniedPath, setAccessDeniedPath] = useState('');
 
   return {
     page,
@@ -410,5 +411,7 @@ export function useAppState() {
     serviceImageBlobUrlRef,
     loading,
     setLoading,
+    accessDeniedPath,
+    setAccessDeniedPath,
   };
 }

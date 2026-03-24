@@ -242,6 +242,7 @@ export function JournalScreen({
                   topTone={card.topTone}
                   client={card.clientName}
                   phone={card.clientPhone}
+                  showPhone
                   service={card.serviceName}
                   onClick={() => onCardClick(card)}
                 />

@@ -7,6 +7,7 @@ export type { StaffPermissionCatalogItem, StaffRole, StaffSession };
 export type TabKey = 'journal' | 'schedule' | 'clients' | 'analytics' | 'services' | 'more';
 export type AppPage =
   | 'tabs'
+  | 'forbidden'
   | 'scheduleEditor'
   | 'staff'
   | 'owner'
@@ -283,6 +284,7 @@ export type ControllerState = {
   authPin: string;
   authError: string;
   loading: LoadingState;
+  accessDeniedPath: string;
   moreMenu: MoreActionItem[];
   visibleTabs: TabItem[];
   clientActionsFor: ClientItem | null;
@@ -323,6 +325,9 @@ export type ControllerState = {
   editorPermissionCatalog: StaffPermissionCatalogItem[];
   editorPermissionCodes: string[];
   editorPermissionBusyCode: string | null;
+  canViewClients: boolean;
+  canViewClientPhone: boolean;
+  canCreateJournalAppointments: boolean;
   canEditClients: boolean;
   canEditJournal: boolean;
   canEditPrivacyPolicy: boolean;

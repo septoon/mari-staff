@@ -9,6 +9,7 @@ type AppointmentCardProps = {
   time: string;
   client: string;
   phone: string;
+  showPhone: boolean;
   service: string;
   topTone: 'green' | 'violet';
   onClick: () => void;
@@ -22,6 +23,7 @@ export function AppointmentCard({
   time,
   client,
   phone,
+  showPhone,
   service,
   topTone,
   onClick,
@@ -44,7 +46,7 @@ export function AppointmentCard({
         <div className="space-y-1 px-2 pb-2 pt-1 text-[13px] font-semibold leading-tight">
           <span className="inline-block rounded-md bg-[#1658da] px-1.5 py-[1px] text-white">New</span>
           <p>{client}</p>
-          <p>{phone || 'нет телефона'}</p>
+          {showPhone ? <p>{phone || 'нет телефона'}</p> : null}
           <p>{service || 'услуга не указана'}</p>
         </div>
       </button>

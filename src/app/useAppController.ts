@@ -103,11 +103,22 @@ const EDIT_PERMISSION = {
 
 const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   VIEW_JOURNAL: ['VIEW_JOURNAL', 'EDIT_JOURNAL', 'ACCESS_JOURNAL'],
+  VIEW_ALL_JOURNAL_APPOINTMENTS: [
+    'VIEW_ALL_JOURNAL_APPOINTMENTS',
+    'EDIT_JOURNAL',
+    'ACCESS_JOURNAL',
+  ],
   EDIT_JOURNAL: ['EDIT_JOURNAL', 'ACCESS_JOURNAL'],
+  CREATE_JOURNAL_APPOINTMENTS: [
+    'CREATE_JOURNAL_APPOINTMENTS',
+    'EDIT_JOURNAL',
+    'ACCESS_JOURNAL',
+  ],
   VIEW_SCHEDULE: ['VIEW_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   EDIT_SCHEDULE: ['EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   VIEW_CLIENTS: ['VIEW_CLIENTS', 'EDIT_CLIENTS', 'ACCESS_CLIENTS'],
   EDIT_CLIENTS: ['EDIT_CLIENTS', 'ACCESS_CLIENTS'],
+  VIEW_CLIENT_PHONE: ['VIEW_CLIENT_PHONE', 'VIEW_CLIENTS', 'EDIT_CLIENTS', 'ACCESS_CLIENTS'],
   VIEW_FINANCIAL_STATS: ['VIEW_FINANCIAL_STATS', 'ACCESS_FINANCIAL_STATS', 'VIEW_REPORTS'],
   VIEW_SERVICES: ['VIEW_SERVICES', 'EDIT_SERVICES', 'ACCESS_SERVICES'],
   EDIT_SERVICES: ['EDIT_SERVICES', 'ACCESS_SERVICES'],
@@ -118,33 +129,40 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
 const resolvePermissionCandidates = (permissionCode: string) =>
   PERMISSION_EQUIVALENTS[permissionCode] ?? [permissionCode];
 
-function resolveFallbackTabKeysByRole(role: StaffSession['staff']['role']): TabKey[] {
-  if (role === 'MASTER') {
-    return ['journal', 'more'];
+function hasSessionPermissionAccess(
+  sessionData: StaffSession,
+  permissionCode: string | null | undefined,
+): boolean {
+  if (sessionData.staff.role === 'OWNER' || !permissionCode) {
+    return true;
   }
-  return TAB_ITEMS.map((item) => item.key);
+
+  if (sessionData.staff.role === 'MASTER' && permissionCode === 'VIEW_JOURNAL') {
+    return true;
+  }
+
+  const permissionCodes = Array.isArray(sessionData.staff.permissions)
+    ? sessionData.staff.permissions
+    : null;
+
+  if (!permissionCodes) {
+    return sessionData.staff.role !== 'MASTER';
+  }
+
+  const candidates = resolvePermissionCandidates(permissionCode);
+  return candidates.some((code) => permissionCodes.includes(code));
 }
 
 function resolveAllowedTabKeys(sessionData: StaffSession): TabKey[] {
   if (sessionData.staff.role === 'OWNER') {
     return TAB_ITEMS.map((item) => item.key);
   }
-  const permissionCodes = Array.isArray(sessionData.staff.permissions)
-    ? sessionData.staff.permissions
-    : null;
-  if (!permissionCodes) {
-    return resolveFallbackTabKeysByRole(sessionData.staff.role);
-  }
   return TAB_ITEMS.filter((item) => {
     if (item.key === 'more') {
       return true;
     }
     const requiredPermission = TAB_PERMISSION_CODE[item.key];
-    if (!requiredPermission) {
-      return true;
-    }
-    const candidates = resolvePermissionCandidates(requiredPermission);
-    return candidates.some((code) => permissionCodes.includes(code));
+    return hasSessionPermissionAccess(sessionData, requiredPermission);
   }).map((item) => item.key);
 }
 
@@ -381,6 +399,8 @@ export function useAppController(): AppController {
     serviceImageBlobUrlRef,
     loading,
     setLoading,
+    accessDeniedPath,
+    setAccessDeniedPath,
   } = useAppState();
   const pageRef = useRef(page);
   const tabRef = useRef(tab);
@@ -404,36 +424,25 @@ export function useAppController(): AppController {
 
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const isAuthorized = Boolean(session);
-  const sessionPermissionCodes = useMemo(
-    () => {
-      const permissions = session?.staff.permissions;
-      return Array.isArray(permissions) ? permissions : [];
-    },
-    [session],
-  );
-  const hasPermissionsPayload = Array.isArray(session?.staff.permissions);
   const hasPermissionAccess = useCallback(
     (permissionCode: string | null | undefined) => {
       if (!session) {
         return false;
       }
-      if (session.staff.role === 'OWNER' || !permissionCode) {
-        return true;
-      }
-      if (!hasPermissionsPayload) {
-        return true;
-      }
-      const candidates = resolvePermissionCandidates(permissionCode);
-      return candidates.some((code) => sessionPermissionCodes.includes(code));
+      return hasSessionPermissionAccess(session, permissionCode);
     },
-    [hasPermissionsPayload, session, sessionPermissionCodes],
+    [session],
   );
+  const isMaster = session?.staff.role === 'MASTER';
   const canViewJournal = hasPermissionAccess('VIEW_JOURNAL');
+  const canViewFullJournal = hasPermissionAccess('VIEW_ALL_JOURNAL_APPOINTMENTS');
   const canViewSchedule = hasPermissionAccess('VIEW_SCHEDULE');
   const canViewClients = hasPermissionAccess('VIEW_CLIENTS');
+  const canViewClientPhone = hasPermissionAccess('VIEW_CLIENT_PHONE');
   const canViewServices = hasPermissionAccess('VIEW_SERVICES');
   const canViewStaff = hasPermissionAccess('VIEW_STAFF');
   const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
+  const canCreateJournalAppointments = hasPermissionAccess('CREATE_JOURNAL_APPOINTMENTS');
   const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
   const canEditPrivacyPolicy = hasPermissionAccess('MANAGE_CLIENT_FRONT');
   const canEditSettings = session?.staff.role === 'OWNER';
@@ -445,19 +454,12 @@ export function useAppController(): AppController {
     if (!session) {
       return false;
     }
-    if (session.staff.role === 'OWNER') {
-      return true;
-    }
-    if (session.staff.role !== 'ADMIN') {
-      return false;
-    }
-    const codes = new Set(sessionPermissionCodes);
     return (
-      codes.has(EDIT_PERMISSION.selfProfile) ||
-      codes.has(EDIT_PERMISSION.staff) ||
-      codes.has('ACCESS_STAFF')
+      session.staff.role === 'OWNER' ||
+      hasPermissionAccess(EDIT_PERMISSION.selfProfile) ||
+      (session.staff.role === 'ADMIN' && hasPermissionAccess(EDIT_PERMISSION.staff))
     );
-  }, [session, sessionPermissionCodes]);
+  }, [hasPermissionAccess, session]);
   const visibleTabKeys = useMemo(
     () => (session ? resolveAllowedTabKeys(session) : []),
     [session],
@@ -467,10 +469,110 @@ export function useAppController(): AppController {
     return TAB_ITEMS.filter((item) => allowedKeys.has(item.key));
   }, [visibleTabKeys]);
   const firstAllowedTab = visibleTabs[0]?.key ?? 'more';
+  const canAccessMoreAction = useCallback(
+    (title: string) => {
+      if (title === 'Настройки') {
+        return canEditSettings;
+      }
+      if (title === 'Поддержка') {
+        return true;
+      }
+      return hasPermissionAccess(MORE_ACTION_PERMISSION_CODE[title]);
+    },
+    [canEditSettings, hasPermissionAccess],
+  );
   const moreMenu = useMemo(
-    () =>
-      MORE_MENU.filter((item) => hasPermissionAccess(MORE_ACTION_PERMISSION_CODE[item.title])),
-    [hasPermissionAccess],
+    () => MORE_MENU.filter((item) => canAccessMoreAction(item.title)),
+    [canAccessMoreAction],
+  );
+  const canAccessRouteState = useCallback(
+    (nextPage: AppController['state']['page'], nextTab: TabKey) => {
+      if (!session) {
+        return false;
+      }
+
+      if (nextPage === 'tabs') {
+        if (nextTab === 'more') {
+          return true;
+        }
+        if (nextTab === 'journal') {
+          return canViewJournal;
+        }
+        if (nextTab === 'schedule') {
+          return canViewSchedule;
+        }
+        if (nextTab === 'clients') {
+          return canViewClients;
+        }
+        if (nextTab === 'analytics') {
+          return canViewReports;
+        }
+        if (nextTab === 'services') {
+          return canViewServices;
+        }
+        return false;
+      }
+
+      if (nextPage === 'forbidden') {
+        return true;
+      }
+      if (nextPage === 'owner') {
+        return true;
+      }
+      if (nextPage === 'journalAppointment') {
+        return canViewJournal;
+      }
+      if (nextPage === 'journalCreate') {
+        return canCreateJournalAppointments;
+      }
+      if (nextPage === 'journalClient' || nextPage === 'clientHistory') {
+        return canViewClients;
+      }
+      if (nextPage === 'journalSettings') {
+        return !isMaster || canEdit(EDIT_PERMISSION.journal);
+      }
+      if (
+        nextPage === 'journalDayEdit' ||
+        nextPage === 'journalDayRemove' ||
+        nextPage === 'scheduleEditor'
+      ) {
+        return canEdit(EDIT_PERMISSION.schedule);
+      }
+      if (nextPage === 'staff') {
+        return canViewStaff;
+      }
+      if (nextPage === 'staffEditor' || nextPage === 'staffServicesEditor') {
+        return canEdit(EDIT_PERMISSION.staff);
+      }
+      if (nextPage === 'settings' || nextPage === 'settingsNotifications') {
+        return canEditSettings;
+      }
+      if (nextPage === 'privacyPolicy' || nextPage === 'clientSiteEditor') {
+        return canEditPrivacyPolicy;
+      }
+      if (nextPage === 'servicesCategories' || nextPage === 'servicesCategory') {
+        return canViewServices;
+      }
+      if (nextPage === 'serviceEditor' || nextPage === 'serviceCategoryEditor') {
+        return canEdit(EDIT_PERMISSION.services);
+      }
+
+      return false;
+    },
+    [
+      canCreateJournalAppointments,
+      canEdit,
+      canEditPrivacyPolicy,
+      canEditSettings,
+      canViewClients,
+      canViewJournal,
+      canViewReports,
+      canViewSchedule,
+      canViewServices,
+      canViewStaff,
+      isMaster,
+      session,
+    ],
   );
 
   const staffWithServices = useMemo(() => {
@@ -763,6 +865,7 @@ export function useAppController(): AppController {
     sessionRole: session?.staff.role ?? null,
     sessionStaffId: session?.staff.id ?? null,
     sessionStaffName: session?.staff.name ?? null,
+    useFullJournalEndpoint: !isMaster || canViewFullJournal,
     canViewStaff,
     canViewServices,
     canViewClients,
@@ -843,8 +946,9 @@ export function useAppController(): AppController {
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
     } else {
       localStorage.removeItem(SESSION_STORAGE_KEY);
+      setAccessDeniedPath('');
     }
-  }, [session]);
+  }, [session, setAccessDeniedPath]);
 
   useEffect(() => {
     if (loading.boot) {
@@ -878,13 +982,19 @@ export function useAppController(): AppController {
       return;
     }
 
-    if (routeState.page === 'tabs' && !visibleTabKeys.includes(routeState.tab)) {
-      routeSyncSourceRef.current = 'state';
-      setPage('tabs');
-      setTab(firstAllowedTab);
+    if (!canAccessRouteState(routeState.page, routeState.tab)) {
+      setAccessDeniedPath(pathname);
+      if (pageRef.current !== 'forbidden' || tabRef.current !== routeState.tab) {
+        routeSyncSourceRef.current = 'location';
+        setPage('forbidden');
+        setTab(routeState.tab);
+      }
       return;
     }
 
+    if (accessDeniedPath) {
+      setAccessDeniedPath('');
+    }
     if (routeState.page !== pageRef.current || routeState.tab !== tabRef.current) {
       routeSyncSourceRef.current = 'location';
       setPage(routeState.page);
@@ -898,8 +1008,9 @@ export function useAppController(): AppController {
     session,
     setPage,
     setTab,
-    firstAllowedTab,
-    visibleTabKeys,
+    accessDeniedPath,
+    canAccessRouteState,
+    setAccessDeniedPath,
   ]);
 
   useEffect(() => {
@@ -911,6 +1022,12 @@ export function useAppController(): AppController {
     }
 
     const pathname = normalizePathname(location.pathname);
+    if (page === 'forbidden' && pathname === accessDeniedPath) {
+      if (routeSyncSourceRef.current === 'location') {
+        routeSyncSourceRef.current = 'idle';
+      }
+      return;
+    }
     const targetPath = stateToRoute(page, tab);
 
     if (isRouteCompatibleWithState(pathname, page, tab)) {
@@ -927,7 +1044,7 @@ export function useAppController(): AppController {
 
     routeSyncSourceRef.current = 'state';
     navigate(targetPath);
-  }, [loading.boot, location.pathname, navigate, page, routeSyncSourceRef, session, tab]);
+  }, [accessDeniedPath, loading.boot, location.pathname, navigate, page, routeSyncSourceRef, session, tab]);
 
   useEffect(() => {
     if (!session || page !== 'tabs') {
@@ -1491,6 +1608,10 @@ export function useAppController(): AppController {
   };
 
   const openJournalSettingsPage = () => {
+    if (isMaster && !canEdit(EDIT_PERMISSION.journal)) {
+      setToast('Нет доступа к настройкам журнала');
+      return;
+    }
     setPage('journalSettings');
     setTab('journal');
   };
@@ -2076,6 +2197,10 @@ export function useAppController(): AppController {
   };
 
   const handleOpenJournalClient = async () => {
+    if (!canViewClients) {
+      setToast('Нет доступа к карточке клиента');
+      return;
+    }
     const appointment = journalAppointmentTarget;
     if (!appointment) {
       return;
@@ -2427,8 +2552,8 @@ export function useAppController(): AppController {
   };
 
   const handleCreateAppointment = async () => {
-    if (!canEdit(EDIT_PERMISSION.journal)) {
-      setToast('Нет прав на редактирование журнала');
+    if (!canCreateJournalAppointments) {
+      setToast('Нет прав на создание записи');
       return;
     }
     if (staff.length === 0 || services.length === 0) {
@@ -2441,8 +2566,8 @@ export function useAppController(): AppController {
   };
 
   const saveJournalCreateAppointment = async () => {
-    if (!canEdit(EDIT_PERMISSION.journal)) {
-      setToast('Нет прав на редактирование журнала');
+    if (!canCreateJournalAppointments) {
+      setToast('Нет прав на создание записи');
       return;
     }
 
@@ -3418,8 +3543,7 @@ export function useAppController(): AppController {
     if (!session) {
       return;
     }
-    const requiredPermission = MORE_ACTION_PERMISSION_CODE[title];
-    if (!hasPermissionAccess(requiredPermission)) {
+    if (!canAccessMoreAction(title)) {
       setToast('Нет доступа к разделу');
       return;
     }
@@ -4205,6 +4329,7 @@ export function useAppController(): AppController {
       authPin,
       authError,
       loading,
+      accessDeniedPath,
       moreMenu,
       visibleTabs,
       clientActionsFor,
@@ -4245,6 +4370,9 @@ export function useAppController(): AppController {
       editorPermissionCatalog,
       editorPermissionCodes,
       editorPermissionBusyCode,
+      canViewClients,
+      canViewClientPhone,
+      canCreateJournalAppointments,
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEdit(EDIT_PERMISSION.journal),
       canEditPrivacyPolicy,

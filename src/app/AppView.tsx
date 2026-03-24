@@ -22,6 +22,7 @@ import { ClientHistoryScreen } from './screens/ClientHistoryScreen';
 import { ClientSiteEditorScreen } from './screens/ClientSiteEditorScreen';
 import { ClientsScreen } from './screens/ClientsScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
+import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
 import { JournalCreateScreen } from './screens/JournalCreateScreen';
 import { JournalDayEditScreen } from './screens/JournalDayEditScreen';
 import { JournalDayRemoveScreen } from './screens/JournalDayRemoveScreen';
@@ -314,6 +315,13 @@ export function AppView({ controller }: AppViewProps) {
     const allowedSet = new Set(allowedIds);
     return state.services.filter((item) => allowedSet.has(item.id));
   }, [state.journalCreateDraft.staffId, state.journalCreateServiceIdsByStaff, state.services]);
+  const effectiveJournalSettings = useMemo(
+    () => ({
+      ...state.journalSettings,
+      showClientPhone: state.journalSettings.showClientPhone && state.canViewClientPhone,
+    }),
+    [state.canViewClientPhone, state.journalSettings],
+  );
 
   const closeClientsTools = () => {
     setClientsToolsOpen(false);
@@ -651,13 +659,15 @@ export function AppView({ controller }: AppViewProps) {
             journalHours={state.journalHours}
             cards={state.journalCards}
             listAppointments={state.journalListAppointments}
-            journalSettings={state.journalSettings}
+            journalSettings={effectiveJournalSettings}
             loading={state.loading.appointments}
             datePickerOpen={state.journalDatePickerOpen}
-            markedDates={state.journalSettings.showMarkedDates ? state.journalMarkedDates : []}
+            markedDates={effectiveJournalSettings.showMarkedDates ? state.journalMarkedDates : []}
             visibleTabs={state.visibleTabs}
             activeTab={state.tab}
             showOwnerDaySummary={false}
+            canCreate={state.canCreateJournalAppointments}
+            canOpenSettings={!state.session || state.session.staff.role !== 'MASTER' || state.canEditJournal}
             onSetDate={actions.handleSetDate}
             onCloseDatePicker={actions.closeJournalDatePicker}
             onSelectDate={actions.selectJournalDate}
@@ -683,13 +693,15 @@ export function AppView({ controller }: AppViewProps) {
               journalHours={state.journalHours}
               cards={state.journalCards}
               listAppointments={state.journalListAppointments}
-              journalSettings={state.journalSettings}
+              journalSettings={effectiveJournalSettings}
               loading={state.loading.appointments}
               datePickerOpen={state.journalDatePickerOpen}
-              markedDates={state.journalSettings.showMarkedDates ? state.journalMarkedDates : []}
+              markedDates={effectiveJournalSettings.showMarkedDates ? state.journalMarkedDates : []}
               visibleTabs={state.visibleTabs}
               activeTab={state.tab}
               showOwnerDaySummary={false}
+              canCreate={state.canCreateJournalAppointments}
+              canOpenSettings={!state.session || state.session.staff.role !== 'MASTER' || state.canEditJournal}
               onSetDate={actions.handleSetDate}
               onCloseDatePicker={actions.closeJournalDatePicker}
               onSelectDate={actions.selectJournalDate}
@@ -710,7 +722,7 @@ export function AppView({ controller }: AppViewProps) {
         ) : null}
         {state.page === 'journalSettings' ? (
           <JournalSettingsScreen
-            settings={state.journalSettings}
+            settings={effectiveJournalSettings}
             onBack={actions.closeJournalSettingsPage}
             onUpdate={(patch) => {
               actions.setJournalSettings((prev) => ({ ...prev, ...patch }));
@@ -748,6 +760,8 @@ export function AppView({ controller }: AppViewProps) {
               historyOpen={state.page === 'journalClient'}
               loading={state.loading.action}
               canEdit={state.canEditJournal}
+              canOpenClient={state.canViewClients}
+              canViewClientPhone={state.canViewClientPhone}
               visitsCount={activeJournalHistory.length}
               noShowCount={activeJournalNoShows}
               onBack={actions.handleCloseJournalAppointment}
@@ -1043,6 +1057,17 @@ export function AppView({ controller }: AppViewProps) {
             imagePreviewUrl={state.serviceImagePreviewUrl}
             onImageFilePick={(file: File) => {
               void actions.handleSelectServiceImageFile(file);
+            }}
+          />
+        ) : null}
+        {state.page === 'forbidden' ? (
+          <AccessDeniedScreen
+            path={state.accessDeniedPath}
+            onOpenJournal={() => {
+              actions.handleTabChange('journal');
+            }}
+            onOpenProfile={() => {
+              void actions.handleOpenOwnerEditor();
             }}
           />
         ) : null}

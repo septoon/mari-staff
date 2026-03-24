@@ -112,3 +112,43 @@ test('hides restricted tabs for master without permissions payload', async () =>
   window.localStorage.removeItem('mari.staff.session.v1');
   global.fetch = originalFetch;
 });
+
+test('keeps base journal access for master with empty permissions and shows access denied for restricted route', async () => {
+  const originalFetch = global.fetch;
+
+  global.fetch = jest.fn().mockRejectedValue(new Error('network disabled in test'));
+
+  window.localStorage.setItem(
+    'mari.staff.session.v1',
+    JSON.stringify({
+      staff: {
+        id: 'master-2',
+        name: 'Master User',
+        role: 'MASTER',
+        phoneE164: '+79780000001',
+        email: null,
+        permissions: [],
+      },
+      tokens: {
+        accessToken: 'test-access',
+        refreshToken: 'test-refresh',
+        expiresInSec: 900,
+      },
+    }),
+  );
+
+  render(
+    <MemoryRouter initialEntries={['/clients']}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText('Страница недоступна')).toBeInTheDocument();
+  expect(screen.getByText('/clients')).toBeInTheDocument();
+  expect(screen.getAllByText('Журнал').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Еще').length).toBeGreaterThan(0);
+  expect(screen.queryByText('Клиенты')).not.toBeInTheDocument();
+
+  window.localStorage.removeItem('mari.staff.session.v1');
+  global.fetch = originalFetch;
+});

@@ -14,10 +14,10 @@ const TAB_ROUTE_MAP: Record<TabKey, string> = {
   more: '/more',
 };
 
-const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs'>, string> = {
+const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs' | 'forbidden'>, string> = {
   scheduleEditor: '/schedule/editor',
   staff: '/staff',
-  owner: '/owner',
+  owner: '/profile',
   settings: '/settings',
   settingsNotifications: '/settings/notifications',
   privacyPolicy: '/online-booking/politika-konfidentsialnosti',
@@ -83,6 +83,7 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'settingsNotifications', tab: 'more' };
     case '/staff':
       return { page: 'staff', tab: 'more' };
+    case '/profile':
     case '/owner':
       return { page: 'owner', tab: 'more' };
     case '/more/privacy-policy':
@@ -121,6 +122,9 @@ export function routeToState(pathname: string): RouteState | null {
 export function stateToRoute(page: AppPage, tab: TabKey) {
   if (page === 'tabs') {
     return TAB_ROUTE_MAP[tab];
+  }
+  if (page === 'forbidden') {
+    return TAB_ROUTE_MAP[tab] ?? '/journal';
   }
   return PAGE_ROUTE_MAP[page];
 }
