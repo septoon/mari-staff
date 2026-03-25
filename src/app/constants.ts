@@ -109,7 +109,7 @@ export const EMPTY_STAFF_DRAFT: StaffDraft = {
 
 export const EMPTY_STAFF_FILTER: StaffFilter = {
   withServices: false,
-  withAccess: true,
+  employmentStatus: 'current',
 };
 
 export const EMPTY_OWNER_DRAFT: OwnerDraft = {
@@ -146,4 +146,6 @@ export const DEFAULT_JOURNAL_SETTINGS: JournalSettings = {
   autoRefreshSeconds: 20,
   confirmStatusChange: true,
   confirmDelete: true,
+  mobileStaffMode: 'all',
+  mobileSelectedStaffIds: [],
 };

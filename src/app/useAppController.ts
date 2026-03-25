@@ -22,6 +22,7 @@ import {
 import {
   appointmentMatchesClient,
   formatTime,
+  getStaffEmploymentStatus,
   getWeekDates,
   normalizePhoneForLink,
   normalizePhoneForWhatsApp,
@@ -450,6 +451,8 @@ export function useAppController(): AppController {
     (permissionCode: string) => hasPermissionAccess(permissionCode),
     [hasPermissionAccess],
   );
+  const canSelectPastJournalDates =
+    !isMaster || canViewFullJournal || canEdit(EDIT_PERMISSION.journal);
   const canEditOwnProfile = useMemo(() => {
     if (!session) {
       return false;
@@ -624,6 +627,9 @@ export function useAppController(): AppController {
         avatarUrl: null,
         avatarAssetId: null,
         isActive: true,
+        hiredAt: null,
+        firedAt: null,
+        deletedAt: null,
         positionName: null,
       });
       seenIds.add(staffId);
@@ -674,8 +680,14 @@ export function useAppController(): AppController {
   }, [appointments]);
 
   const filteredStaff = useMemo(() => {
-    const withoutOwner = staff.filter((item) => item.role !== 'OWNER' && item.isActive);
+    const withoutOwner = staff.filter((item) => item.role !== 'OWNER');
     const filteredByFlags = withoutOwner.filter((item) => {
+      if (
+        staffFilter.employmentStatus !== 'all' &&
+        getStaffEmploymentStatus(item) !== staffFilter.employmentStatus
+      ) {
+        return false;
+      }
       if (staffFilter.withServices && (staffServiceCounts[item.id] ?? 0) <= 0) {
         return false;
       }
@@ -691,7 +703,16 @@ export function useAppController(): AppController {
       } ${roleLabel(item.role)}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [staff, staffFilter.withServices, staffSearch, staffServiceCounts]);
+  }, [staff, staffFilter.employmentStatus, staffFilter.withServices, staffSearch, staffServiceCounts]);
+
+  const editingStaff = useMemo(
+    () => (editingStaffId ? staff.find((item) => item.id === editingStaffId) ?? null : null),
+    [editingStaffId, staff],
+  );
+  const editingStaffStatus = useMemo(
+    () => (editingStaff ? getStaffEmploymentStatus(editingStaff) : 'current'),
+    [editingStaff],
+  );
 
   const serviceCategories = useMemo<ServiceCategoryItem[]>(() => {
     const map = new Map<string, ServiceCategoryItem>();
@@ -1672,6 +1693,9 @@ export function useAppController(): AppController {
           avatarUrl: null,
           avatarAssetId: null,
           isActive: true,
+          hiredAt: null,
+          firedAt: null,
+          deletedAt: null,
           positionName: null,
         };
 
@@ -1872,6 +1896,10 @@ export function useAppController(): AppController {
       setToast('Нет прав на редактирование сотрудников');
       return;
     }
+    if (editingStaffStatus === 'deleted') {
+      setToast('Удаленный сотрудник недоступен для редактирования');
+      return;
+    }
     const id = editingStaffId;
     if (!id) {
       return;
@@ -1893,12 +1921,6 @@ export function useAppController(): AppController {
       });
       if (staffDraft.role !== originalEditRole) {
         await api.patch<unknown>(`/staff/${id}/role`, { role: staffDraft.role });
-      }
-
-      if (!editorAccessEnabled) {
-        await api.post<unknown>(`/staff/${id}/fire`, {
-          firedAt: toISODate(new Date()),
-        });
       }
 
       const rows = await loadStaff();
@@ -1935,19 +1957,80 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       await api.post<unknown>(`/staff/${firedStaffId}/fire`, {
-        firedAt: toISODate(new Date()),
+        firedAt: new Date().toISOString(),
       });
       setStaff((prev) =>
         prev.map((item) =>
-          item.id === firedStaffId ? { ...item, isActive: false } : item,
+          item.id === firedStaffId
+            ? { ...item, isActive: false, firedAt: new Date(), deletedAt: null }
+            : item,
         ),
       );
-      setStaffFilter((prev) => ({ ...prev, withAccess: true }));
       const rows = await loadStaff();
       await loadStaffServiceMeta(rows);
       closeStaffForm();
       setPage('staff');
       setToast('Сотрудник уволен');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleRestoreStaff = async () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
+    if (!editingStaffId) {
+      return;
+    }
+    const restoredStaffId = editingStaffId;
+    const confirmed = window.confirm('Вернуть сотрудника в работу?');
+    if (!confirmed) {
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.post<unknown>(`/staff/${restoredStaffId}/restore`, {
+        hiredAt: new Date().toISOString(),
+      });
+      const rows = await loadStaff();
+      await loadStaffServiceMeta(rows);
+      closeStaffForm();
+      setPage('staff');
+      setToast('Сотрудник возвращен в работу');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleDeleteStaff = async () => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на редактирование сотрудников');
+      return;
+    }
+    if (!editingStaffId) {
+      return;
+    }
+    const deletingStaffId = editingStaffId;
+    const confirmed = window.confirm(
+      'Удалить сотрудника? Профиль, телефон, email и имя будут стерты, записи сохранятся.',
+    );
+    if (!confirmed) {
+      return;
+    }
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.delete<unknown>(`/staff/${deletingStaffId}`);
+      const rows = await loadStaff();
+      await loadStaffServiceMeta(rows);
+      closeStaffForm();
+      setPage('staff');
+      setToast('Сотрудник удален');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -2561,6 +2644,14 @@ export function useAppController(): AppController {
   };
 
   const selectJournalDate = (value: Date) => {
+    const today = new Date();
+    const nextDate = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (!canSelectPastJournalDates && nextDate.getTime() < todayDate.getTime()) {
+      setToast('Нет доступа к прошлым дням журнала');
+      setJournalDatePickerOpen(false);
+      return;
+    }
     setSelectedDate(value);
     setJournalDatePickerOpen(false);
   };
@@ -3736,6 +3827,10 @@ export function useAppController(): AppController {
       setToast('Сначала сохраните сотрудника, затем назначьте услуги');
       return;
     }
+    if (editingStaffStatus === 'deleted') {
+      setToast('Удаленный сотрудник недоступен для редактирования');
+      return;
+    }
     setLoadingKey(setLoading, 'action', true);
     void (async () => {
       try {
@@ -3793,6 +3888,10 @@ export function useAppController(): AppController {
       setToast('Сотрудник не выбран');
       return;
     }
+    if (editingStaffStatus === 'deleted') {
+      setToast('Удаленный сотрудник недоступен для редактирования');
+      return;
+    }
     setLoadingKey(setLoading, 'action', true);
     try {
       await api.put<unknown>(`/staff/${editingStaffId}/services`, {
@@ -3824,6 +3923,10 @@ export function useAppController(): AppController {
     }
     if (!editingStaffId) {
       setToast('Сначала сохраните сотрудника, затем настраивайте права');
+      return;
+    }
+    if (editingStaffStatus === 'deleted') {
+      setToast('Удаленный сотрудник недоступен для редактирования');
       return;
     }
 
@@ -3861,6 +3964,10 @@ export function useAppController(): AppController {
       return;
     }
     if (!editingStaffId) {
+      return;
+    }
+    if (editingStaffStatus === 'deleted') {
+      setToast('Удаленный сотрудник недоступен для редактирования');
       return;
     }
     setEditorPermissionBusyCode(code);
@@ -4388,6 +4495,10 @@ export function useAppController(): AppController {
       journalClientSaving,
       staffFormMode,
       staffDraft,
+      editingStaffStatus,
+      editingStaffHiredAt: editingStaff?.hiredAt ?? null,
+      editingStaffFiredAt: editingStaff?.firedAt ?? null,
+      editingStaffDeletedAt: editingStaff?.deletedAt ?? null,
       editorAccessEnabled,
       editorServiceCount,
       editorServiceNames,
@@ -4419,6 +4530,7 @@ export function useAppController(): AppController {
       canCreateJournalAppointments,
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEdit(EDIT_PERMISSION.journal),
+      canSelectPastJournalDates,
       canEditPrivacyPolicy,
       canEditSettings,
       settingsClientCancelMinNoticeMinutes,
@@ -4465,6 +4577,8 @@ export function useAppController(): AppController {
       handleCreateStaff,
       handleUpdateStaff,
       handleFireStaff,
+      handleRestoreStaff,
+      handleDeleteStaff,
       refreshStaffAndMeta,
       handleOpenClientActions,
       handleCloseClientActions,

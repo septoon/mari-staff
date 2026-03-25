@@ -11,10 +11,11 @@ import {
   UserRound,
 } from 'lucide-react';
 import { PageSheet } from '../components/shared/PageSheet';
-import { roleLabel } from '../helpers';
-import type { StaffFilter, StaffItem } from '../types';
+import { getStaffEmploymentStatus, roleLabel, staffEmploymentStatusLabel } from '../helpers';
+import type { StaffEmploymentFilter, StaffFilter, StaffItem } from '../types';
 
 type StaffManagementScreenProps = {
+  allStaff: StaffItem[];
   staff: StaffItem[];
   loading: boolean;
   search: string;
@@ -29,6 +30,7 @@ type StaffManagementScreenProps = {
 };
 
 export function StaffManagementScreen({
+  allStaff,
   staff,
   loading,
   search,
@@ -42,12 +44,27 @@ export function StaffManagementScreen({
   onEdit,
 }: StaffManagementScreenProps) {
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
-  const withServicesCount = staff.filter((item) => (serviceCounts[item.id] ?? 0) > 0).length;
-  const withAccessCount = staff.filter((item) => item.isActive).length;
+  const staffPool = allStaff.filter((item) => item.role !== 'OWNER');
+  const withServicesCount = staffPool.filter((item) => (serviceCounts[item.id] ?? 0) > 0).length;
+  const statusCounts = staffPool.reduce<Record<StaffEmploymentFilter, number>>(
+    (acc, item) => {
+      const status = getStaffEmploymentStatus(item);
+      acc.all += 1;
+      acc[status] += 1;
+      return acc;
+    },
+    { all: 0, current: 0, fired: 0, deleted: 0 },
+  );
+  const statusOptions: Array<{ key: StaffEmploymentFilter; label: string }> = [
+    { key: 'all', label: 'Все' },
+    { key: 'current', label: 'Текущие' },
+    { key: 'fired', label: 'Уволенные' },
+    { key: 'deleted', label: 'Удаленные' },
+  ];
 
   return (
     <>
-      <div className="pb-4 pt-[calc(env(safe-area-inset-top)+196px)] md:hidden">
+      <div className="pb-4 pt-[calc(env(safe-area-inset-top)+244px)] md:hidden">
         <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-[calc(env(safe-area-inset-top)+16px)]">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
@@ -82,12 +99,35 @@ export function StaffManagementScreen({
               className="w-full bg-transparent text-[16px] font-semibold text-ink outline-none placeholder:text-[#97a0ad]"
             />
           </label>
-
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hidden">
+            {statusOptions.map((option) => {
+              const active = filters.employmentStatus === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() =>
+                    onFilterChange((prev) => ({ ...prev, employmentStatus: option.key }))
+                  }
+                  className={clsx(
+                    'inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold transition',
+                    active ? 'bg-[#f4c900] text-[#222b33]' : 'bg-white text-[#5d6775] border border-[#dde3eb]',
+                  )}
+                >
+                  <span>{option.label}</span>
+                  <span className={clsx(active ? 'text-[#222b33]' : 'text-[#98a1ae]')}>
+                    {statusCounts[option.key]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <ul className="mt-4 space-y-5">
           {staff.map((item) => {
             const servicesCount = serviceCounts[item.id] ?? 0;
+            const status = getStaffEmploymentStatus(item);
             return (
               <li key={item.id}>
                 <button
@@ -110,6 +150,18 @@ export function StaffManagementScreen({
                       {item.positionName || roleLabel(item.role)}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
+                      <span
+                        className={clsx(
+                          'rounded-full px-4 py-1 text-[13px] font-medium',
+                          status === 'current'
+                            ? 'bg-[#e4f4e8] text-[#267a45]'
+                            : status === 'fired'
+                              ? 'bg-[#f9ead7] text-[#9c5c00]'
+                              : 'bg-[#eceff4] text-[#667080]',
+                        )}
+                      >
+                        {staffEmploymentStatusLabel(status)}
+                      </span>
                       {servicesCount > 0 ? (
                         <span className="rounded-full bg-[#f2dc7e] px-4 py-1 text-[13px] font-medium text-ink">
                           Оказывает услуги
@@ -153,15 +205,15 @@ export function StaffManagementScreen({
           <div className="space-y-4">
             <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Всего</p>
-              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{staff.length}</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{statusCounts.all}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С услугами</p>
               <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{withServicesCount}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С доступом</p>
-              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{withAccessCount}</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Текущие</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{statusCounts.current}</p>
             </div>
           </div>
         </div>
@@ -222,6 +274,31 @@ export function StaffManagementScreen({
             </label>
 
             <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3">
+                {statusOptions.map((option) => {
+                  const active = filters.employmentStatus === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() =>
+                        onFilterChange((prev) => ({ ...prev, employmentStatus: option.key }))
+                      }
+                      className={clsx(
+                        'inline-flex h-12 items-center gap-2 rounded-2xl px-4 text-sm font-extrabold transition',
+                        active
+                          ? 'bg-[#f4c900] text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.22)]'
+                          : 'border border-[#dde3eb] bg-white text-ink',
+                      )}
+                    >
+                      <span>{option.label}</span>
+                      <span className={clsx(active ? 'text-[#222b33]' : 'text-[#98a1ae]')}>
+                        {statusCounts[option.key]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
               <button
                 type="button"
                 onClick={() =>
@@ -242,15 +319,15 @@ export function StaffManagementScreen({
           <div className="mt-6 grid gap-4 xl:grid-cols-3">
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Всего</p>
-              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{staff.length}</p>
+              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{statusCounts.all}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">С услугами</p>
               <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{withServicesCount}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">С доступом</p>
-              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{withAccessCount}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Текущие</p>
+              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{statusCounts.current}</p>
             </div>
           </div>
         </section>
@@ -272,13 +349,14 @@ export function StaffManagementScreen({
               <div>Сотрудник</div>
               <div>Роль</div>
               <div>Услуги</div>
-              <div>Доступ</div>
+              <div>Статус</div>
               <div />
             </div>
 
             {staff.length > 0 ? (
               staff.map((item, index) => {
                 const servicesCount = serviceCounts[item.id] ?? 0;
+                const status = getStaffEmploymentStatus(item);
                 return (
                   <button
                     key={item.id}
@@ -317,12 +395,14 @@ export function StaffManagementScreen({
                       <span
                         className={clsx(
                           'inline-flex rounded-full px-3 py-2 text-sm font-bold',
-                          item.isActive
+                          status === 'current'
                             ? 'bg-[#e4f4e8] text-[#267a45]'
-                            : 'bg-[#f4e6e6] text-[#a34f4f]',
+                            : status === 'fired'
+                              ? 'bg-[#f9ead7] text-[#9c5c00]'
+                              : 'bg-[#eceff4] text-[#667080]',
                         )}
                       >
-                        {item.isActive ? 'Активен' : 'Без доступа'}
+                        {staffEmploymentStatusLabel(status)}
                       </span>
                     </div>
 

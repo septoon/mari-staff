@@ -43,6 +43,7 @@ type JournalTabScreenProps = {
   showOwnerDaySummary: boolean;
   canCreate: boolean;
   canOpenSettings: boolean;
+  canSelectPastDates: boolean;
   onSetDate: () => void;
   onCloseDatePicker: () => void;
   onSelectDate: (value: Date) => void;
@@ -184,6 +185,7 @@ export function JournalTabScreen({
   showOwnerDaySummary,
   canCreate,
   canOpenSettings,
+  canSelectPastDates,
   onSetDate,
   onCloseDatePicker,
   onSelectDate,
@@ -218,12 +220,44 @@ export function JournalTabScreen({
       : 'text-[20px] font-extrabold leading-tight text-ink';
   const secondaryTextClassName = 'mt-2 text-sm font-semibold text-[#838b97]';
 
-  const columnsCount = Math.max(1, staff.length);
-  const gridTemplateColumns = `${JOURNAL_TIME_COLUMN_WIDTH}px repeat(${columnsCount}, ${JOURNAL_CARD_COLUMN_WIDTH}px)`;
-  const minWidth =
+  const mobileStaff = useMemo(() => {
+    if (journalSettings.mobileStaffMode !== 'selected') {
+      return staff;
+    }
+    const selectedIds = new Set(journalSettings.mobileSelectedStaffIds);
+    const filtered = staff.filter((item) => selectedIds.has(item.id));
+    return filtered.length > 0 ? filtered : staff;
+  }, [journalSettings.mobileSelectedStaffIds, journalSettings.mobileStaffMode, staff]);
+  const mobileCards = useMemo(() => {
+    const staffById = new Map(mobileStaff.map((item, index) => [item.id, index]));
+    const staffByName = new Map(
+      mobileStaff.map((item, index) => [item.name.trim().toLowerCase(), index]),
+    );
+    return cards
+      .map((item) => {
+        let column = staffById.get(item.staffId);
+        if (column === undefined && item.staffName.trim()) {
+          column = staffByName.get(item.staffName.trim().toLowerCase());
+        }
+        if (column === undefined) {
+          return null;
+        }
+        return {
+          ...item,
+          left:
+            JOURNAL_TIME_COLUMN_WIDTH +
+            JOURNAL_GRID_GAP +
+            column * (JOURNAL_CARD_COLUMN_WIDTH + JOURNAL_GRID_GAP),
+        };
+      })
+      .filter(Boolean) as JournalCard[];
+  }, [cards, mobileStaff]);
+  const mobileColumnsCount = Math.max(1, mobileStaff.length);
+  const mobileGridTemplateColumns = `${JOURNAL_TIME_COLUMN_WIDTH}px repeat(${mobileColumnsCount}, ${JOURNAL_CARD_COLUMN_WIDTH}px)`;
+  const mobileMinWidth =
     JOURNAL_TIME_COLUMN_WIDTH +
-    columnsCount * JOURNAL_CARD_COLUMN_WIDTH +
-    (columnsCount + 1) * JOURNAL_GRID_GAP;
+    mobileColumnsCount * JOURNAL_CARD_COLUMN_WIDTH +
+    (mobileColumnsCount + 1) * JOURNAL_GRID_GAP;
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const normalizedServiceQuery = serviceQuery.trim().toLowerCase();
@@ -349,7 +383,10 @@ export function JournalTabScreen({
 
         <div className="mt-4 border-t border-line pt-3">
           <div className="scrollbar-hidden overflow-x-auto pb-3">
-            <div className="grid gap-2 pb-2" style={{ gridTemplateColumns, minWidth }}>
+            <div
+              className="grid gap-2 pb-2"
+              style={{ gridTemplateColumns: mobileGridTemplateColumns, minWidth: mobileMinWidth }}
+            >
               <div className="sticky left-0 z-30 bg-screen">
                 <button
                   type="button"
@@ -360,8 +397,8 @@ export function JournalTabScreen({
                   +
                 </button>
               </div>
-              {Array.from({ length: columnsCount }).map((_, index) => {
-                const item = staff[index];
+              {Array.from({ length: mobileColumnsCount }).map((_, index) => {
+                const item = mobileStaff[index];
                 if (!item) {
                   return <div key={`staff-placeholder-${index}`} />;
                 }
@@ -379,8 +416,8 @@ export function JournalTabScreen({
               })}
             </div>
 
-            <div className="relative pb-3" style={{ minWidth }}>
-              <div className="grid gap-2" style={{ gridTemplateColumns }}>
+            <div className="relative pb-3" style={{ minWidth: mobileMinWidth }}>
+              <div className="grid gap-2" style={{ gridTemplateColumns: mobileGridTemplateColumns }}>
                 <div className="sticky left-0 z-20 space-y-0 bg-screen pr-2">
                   {journalHours.map((time) => (
                     <div key={time} className="h-[76px] pt-1 text-[16px] font-medium text-ink">
@@ -388,7 +425,7 @@ export function JournalTabScreen({
                     </div>
                   ))}
                 </div>
-                {Array.from({ length: columnsCount }).map((_, colIndex) => (
+                {Array.from({ length: mobileColumnsCount }).map((_, colIndex) => (
                   <div key={colIndex} className="space-y-0">
                     {journalHours.map((time) => (
                       <div key={time} className="h-[76px] border-t border-[#dce1e8]" />
@@ -397,7 +434,7 @@ export function JournalTabScreen({
                 ))}
               </div>
 
-              {cards.map((card) => (
+              {mobileCards.map((card) => (
                 <AppointmentCard
                   key={card.id}
                   width={JOURNAL_CARD_COLUMN_WIDTH}
@@ -731,6 +768,7 @@ export function JournalTabScreen({
         open={datePickerOpen}
         selectedDate={selectedDate}
         markedDates={markedDates}
+        allowPastDates={canSelectPastDates}
         onClose={onCloseDatePicker}
         onSelectDate={onSelectDate}
       />

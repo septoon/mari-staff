@@ -2,10 +2,11 @@ import clsx from 'clsx';
 import { useEffect } from 'react';
 import { ArrowLeft, Clock3, Eye, RotateCcw, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { InputSwitch } from 'primereact/inputswitch';
-import type { JournalSettings } from '../types';
+import type { JournalSettings, StaffItem } from '../types';
 
 type JournalSettingsScreenProps = {
   settings: JournalSettings;
+  staff: StaffItem[];
   onBack: () => void;
   onUpdate: (patch: Partial<JournalSettings>) => void;
   onReset: () => void;
@@ -111,7 +112,12 @@ function SelectField<T extends string | number>({
   );
 }
 
-function SettingsContent({ settings, onUpdate, onReset }: Omit<JournalSettingsScreenProps, 'onBack'>) {
+function SettingsContent({
+  settings,
+  staff,
+  onUpdate,
+  onReset,
+}: Omit<JournalSettingsScreenProps, 'onBack'>) {
   return (
     <div className="space-y-5">
       <section className="rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
@@ -171,6 +177,75 @@ function SettingsContent({ settings, onUpdate, onReset }: Omit<JournalSettingsSc
               onChange={(value) => onUpdate({ showMarkedDates: value })}
             />
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#eef4ff] text-[#4968bf]">
+            <SlidersHorizontal className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Mobile</p>
+            <h2 className="mt-2 text-[24px] font-extrabold leading-none text-ink">Сотрудники в журнале</h2>
+            <p className="mt-3 text-sm font-semibold leading-6 text-[#788292]">
+              Управляет тем, какие сотрудники показываются в мобильной сетке журнала.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <SegmentedField
+            label="Режим отображения"
+            value={settings.mobileStaffMode}
+            options={[
+              { value: 'all', label: 'Все сотрудники' },
+              { value: 'selected', label: 'Только выбранные' },
+            ]}
+            onChange={(value) =>
+              onUpdate({
+                mobileStaffMode: value,
+                mobileSelectedStaffIds:
+                  value === 'selected' && settings.mobileSelectedStaffIds.length === 0
+                    ? staff.map((item) => item.id)
+                    : settings.mobileSelectedStaffIds,
+              })
+            }
+          />
+
+          {settings.mobileStaffMode === 'selected' ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">
+                Выбранные сотрудники
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {staff.map((item) => {
+                  const active = settings.mobileSelectedStaffIds.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() =>
+                        onUpdate({
+                          mobileSelectedStaffIds: active
+                            ? settings.mobileSelectedStaffIds.filter((staffId) => staffId !== item.id)
+                            : [...settings.mobileSelectedStaffIds, item.id],
+                        })
+                      }
+                      className={clsx(
+                        'rounded-full border px-4 py-2 text-sm font-bold transition',
+                        active
+                          ? 'border-[#f4c900] bg-[#fff7d6] text-[#4a3b00]'
+                          : 'border-[#dbe1ea] bg-white text-[#49525e] hover:bg-[#f7f9fc]',
+                      )}
+                    >
+                      {item.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -293,6 +368,7 @@ function SettingsContent({ settings, onUpdate, onReset }: Omit<JournalSettingsSc
 
 export function JournalSettingsScreen({
   settings,
+  staff,
   onBack,
   onUpdate,
   onReset,
@@ -333,7 +409,7 @@ export function JournalSettingsScreen({
         </div>
 
         <div className="mt-5">
-          <SettingsContent settings={settings} onUpdate={onUpdate} onReset={onReset} />
+          <SettingsContent settings={settings} staff={staff} onUpdate={onUpdate} onReset={onReset} />
         </div>
       </div>
 
@@ -361,7 +437,7 @@ export function JournalSettingsScreen({
           </div>
 
           <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <SettingsContent settings={settings} onUpdate={onUpdate} onReset={onReset} />
+            <SettingsContent settings={settings} staff={staff} onUpdate={onUpdate} onReset={onReset} />
           </div>
         </div>
       </div>

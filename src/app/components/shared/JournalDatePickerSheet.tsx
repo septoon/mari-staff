@@ -9,6 +9,7 @@ type JournalDatePickerSheetProps = {
   open: boolean;
   selectedDate: Date;
   markedDates: string[];
+  allowPastDates?: boolean;
   onClose: () => void;
   onSelectDate: (value: Date) => void;
   initialMonthMode?: 'selected' | 'today';
@@ -76,6 +77,7 @@ export function JournalDatePickerSheet({
   open,
   selectedDate,
   markedDates,
+  allowPastDates = true,
   onClose,
   onSelectDate,
   initialMonthMode = 'selected',
@@ -223,22 +225,27 @@ export function JournalDatePickerSheet({
                       const isSelected = iso === selectedIso;
                       const isToday = iso === todayIso;
                       const hasAppointments = markedSet.has(iso);
+                      const isPast = iso < todayIso;
+                      const disabled = !allowPastDates && isPast;
 
                       return (
                         <div key={iso} className="flex justify-center">
                           <button
                             type="button"
                             onClick={() => onSelectDate(date)}
+                            disabled={disabled}
                             className={clsx(
                               'relative flex h-11 w-11 items-center justify-center rounded-full border-2 text-[16px] font-semibold',
-                              isSelected
+                              disabled
+                                ? 'border-[#e5e8ed] bg-[#f4f6f9] text-[#bcc4d0]'
+                                : isSelected
                                 ? 'border-[#f4c900] bg-[#f4c900] text-[#2d3440]'
                                 : isToday
                                   ? 'border-[#ff4d4f] text-[#2d3440]'
                                   : 'border-[#d2d4d8] text-[#2d3440]',
                             )}
                           >
-                            {hasAppointments && !isSelected ? (
+                            {hasAppointments && !isSelected && !disabled ? (
                               <span className="pointer-events-none absolute inset-0 rounded-full border-[3px] border-transparent border-r-[#2ab84d] border-t-[#2ab84d] rotate-[24deg]" />
                             ) : null}
                             {date.getDate()}

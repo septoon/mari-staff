@@ -2,8 +2,19 @@ import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 're
 import clsx from 'clsx';
 import { ArrowLeft, ChevronDown, ChevronRight, Trash2, UserRound } from 'lucide-react';
 import { PrimeSwitch } from '../components/shared/PrimeSwitch';
-import { buildRuPhoneValue, getRuPhoneLocalDigits, roleLabel } from '../helpers';
-import type { StaffCreateRole, StaffDraft, StaffPermissionCatalogItem } from '../types';
+import {
+  buildRuPhoneValue,
+  formatDateTimeLabel,
+  getRuPhoneLocalDigits,
+  roleLabel,
+  staffEmploymentStatusLabel,
+} from '../helpers';
+import type {
+  StaffCreateRole,
+  StaffDraft,
+  StaffEmploymentStatus,
+  StaffPermissionCatalogItem,
+} from '../types';
 
 const DESKTOP_PANEL_CLASS =
   'rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]';
@@ -20,6 +31,10 @@ type StaffEditorScreenProps = {
   mode: 'create' | 'edit';
   draft: StaffDraft;
   serviceCount: number;
+  status: StaffEmploymentStatus;
+  hiredAt: Date | null;
+  firedAt: Date | null;
+  deletedAt: Date | null;
   permissionSummary: string;
   permissionCatalog: StaffPermissionCatalogItem[];
   permissionCodes: string[];
@@ -35,6 +50,8 @@ type StaffEditorScreenProps = {
   onTogglePermission: (code: string, enabled: boolean) => void;
   onSave: () => void;
   onDelete: () => void;
+  onRestore: () => void;
+  onHardDelete: () => void;
   avatarUrl: string;
   canDeleteAvatar: boolean;
   onAvatarFilePick: (file: File) => void;
@@ -45,6 +62,10 @@ export function StaffEditorScreen({
   mode,
   draft,
   serviceCount,
+  status,
+  hiredAt,
+  firedAt,
+  deletedAt,
   permissionSummary,
   permissionCatalog,
   permissionCodes,
@@ -60,6 +81,8 @@ export function StaffEditorScreen({
   onTogglePermission,
   onSave,
   onDelete,
+  onRestore,
+  onHardDelete,
   avatarUrl,
   canDeleteAvatar,
   onAvatarFilePick,
@@ -67,6 +90,9 @@ export function StaffEditorScreen({
 }: StaffEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const enabledPermissions = new Set(permissionCodes);
+  const isDeleted = status === 'deleted';
+  const isFired = status === 'fired';
+  const fieldsDisabled = loading || isDeleted;
   const groupedPermissionCatalog = permissionCatalog.reduce<
     Record<StaffPermissionCatalogItem['group'], StaffPermissionCatalogItem[]>
   >(
@@ -108,7 +134,7 @@ export function StaffEditorScreen({
           <h1 className="text-[22px] font-extrabold text-ink">Сотрудник</h1>
           <button
             type="button"
-            onClick={onDelete}
+            onClick={onHardDelete}
             disabled={!canDelete || loading}
             className="rounded-lg p-2 text-muted disabled:opacity-40"
           >
@@ -120,6 +146,7 @@ export function StaffEditorScreen({
           <button
             type="button"
             onClick={pickAvatar}
+            disabled={fieldsDisabled}
             className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#e3e0f8] text-[#9a97ec]"
           >
             {avatarUrl ? (
@@ -128,13 +155,19 @@ export function StaffEditorScreen({
               <UserRound className="h-12 w-12" />
             )}
           </button>
-          <button type="button" onClick={pickAvatar} className="mt-3 text-[18px] font-semibold text-muted">
+          <button
+            type="button"
+            onClick={pickAvatar}
+            disabled={fieldsDisabled}
+            className="mt-3 text-[18px] font-semibold text-muted disabled:opacity-40"
+          >
             Изменить фото
           </button>
           {canDeleteAvatar ? (
             <button
               type="button"
               onClick={onDeleteAvatar}
+              disabled={fieldsDisabled}
               className="mt-1 text-[14px] font-semibold text-[#8a929f]"
             >
               Удалить аватар
@@ -143,14 +176,37 @@ export function StaffEditorScreen({
         </div>
 
         <div className="space-y-4">
+          {mode === 'edit' ? (
+            <div className="rounded-3xl border-[2px] border-line bg-[#fbfbfd] px-6 py-4">
+              <p className="text-[14px] font-semibold text-muted">Статус</p>
+              <p className="mt-1 text-[20px] font-semibold text-ink">{staffEmploymentStatusLabel(status)}</p>
+              {hiredAt ? (
+                <p className="mt-2 text-[14px] font-medium text-muted">
+                  Принят: {formatDateTimeLabel(hiredAt)}
+                </p>
+              ) : null}
+              {firedAt ? (
+                <p className="mt-1 text-[14px] font-medium text-muted">
+                  Уволен: {formatDateTimeLabel(firedAt)}
+                </p>
+              ) : null}
+              {deletedAt ? (
+                <p className="mt-1 text-[14px] font-medium text-muted">
+                  Удален: {formatDateTimeLabel(deletedAt)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <label className="block">
             <span className="mb-2 block text-[16px] font-medium text-muted">Имя</span>
             <input
               value={draft.name}
+              disabled={fieldsDisabled}
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, name: event.target.value }))
               }
-              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none"
+              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none disabled:opacity-50"
             />
           </label>
 
@@ -159,13 +215,14 @@ export function StaffEditorScreen({
             <div className="relative">
               <select
                 value={draft.role}
+                disabled={fieldsDisabled}
                 onChange={(event) =>
                   onDraftChange((prev) => ({
                     ...prev,
                     role: event.target.value as StaffCreateRole,
                   }))
                 }
-                className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none"
+                className="w-full appearance-none rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none disabled:opacity-50"
               >
                 <option value="MASTER">{roleLabel('MASTER')}</option>
                 <option value="DEVELOPER">{roleLabel('DEVELOPER')}</option>
@@ -180,16 +237,18 @@ export function StaffEditorScreen({
             <span className="mb-2 block text-[16px] font-medium text-muted">Специализация</span>
             <input
               value={draft.positionName}
+              disabled={fieldsDisabled}
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, positionName: event.target.value }))
               }
-              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none"
+              className="w-full rounded-3xl border-[2px] border-line bg-screen px-6 py-4 text-[20px] font-medium text-ink outline-none disabled:opacity-50"
             />
           </label>
 
           <button
             type="button"
             onClick={onOpenServices}
+            disabled={isDeleted}
             className="flex w-full items-center justify-between border-b border-line pb-4 pt-1 text-left"
           >
             <div>
@@ -202,6 +261,7 @@ export function StaffEditorScreen({
           <button
             type="button"
             onClick={onOpenPermissions}
+            disabled={isDeleted}
             className="flex w-full items-center justify-between border-b border-line pb-4 pt-1 text-left"
           >
             <div>
@@ -211,20 +271,22 @@ export function StaffEditorScreen({
             <ChevronRight className="h-7 w-7 text-muted" />
           </button>
 
-          <div className="flex items-center justify-between gap-4 pt-1">
-            <div>
-              <p className="text-[20px] font-medium text-ink">Доступ к сервису</p>
-              <p className="max-w-[260px] text-[14px] font-medium text-muted">
-                Сотрудник сможет пользоваться системой в соответствии с установленной ролью
-              </p>
+          {mode === 'create' ? (
+            <div className="flex items-center justify-between gap-4 pt-1">
+              <div>
+                <p className="text-[20px] font-medium text-ink">Доступ к сервису</p>
+                <p className="max-w-[260px] text-[14px] font-medium text-muted">
+                  Новый сотрудник будет создан с доступом в систему
+                </p>
+              </div>
+              <PrimeSwitch
+                checked={hasAccess}
+                onChange={onAccessChange}
+                size="staff"
+                ariaLabel="Доступ к сервису"
+              />
             </div>
-            <PrimeSwitch
-              checked={hasAccess}
-              onChange={onAccessChange}
-              size="staff"
-              ariaLabel="Доступ к сервису"
-            />
-          </div>
+          ) : null}
 
           <label className="block">
             <span className="mb-2 block text-[16px] font-medium text-muted">Номер телефона</span>
@@ -232,6 +294,7 @@ export function StaffEditorScreen({
               <span className="shrink-0 text-[20px] font-medium text-muted">+7</span>
               <input
                 value={getRuPhoneLocalDigits(draft.phone)}
+                disabled={fieldsDisabled}
                 onChange={(event) =>
                   onDraftChange((prev) => ({ ...prev, phone: buildRuPhoneValue(event.target.value) }))
                 }
@@ -239,7 +302,7 @@ export function StaffEditorScreen({
                 inputMode="numeric"
                 pattern="[0-9]*"
                 autoComplete="tel-national"
-                className="min-w-0 w-full bg-transparent text-[20px] font-medium text-muted outline-none"
+                className="min-w-0 w-full bg-transparent text-[20px] font-medium text-muted outline-none disabled:opacity-50"
               />
             </div>
           </label>
@@ -248,31 +311,44 @@ export function StaffEditorScreen({
             <span className="mb-2 block text-[16px] font-medium text-muted">Email</span>
             <input
               value={draft.email}
+              disabled={fieldsDisabled}
               onChange={(event) =>
                 onDraftChange((prev) => ({ ...prev, email: event.target.value }))
               }
-              className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[20px] font-medium text-muted outline-none"
+              className="w-full rounded-3xl bg-[#e6e9ef] px-6 py-4 text-[20px] font-medium text-muted outline-none disabled:opacity-50"
             />
           </label>
 
           {mode === 'edit' ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={loading}
-              className="mt-1 w-full rounded-3xl border-[2px] border-line py-4 text-[20px] font-medium text-ink"
-            >
-              Уволить сотрудника
-            </button>
+            <div className="space-y-3">
+              {!isDeleted ? (
+                <button
+                  type="button"
+                  onClick={isFired ? onRestore : onDelete}
+                  disabled={loading}
+                  className="mt-1 w-full rounded-3xl border-[2px] border-line py-4 text-[20px] font-medium text-ink"
+                >
+                  {isFired ? 'Вернуть в работу' : 'Уволить сотрудника'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onHardDelete}
+                disabled={loading || isDeleted}
+                className="w-full rounded-3xl border-[2px] border-[#f2d4d4] py-4 text-[20px] font-medium text-[#a14d4d] disabled:opacity-40"
+              >
+                Удалить сотрудника
+              </button>
+            </div>
           ) : null}
 
           <button
             type="button"
             onClick={onSave}
-            disabled={loading}
+            disabled={loading || isDeleted}
             className="mt-2 w-full rounded-3xl bg-[#f4c900] py-4 text-[20px] font-bold text-black disabled:opacity-60"
           >
-            {loading ? 'Сохранение...' : mode === 'create' ? 'Добавить' : 'Сохранить'}
+            {loading ? 'Сохранение...' : mode === 'create' ? 'Добавить' : isDeleted ? 'Редактирование недоступно' : 'Сохранить'}
           </button>
         </div>
       </div>
@@ -301,20 +377,32 @@ export function StaffEditorScreen({
                 Назад
               </button>
               {canDelete ? (
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  disabled={loading}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#f2d4d4] bg-white px-4 text-sm font-semibold text-[#a14d4d] disabled:opacity-40"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Уволить
-                </button>
+                <>
+                  {!isDeleted ? (
+                    <button
+                      type="button"
+                      onClick={isFired ? onRestore : onDelete}
+                      disabled={loading}
+                      className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink disabled:opacity-40"
+                    >
+                      {isFired ? 'Вернуть в работу' : 'Уволить'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={onHardDelete}
+                    disabled={loading || isDeleted}
+                    className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#f2d4d4] bg-white px-4 text-sm font-semibold text-[#a14d4d] disabled:opacity-40"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Удалить
+                  </button>
+                </>
               ) : null}
               <button
                 type="button"
                 onClick={onSave}
-                disabled={loading}
+                disabled={loading || isDeleted}
                 className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)] disabled:opacity-60"
               >
                 {mode === 'create' ? 'Добавить сотрудника' : 'Сохранить изменения'}
@@ -349,17 +437,22 @@ export function StaffEditorScreen({
                   <span
                     className={clsx(
                       'rounded-full px-3 py-2 text-sm font-bold',
-                      hasAccess ? 'bg-[#e4f4e8] text-[#267a45]' : 'bg-[#f4e6e6] text-[#a34f4f]',
+                      status === 'current'
+                        ? 'bg-[#e4f4e8] text-[#267a45]'
+                        : status === 'fired'
+                          ? 'bg-[#f9ead7] text-[#9c5c00]'
+                          : 'bg-[#eceff4] text-[#667080]',
                     )}
                   >
-                    {hasAccess ? 'Доступ включен' : 'Доступ отключен'}
+                    {staffEmploymentStatusLabel(status)}
                   </span>
                 </div>
                 <div className="mt-5 flex w-full flex-col gap-3">
                   <button
                     type="button"
                     onClick={pickAvatar}
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink"
+                    disabled={fieldsDisabled}
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white px-4 text-sm font-semibold text-ink disabled:opacity-40"
                   >
                     Изменить фото
                   </button>
@@ -367,7 +460,8 @@ export function StaffEditorScreen({
                     <button
                       type="button"
                       onClick={onDeleteAvatar}
-                      className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-[#6f7784]"
+                      disabled={fieldsDisabled}
+                      className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-[#6f7784] disabled:opacity-40"
                     >
                       Удалить аватар
                     </button>
@@ -379,25 +473,30 @@ export function StaffEditorScreen({
             <section className={DESKTOP_PANEL_CLASS}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Доступ</p>
-                  <p className="mt-3 text-[24px] font-extrabold text-ink">Аккаунт сотрудника</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Статус</p>
+                  <p className="mt-3 text-[24px] font-extrabold text-ink">{staffEmploymentStatusLabel(status)}</p>
                   <p className="mt-2 text-sm font-semibold leading-6 text-[#7c8491]">
-                    Управляет входом в систему и набором доступных действий.
+                    {hiredAt ? `Принят: ${formatDateTimeLabel(hiredAt)}.` : 'Дата принятия не зафиксирована.'}
+                    {firedAt ? ` Уволен: ${formatDateTimeLabel(firedAt)}.` : ''}
+                    {deletedAt ? ` Удален: ${formatDateTimeLabel(deletedAt)}.` : ''}
                   </p>
                 </div>
-                <PrimeSwitch
-                  checked={hasAccess}
-                  onChange={onAccessChange}
-                  size="staff"
-                  ariaLabel="Аккаунт сотрудника"
-                />
+                {mode === 'create' ? (
+                  <PrimeSwitch
+                    checked={hasAccess}
+                    onChange={onAccessChange}
+                    size="staff"
+                    ariaLabel="Аккаунт сотрудника"
+                  />
+                ) : null}
               </div>
             </section>
 
             <button
               type="button"
               onClick={onOpenServices}
-              className={`${DESKTOP_PANEL_CLASS} block w-full text-left transition hover:border-[#f4c900]`}
+              disabled={isDeleted}
+              className={`${DESKTOP_PANEL_CLASS} block w-full text-left transition hover:border-[#f4c900] disabled:opacity-50`}
             >
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Услуги</p>
               <div className="mt-3 flex items-center justify-between gap-4">
@@ -418,10 +517,11 @@ export function StaffEditorScreen({
                 </span>
                 <input
                   value={draft.name}
+                  disabled={fieldsDisabled}
                   onChange={(event) =>
                     onDraftChange((prev) => ({ ...prev, name: event.target.value }))
                   }
-                  className={DESKTOP_INPUT_CLASS}
+                  className={`${DESKTOP_INPUT_CLASS} disabled:opacity-50`}
                 />
               </label>
 
@@ -432,13 +532,14 @@ export function StaffEditorScreen({
                 <div className="relative">
                   <select
                     value={draft.role}
+                    disabled={fieldsDisabled}
                     onChange={(event) =>
                       onDraftChange((prev) => ({
                         ...prev,
                         role: event.target.value as StaffCreateRole,
                       }))
                     }
-                    className={`${DESKTOP_INPUT_CLASS} appearance-none pr-11`}
+                    className={`${DESKTOP_INPUT_CLASS} appearance-none pr-11 disabled:opacity-50`}
                   >
                     <option value="MASTER">{roleLabel('MASTER')}</option>
                     <option value="DEVELOPER">{roleLabel('DEVELOPER')}</option>
@@ -455,10 +556,11 @@ export function StaffEditorScreen({
                 </span>
                 <input
                   value={draft.positionName}
+                  disabled={fieldsDisabled}
                   onChange={(event) =>
                     onDraftChange((prev) => ({ ...prev, positionName: event.target.value }))
                   }
-                  className={DESKTOP_INPUT_CLASS}
+                  className={`${DESKTOP_INPUT_CLASS} disabled:opacity-50`}
                 />
               </label>
 
@@ -466,10 +568,11 @@ export function StaffEditorScreen({
                 <span className="mb-2 block text-sm font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
                   Номер телефона
                 </span>
-                <div className="flex h-14 items-center gap-3 rounded-2xl border border-[#dce2ea] bg-white px-4">
-                  <span className="shrink-0 text-base font-semibold text-[#717986]">+7</span>
+                <div className="flex h-14 items-center gap-[0.1rem] rounded-2xl border border-[#dce2ea] bg-white px-4">
+                  <span className="shrink-0 text-base font-semibold text-ink">+7</span>
                   <input
                     value={getRuPhoneLocalDigits(draft.phone)}
+                    disabled={fieldsDisabled}
                     onChange={(event) =>
                       onDraftChange((prev) => ({ ...prev, phone: buildRuPhoneValue(event.target.value) }))
                     }
@@ -477,7 +580,7 @@ export function StaffEditorScreen({
                     inputMode="numeric"
                     pattern="[0-9]*"
                     autoComplete="tel-national"
-                    className="min-w-0 w-full bg-transparent text-base font-semibold text-ink outline-none"
+                    className="min-w-0 w-full bg-transparent text-base font-semibold text-ink outline-none disabled:opacity-50"
                   />
                 </div>
               </label>
@@ -488,10 +591,11 @@ export function StaffEditorScreen({
                 </span>
                 <input
                   value={draft.email}
+                  disabled={fieldsDisabled}
                   onChange={(event) =>
                     onDraftChange((prev) => ({ ...prev, email: event.target.value }))
                   }
-                  className={DESKTOP_INPUT_CLASS}
+                  className={`${DESKTOP_INPUT_CLASS} disabled:opacity-50`}
                 />
               </label>
 
@@ -550,6 +654,7 @@ export function StaffEditorScreen({
                                     checked={isEnabled}
                                     onChange={(checked) => onTogglePermission(item.code, checked)}
                                     loading={isBusy}
+                                    disabled={isDeleted}
                                     size="md"
                                     className="mt-0.5"
                                     ariaLabel={item.title}

@@ -121,8 +121,7 @@ export function useDataLoaders({
     setLoadingKey(setLoading, 'staff', true);
     try {
       const candidates = [
-        '/staff?page=1&limit=200&isActive=true',
-        '/staff?isActive=true',
+        '/staff?page=1&limit=200&employmentStatus=all',
         '/staff?page=1&limit=200',
         '/staff',
       ];
@@ -130,9 +129,7 @@ export function useDataLoaders({
       for (const path of candidates) {
         try {
           const data = await api.get<unknown>(path);
-          parsed = (extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[]).filter(
-            (item) => item.isActive,
-          );
+          parsed = extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[];
           if (parsed.length > 0) {
             break;
           }

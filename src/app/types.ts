@@ -45,8 +45,14 @@ export type StaffItem = {
   avatarUrl: string | null;
   avatarAssetId: string | null;
   isActive: boolean;
+  hiredAt: Date | null;
+  firedAt: Date | null;
+  deletedAt: Date | null;
   positionName: string | null;
 };
+
+export type StaffEmploymentStatus = 'current' | 'fired' | 'deleted';
+export type StaffEmploymentFilter = 'all' | StaffEmploymentStatus;
 
 export type StaffCreateRole = 'ADMIN' | 'MASTER' | 'DEVELOPER' | 'SMM';
 
@@ -60,7 +66,7 @@ export type StaffDraft = {
 
 export type StaffFilter = {
   withServices: boolean;
-  withAccess: boolean;
+  employmentStatus: StaffEmploymentFilter;
 };
 
 export type ScheduleEditorOpenOptions = {
@@ -153,6 +159,7 @@ export type JournalSettingsStatusFilter =
   | 'ARRIVED'
   | 'NO_SHOW';
 export type JournalSettingsAutoRefreshSeconds = 0 | 20 | 60 | 300;
+export type JournalSettingsMobileStaffMode = 'all' | 'selected';
 
 export type JournalSettings = {
   density: JournalSettingsDensity;
@@ -166,6 +173,8 @@ export type JournalSettings = {
   autoRefreshSeconds: JournalSettingsAutoRefreshSeconds;
   confirmStatusChange: boolean;
   confirmDelete: boolean;
+  mobileStaffMode: JournalSettingsMobileStaffMode;
+  mobileSelectedStaffIds: string[];
 };
 
 export type JournalCreateDraft = {
@@ -300,6 +309,10 @@ export type ControllerState = {
   journalClientSaving: boolean;
   staffFormMode: 'create' | 'edit' | null;
   staffDraft: StaffDraft;
+  editingStaffStatus: StaffEmploymentStatus;
+  editingStaffHiredAt: Date | null;
+  editingStaffFiredAt: Date | null;
+  editingStaffDeletedAt: Date | null;
   editorAccessEnabled: boolean;
   editorServiceCount: number;
   editorServiceNames: string[];
@@ -331,6 +344,7 @@ export type ControllerState = {
   canCreateJournalAppointments: boolean;
   canEditClients: boolean;
   canEditJournal: boolean;
+  canSelectPastJournalDates: boolean;
   canEditPrivacyPolicy: boolean;
   canEditSettings: boolean;
   settingsClientCancelMinNoticeMinutes: number | null;
@@ -378,6 +392,8 @@ export type ControllerActions = {
   handleCreateStaff: () => Promise<void>;
   handleUpdateStaff: () => Promise<void>;
   handleFireStaff: () => Promise<void>;
+  handleRestoreStaff: () => Promise<void>;
+  handleDeleteStaff: () => Promise<void>;
   refreshStaffAndMeta: () => Promise<void>;
   handleOpenClientActions: (client: ClientItem) => void;
   handleCloseClientActions: () => void;

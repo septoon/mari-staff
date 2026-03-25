@@ -1,7 +1,15 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { ApiError } from '../api';
 import { MONTHS_RU, MONTHS_RU_GENITIVE, ROLE_LABELS } from './constants';
-import type { AppointmentItem, ClientItem, LoadingState, StaffCreateRole, StaffRole } from './types';
+import type {
+  AppointmentItem,
+  ClientItem,
+  LoadingState,
+  StaffCreateRole,
+  StaffEmploymentStatus,
+  StaffItem,
+  StaffRole,
+} from './types';
 
 export function monthRange(date: Date): [string, string] {
   const from = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -48,6 +56,16 @@ export function formatHistoryDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
   return `${day}.${month}.${year}`;
+}
+
+export function formatDateTimeLabel(date: Date): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 export function formatRub(amount: number): string {
@@ -223,6 +241,17 @@ export function toNumber(value: unknown): number | null {
   return null;
 }
 
+export function toDate(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function normalizePhoneForLink(phone: string): string {
   const value = phone.replace(/[^\d+]/g, '');
   if (value.startsWith('+')) {
@@ -300,4 +329,27 @@ export function setLoadingKey(
 
 export function roleLabel(role: StaffRole | StaffCreateRole): string {
   return ROLE_LABELS[role as StaffRole] || role;
+}
+
+export function getStaffEmploymentStatus(
+  staff: Pick<StaffItem, 'deletedAt' | 'firedAt'>,
+): StaffEmploymentStatus {
+  if (staff.deletedAt) {
+    return 'deleted';
+  }
+  if (staff.firedAt) {
+    return 'fired';
+  }
+  return 'current';
+}
+
+export function staffEmploymentStatusLabel(status: StaffEmploymentStatus): string {
+  switch (status) {
+    case 'deleted':
+      return 'Удален';
+    case 'fired':
+      return 'Уволен';
+    default:
+      return 'Текущий';
+  }
 }

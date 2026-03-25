@@ -3,6 +3,7 @@ import {
   asArray,
   dayNameToIso,
   normalizeDay,
+  toDate,
   toNullableString,
   toNumber,
   toRecord,
@@ -35,6 +36,9 @@ export function parseStaff(value: unknown): StaffItem | null {
       toNullableString(record.avatarAssetId) ||
       toNullableString(record.photoAssetId),
     isActive: Boolean(record.isActive ?? true),
+    hiredAt: toDate(record.hiredAt),
+    firedAt: toDate(record.firedAt),
+    deletedAt: toDate(record.deletedAt),
     positionName: toNullableString(positionRecord?.name),
   };
 }

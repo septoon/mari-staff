@@ -555,6 +555,7 @@ export function AppView({ controller }: AppViewProps) {
       >
         {state.page === 'staff' ? (
           <StaffManagementScreen
+            allStaff={state.staff}
             staff={state.filteredStaff}
             loading={state.loading.staff || state.loading.action}
             search={state.staffSearch}
@@ -576,6 +577,10 @@ export function AppView({ controller }: AppViewProps) {
             draft={state.staffDraft}
             loading={state.loading.action}
             serviceCount={state.editorServiceCount}
+            status={state.editingStaffStatus}
+            hiredAt={state.editingStaffHiredAt}
+            firedAt={state.editingStaffFiredAt}
+            deletedAt={state.editingStaffDeletedAt}
             permissionSummary={
               state.editorPermissionCodes.length > 0
                 ? `${state.editorPermissionCodes.length} прав`
@@ -585,7 +590,7 @@ export function AppView({ controller }: AppViewProps) {
             permissionCodes={state.editorPermissionCodes}
             permissionBusyCode={state.editorPermissionBusyCode}
             hasAccess={state.editorAccessEnabled}
-            canDelete={state.staffFormMode === 'edit'}
+            canDelete={state.staffFormMode === 'edit' && state.editingStaffStatus !== 'deleted'}
             onBack={actions.backFromStaffEditor}
             onDraftChange={actions.setStaffDraft}
             onAccessChange={actions.setEditorAccessEnabled}
@@ -600,6 +605,12 @@ export function AppView({ controller }: AppViewProps) {
             }
             onDelete={() => {
               void actions.handleFireStaff();
+            }}
+            onRestore={() => {
+              void actions.handleRestoreStaff();
+            }}
+            onHardDelete={() => {
+              void actions.handleDeleteStaff();
             }}
             onOpenServices={actions.openEditorServicesPanel}
             onOpenPermissions={actions.openEditorPermissionsPanel}
@@ -669,6 +680,7 @@ export function AppView({ controller }: AppViewProps) {
             showOwnerDaySummary={false}
             canCreate={state.canCreateJournalAppointments}
             canOpenSettings={!state.session || state.session.staff.role !== 'MASTER' || state.canEditJournal}
+            canSelectPastDates={state.canSelectPastJournalDates}
             onSetDate={actions.handleSetDate}
             onCloseDatePicker={actions.closeJournalDatePicker}
             onSelectDate={actions.selectJournalDate}
@@ -703,6 +715,7 @@ export function AppView({ controller }: AppViewProps) {
               showOwnerDaySummary={false}
               canCreate={state.canCreateJournalAppointments}
               canOpenSettings={!state.session || state.session.staff.role !== 'MASTER' || state.canEditJournal}
+              canSelectPastDates={state.canSelectPastJournalDates}
               onSetDate={actions.handleSetDate}
               onCloseDatePicker={actions.closeJournalDatePicker}
               onSelectDate={actions.selectJournalDate}
@@ -724,6 +737,7 @@ export function AppView({ controller }: AppViewProps) {
         {state.page === 'journalSettings' ? (
           <JournalSettingsScreen
             settings={effectiveJournalSettings}
+            staff={state.journalStaff}
             onBack={actions.closeJournalSettingsPage}
             onUpdate={(patch) => {
               actions.setJournalSettings((prev) => ({ ...prev, ...patch }));

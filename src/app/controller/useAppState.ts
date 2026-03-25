@@ -97,6 +97,13 @@ function loadJournalSettings(): JournalSettings {
         typeof parsed.confirmDelete === 'boolean'
           ? parsed.confirmDelete
           : DEFAULT_JOURNAL_SETTINGS.confirmDelete,
+      mobileStaffMode:
+        parsed.mobileStaffMode === 'selected'
+          ? 'selected'
+          : DEFAULT_JOURNAL_SETTINGS.mobileStaffMode,
+      mobileSelectedStaffIds: Array.isArray(parsed.mobileSelectedStaffIds)
+        ? parsed.mobileSelectedStaffIds.filter((value): value is string => typeof value === 'string')
+        : DEFAULT_JOURNAL_SETTINGS.mobileSelectedStaffIds,
     };
   } catch {
     return DEFAULT_JOURNAL_SETTINGS;
