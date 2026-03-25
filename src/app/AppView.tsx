@@ -546,10 +546,10 @@ export function AppView({ controller }: AppViewProps) {
           'scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6',
           showDesktopRail ? 'md:pl-[444px] md:pr-6' : undefined,
           isJournalMainPage
-            ? 'pb-[calc(env(safe-area-inset-bottom)+208px)] md:pb-6'
+            ? 'pb-[calc(env(safe-area-inset-bottom)+220px)] md:pb-6'
             : isScheduleMainPage
-              ? 'pb-[calc(env(safe-area-inset-bottom)+132px)] md:pb-6'
-              : 'pb-[calc(env(safe-area-inset-bottom)+144px)] md:pb-6',
+              ? 'pb-[calc(env(safe-area-inset-bottom)+140px)] md:pb-6'
+              : 'pb-[calc(env(safe-area-inset-bottom)+152px)] md:pb-6',
         )}
       >
         {state.page === 'staff' ? (
@@ -1078,7 +1078,7 @@ export function AppView({ controller }: AppViewProps) {
           className="fixed left-1/2 z-40 w-full -translate-x-1/2 px-4 transition-all duration-300 md:hidden"
           style={{
             bottom: isMobileBottomNavVisible
-              ? 'calc(env(safe-area-inset-bottom) + 110px)'
+              ? 'calc(env(safe-area-inset-bottom) + 124px)'
               : 'calc(env(safe-area-inset-bottom) + 20px)',
           }}
         >

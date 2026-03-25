@@ -1050,11 +1050,11 @@ export function useAppController(): AppController {
     if (!session || page !== 'tabs') {
       return;
     }
-    if (visibleTabKeys.includes(tab)) {
+    if (canAccessRouteState('tabs', tab)) {
       return;
     }
     setTab(firstAllowedTab);
-  }, [firstAllowedTab, page, session, setTab, tab, visibleTabKeys]);
+  }, [canAccessRouteState, firstAllowedTab, page, session, setTab, tab]);
 
   useEffect(() => {
     if (page === 'staffEditor' && !staffFormMode) {

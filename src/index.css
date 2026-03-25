@@ -4,6 +4,13 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  width: 100%;
+  max-width: 100%;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
 :root {
   --shell: #eef0f4;
   --screen: #f3f4f6;
@@ -112,6 +119,11 @@ body {
     }
 
     #root {
+      zoom: 1;
+      transform: scale(var(--ui-scale));
+      transform-origin: top left;
+      width: calc(100% / var(--ui-scale));
+      min-height: var(--app-min-height);
       overflow-x: clip;
     }
 
@@ -137,6 +149,9 @@ body {
     }
 
     .mari-page-sheet [data-rsbs-overlay] {
+      zoom: 1;
+      scale: var(--sheet-ui-scale);
+      transform-origin: bottom center;
       max-width: 100%;
       padding-bottom: calc(var(--app-safe-bottom) + 8px);
     }
