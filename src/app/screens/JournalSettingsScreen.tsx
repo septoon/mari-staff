@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { useEffect } from 'react';
 import { ArrowLeft, Clock3, Eye, RotateCcw, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
-import { PrimeSwitch } from '../components/shared/PrimeSwitch';
+import { InputSwitch } from 'primereact/inputswitch';
 import type { JournalSettings } from '../types';
 
 type JournalSettingsScreenProps = {
@@ -29,12 +29,11 @@ function ToggleRow({
         <p className="mt-2 text-sm font-semibold leading-6 text-[#788292]">{description}</p>
       </div>
 
-      <PrimeSwitch
+      <InputSwitch
         checked={checked}
-        onChange={onChange}
-        size="sm"
-        className="mt-1"
-        ariaLabel={label}
+        onChange={(event) => onChange(Boolean(event.value))}
+        className="journal-settings-switch mt-1 shrink-0"
+        aria-label={label}
       />
     </div>
   );

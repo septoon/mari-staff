@@ -1325,7 +1325,7 @@ function CategorySummaryCard({
       className="group h-full w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:p-6 md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)] xl:min-h-[360px] xl:rounded-[32px] xl:p-7"
     >
       <div className="flex h-full flex-col">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4 md:gap-5">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)] md:h-16 md:w-16 xl:h-[72px] xl:w-[72px] xl:rounded-[24px]">
               <Icon className="h-7 w-7 md:h-8 md:w-8" strokeWidth={2.1} />
@@ -1338,8 +1338,7 @@ function CategorySummaryCard({
               </p>
             </div>
           </div>
-          <div className="flex w-full items-center justify-between gap-2 pt-1 sm:w-auto sm:shrink-0 sm:justify-start">
-
+          <div className="flex shrink-0 items-center pt-1">
             <ChevronRight className="h-5 w-5 text-[#808a98] transition group-hover:translate-x-0.5" />
           </div>
         </div>

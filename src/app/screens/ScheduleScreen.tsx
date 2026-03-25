@@ -12,7 +12,7 @@ import {
   Info,
   Loader2,
   MoreHorizontal,
-  Settings2,
+  RefreshCw,
   SlidersHorizontal,
   SquarePen,
   Star,
@@ -843,7 +843,7 @@ export function ScheduleScreen({
                   className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#dce2eb] bg-white text-[#78808b] transition hover:bg-[#f6f8fb]"
                   aria-label="Обновить график"
                 >
-                  <Settings2 className="h-4 w-4" />
+                  <RefreshCw className="h-4 w-4" />
                 </button>
               </div>
             </div>

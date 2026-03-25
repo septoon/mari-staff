@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import 'primereact/resources/primereact.min.css';
+import 'primereact/resources/themes/lara-light-blue/theme.css';
 import 'react-spring-bottom-sheet/dist/style.css';
 import './index.css';
 import App from './App';

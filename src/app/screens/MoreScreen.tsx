@@ -151,16 +151,18 @@ export function MoreScreen({
           </div>
         </section>
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="mt-5 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="space-y-5">
             <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col items-start gap-5">
                 {profileAvatar}
-                <div className="min-w-0 flex-1">
-                  <p className="text-[28px] font-extrabold leading-[1.02] tracking-[-0.04em] text-ink">
+                <div className="min-w-0 w-full">
+                  <p className="break-words text-[30px] font-extrabold leading-[0.96] tracking-[-0.04em] text-ink">
                     {displayName}
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-[#748091]">{displaySubtitle}</p>
+                  <p className="mt-3 break-words text-[15px] font-semibold leading-6 text-[#748091]">
+                    {displaySubtitle}
+                  </p>
                 </div>
               </div>
 
@@ -243,7 +245,7 @@ export function MoreScreen({
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Аккаунт</p>
-                  <p className="mt-3 text-[22px] font-extrabold leading-none text-ink">
+                  <p className="mt-3 break-words text-[22px] font-extrabold leading-tight text-ink">
                     {displayName}
                   </p>
                   <p className="mt-3 text-sm font-semibold text-[#748091]">

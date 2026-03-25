@@ -9,7 +9,7 @@ import {
   Loader2,
   Mail,
 } from 'lucide-react';
-import { PrimeSwitch } from '../components/shared/PrimeSwitch';
+import { InputSwitch } from 'primereact/inputswitch';
 import type { SettingsNotificationSection } from '../types';
 
 type SettingsNotificationsScreenProps = {
@@ -174,12 +174,12 @@ export function SettingsNotificationsScreen({
                                   {item.channelLabel}
                                 </span>
                               </div>
-                              <PrimeSwitch
+                              <InputSwitch
                                 checked={item.enabled}
                                 disabled={!canEdit || loading}
-                                onChange={(enabled) => void onToggle(item.id, enabled)}
-                                size="sm"
-                                ariaLabel={item.title}
+                                onChange={(event) => void onToggle(item.id, Boolean(event.value))}
+                                className="journal-settings-switch shrink-0"
+                                aria-label={item.title}
                               />
                             </div>
                           ))}
@@ -333,12 +333,12 @@ export function SettingsNotificationsScreen({
                                     <Mail className="h-3.5 w-3.5" />
                                     {item.channelLabel}
                                   </span>
-                                  <PrimeSwitch
+                                  <InputSwitch
                                     checked={item.enabled}
                                     disabled={!canEdit || loading}
-                                    onChange={(enabled) => void onToggle(item.id, enabled)}
-                                    size="sm"
-                                    ariaLabel={item.title}
+                                    onChange={(event) => void onToggle(item.id, Boolean(event.value))}
+                                    className="journal-settings-switch shrink-0"
+                                    aria-label={item.title}
                                   />
                                 </div>
                               </div>

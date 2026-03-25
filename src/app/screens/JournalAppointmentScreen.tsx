@@ -702,7 +702,7 @@ export function JournalAppointmentScreen({
                       {!desktopEditing ? (
                         <>
                           <div className="flex items-start gap-4">
-                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white text-sm font-extrabold text-[#7e8693] shadow-[0_8px_18px_rgba(115,123,138,0.12)]">
+                            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[22px] bg-white text-[22px] font-extrabold leading-none text-[#7e8693] shadow-[0_10px_22px_rgba(115,123,138,0.14)]">
                               {displayStaffAvatarUrl ? (
                                 <img
                                   src={displayStaffAvatarUrl}
@@ -713,11 +713,11 @@ export function JournalAppointmentScreen({
                                 displayStaffName.slice(0, 2).toUpperCase() || 'ST'
                               )}
                             </div>
-                            <div className="min-w-0">
-                              <p className="truncate text-[18px] font-extrabold text-ink">
+                            <div className="min-w-0 flex-1 pt-1">
+                              <p className="break-words text-[24px] font-extrabold leading-[1.05] tracking-[-0.03em] text-ink">
                                 {displayStaffName}
                               </p>
-                              <p className="mt-1 text-base font-medium text-[#7f8794]">
+                              <p className="mt-2 break-words text-[15px] font-medium leading-[1.45] text-[#7f8794]">
                                 {displayStaffSubtitle}
                               </p>
                             </div>

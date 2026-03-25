@@ -27,6 +27,7 @@ export type AppPage =
   | 'servicesCategories'
   | 'servicesCategory'
   | 'serviceEditor'
+  | 'serviceProvidersEditor'
   | 'serviceCategoryEditor';
 
 export type TabItem = {
@@ -358,6 +359,7 @@ export type ControllerActions = {
   closePanel: () => void;
   handleTabChange: (next: TabKey) => void;
   refreshAll: () => Promise<void>;
+  refreshSchedule: () => Promise<void>;
   loadAppointmentsForSelectedDate: () => Promise<void>;
   loadClientsByDebouncedQuery: () => Promise<void>;
   resetAndLoadClients: () => Promise<void>;
@@ -452,6 +454,7 @@ export type ControllerActions = {
   closeServiceCategory: () => void;
   openServiceCategoryEditor: (categoryId: string | null) => void;
   closeServiceCategoryEditor: () => void;
+  openServiceProvidersEditor: (serviceId: string) => void;
   setServiceCategoryEditorName: (value: string) => void;
   saveServiceCategoryEditor: () => Promise<void>;
   deleteServiceCategoryEditor: () => Promise<void>;

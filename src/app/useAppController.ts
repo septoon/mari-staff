@@ -556,6 +556,9 @@ export function useAppController(): AppController {
       if (nextPage === 'serviceEditor' || nextPage === 'serviceCategoryEditor') {
         return canEdit(EDIT_PERMISSION.services);
       }
+      if (nextPage === 'serviceProvidersEditor') {
+        return canEdit(EDIT_PERMISSION.staff);
+      }
 
       return false;
     },
@@ -894,6 +897,14 @@ export function useAppController(): AppController {
     setPrivacyPolicyText,
   });
 
+  const refreshSchedule = useCallback(async () => {
+    if (!isAuthorized || !canViewSchedule) {
+      return;
+    }
+    const rows = staff.length > 0 ? staff : canViewStaff ? await loadStaff() : [];
+    await loadWorkingHours(rows);
+  }, [canViewSchedule, canViewStaff, isAuthorized, loadStaff, loadWorkingHours, staff]);
+
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedClientsQuery(clientsQuery), 350);
     return () => clearTimeout(timeout);
@@ -1061,6 +1072,12 @@ export function useAppController(): AppController {
       setPage('staff');
     }
   }, [page, setPage, staffFormMode]);
+
+  useEffect(() => {
+    if (page === 'serviceProvidersEditor' && !serviceDraft.id) {
+      setPage(serviceEditorReturnPage);
+    }
+  }, [page, serviceDraft.id, serviceEditorReturnPage, setPage]);
 
   useEffect(() => {
     if (page === 'scheduleEditor' && !scheduleEditorStaff) {
@@ -1287,10 +1304,7 @@ export function useAppController(): AppController {
       const shouldSyncSchedule =
         canViewSchedule &&
         staff.length > 0 &&
-        (tab === 'schedule' ||
-          page === 'scheduleEditor' ||
-          page === 'journalDayEdit' ||
-          page === 'journalDayRemove');
+        (page === 'journalDayEdit' || page === 'journalDayRemove');
 
       const tasks: Promise<unknown>[] = [];
 
@@ -3289,6 +3303,36 @@ export function useAppController(): AppController {
     setPage('serviceEditor');
   };
 
+  const openServiceProvidersEditor = (serviceId: string) => {
+    if (!canEdit(EDIT_PERMISSION.staff)) {
+      setToast('Нет прав на назначение услуг сотрудникам');
+      return;
+    }
+    const found = services.find((item) => item.id === serviceId);
+    if (!found) {
+      setToast('Услуга не найдена');
+      return;
+    }
+    setServiceEditorReturnPage(page === 'servicesCategories' ? 'servicesCategories' : 'servicesCategory');
+    setServiceDraft({
+      id: found.id,
+      name: found.name,
+      categoryId: found.categoryId,
+      categoryName: found.categoryName,
+      description: found.description || '',
+      imageUrl: found.imageUrl || '',
+      durationSec: found.durationSec || 0,
+      priceMin: found.priceMin || 0,
+      priceMax: found.priceMin || 0,
+      isActive: found.isActive,
+    });
+    setServiceAssignableStaff(staff.filter((item) => item.role === 'MASTER' && item.isActive));
+    resetServiceImageState();
+    setServiceImagePreviewUrl(found.imageUrl || '');
+    void loadServiceProvidersForEditor(found.id);
+    setPage('serviceProvidersEditor');
+  };
+
   const openServiceCreateForCategory = (categoryId: string) => {
     if (!canEdit(EDIT_PERMISSION.services)) {
       setToast('Нет прав на редактирование услуг');
@@ -4402,6 +4446,7 @@ export function useAppController(): AppController {
       closePanel: () => setPanel(null),
       handleTabChange,
       refreshAll,
+      refreshSchedule,
       loadAppointmentsForSelectedDate,
       loadClientsByDebouncedQuery,
       resetAndLoadClients,
@@ -4496,6 +4541,7 @@ export function useAppController(): AppController {
       saveServiceCategoryEditor,
       deleteServiceCategoryEditor,
       openServiceEditor,
+      openServiceProvidersEditor,
       openServiceCreateForCategory,
       closeServiceEditor,
       setServiceDraft,

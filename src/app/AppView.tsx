@@ -39,6 +39,7 @@ import { ScheduleScreen } from './screens/ScheduleScreen';
 import { ScheduleEditorScreen } from './screens/ScheduleEditorScreen';
 import { ServiceCategoryEditorScreen } from './screens/ServiceCategoryEditorScreen';
 import { ServiceEditorScreen } from './screens/ServiceEditorScreen';
+import { ServiceProvidersEditorScreen } from './screens/ServiceProvidersEditorScreen';
 import { ServicesCategoriesScreen } from './screens/ServicesCategoriesScreen';
 import { ServicesCategoryScreen } from './screens/ServicesCategoryScreen';
 import { StaffEditorScreen } from './screens/StaffEditorScreen';
@@ -837,7 +838,7 @@ export function AppView({ controller }: AppViewProps) {
             editorEnd={state.scheduleEditorEnd}
             loading={state.loading.schedule || state.loading.staff || state.loading.action}
             onReload={() => {
-              void actions.refreshAll();
+              void actions.refreshSchedule();
             }}
             onEdit={() => {
               void actions.handleScheduleEdit();
@@ -995,6 +996,7 @@ export function AppView({ controller }: AppViewProps) {
             onCreateServiceInCategory={actions.openServiceCreateForCategory}
             onOpenCategory={actions.openServiceCategory}
             onOpenService={actions.openServiceEditor}
+            onConfigureService={actions.openServiceProvidersEditor}
             onEditCategory={actions.openServiceCategoryEditor}
             onToggleServiceActive={(serviceId, enabled) =>
               actions.toggleServiceActiveInline(serviceId, enabled)
@@ -1057,6 +1059,19 @@ export function AppView({ controller }: AppViewProps) {
             imagePreviewUrl={state.serviceImagePreviewUrl}
             onImageFilePick={(file: File) => {
               void actions.handleSelectServiceImageFile(file);
+            }}
+          />
+        ) : null}
+        {state.page === 'serviceProvidersEditor' ? (
+          <ServiceProvidersEditorScreen
+            serviceName={state.serviceDraft.name || 'Услуга'}
+            providers={state.serviceProviders}
+            assignableStaff={state.serviceAssignableStaff}
+            providersLoading={state.serviceProvidersLoading}
+            loading={state.loading.action}
+            onBack={actions.closeServiceEditor}
+            onSave={(staffIds: string[]) => {
+              void actions.syncServiceProvidersForCurrentService(staffIds);
             }}
           />
         ) : null}

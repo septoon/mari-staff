@@ -28,6 +28,7 @@ type ServicesCategoriesScreenProps = {
   onCreateServiceInCategory: (categoryId: string) => void;
   onOpenCategory: (categoryId: string) => void;
   onOpenService: (serviceId: string) => void;
+  onConfigureService: (serviceId: string) => void;
   onEditCategory: (categoryId: string) => void;
   onToggleServiceActive: (serviceId: string, enabled: boolean) => Promise<void>;
 };
@@ -87,6 +88,7 @@ export function ServicesCategoriesScreen({
   onCreateServiceInCategory,
   onOpenCategory,
   onOpenService,
+  onConfigureService,
   onEditCategory,
   onToggleServiceActive,
 }: ServicesCategoriesScreenProps) {
@@ -575,10 +577,10 @@ export function ServicesCategoriesScreen({
 
                                   <button
                                     type="button"
-                                    onClick={() => onOpenService(service.id)}
+                                    onClick={() => onConfigureService(service.id)}
                                     className="truncate text-left font-bold text-[#2d5fd6] transition hover:text-[#2148a3]"
                                   >
-                                    Настроить
+                                    Назначить
                                   </button>
 
                                   <button

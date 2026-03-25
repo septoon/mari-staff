@@ -34,6 +34,7 @@ const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs' | 'forbidden'>, string> = {
   servicesCategories: '/services',
   servicesCategory: '/services/category',
   serviceEditor: '/services/editor',
+  serviceProvidersEditor: '/services/providers',
   serviceCategoryEditor: '/services/category/editor',
 };
 
@@ -112,6 +113,8 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'servicesCategory', tab: 'services' };
     case '/services/editor':
       return { page: 'serviceEditor', tab: 'services' };
+    case '/services/providers':
+      return { page: 'serviceProvidersEditor', tab: 'services' };
     case '/services/category/editor':
       return { page: 'serviceCategoryEditor', tab: 'services' };
     default:

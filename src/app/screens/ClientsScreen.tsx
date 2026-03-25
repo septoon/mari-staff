@@ -2327,7 +2327,6 @@ export function ClientsScreen({
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate text-[28px] font-extrabold leading-none text-ink">{activeClient.name}</p>
                     <p className="mt-2 truncate text-sm font-semibold text-[#7c8491]">
                       {activeClient.phone || 'Телефон не указан'}
                     </p>
