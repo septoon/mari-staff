@@ -26,6 +26,12 @@ html {
   --app-min-height: calc(100vh / var(--ui-scale));
 }
 
+html[data-ios-standalone-pwa='true'] {
+  --ui-scale: 1;
+  --sheet-ui-scale: 1;
+  --app-min-height: 100vh;
+}
+
 @media (max-width: 480px) {
   :root {
     --ui-scale: 0.72;
@@ -41,6 +47,10 @@ html {
 @supports (height: 100dvh) {
   :root {
     --app-min-height: calc(100dvh / var(--ui-scale));
+  }
+
+  html[data-ios-standalone-pwa='true'] {
+    --app-min-height: 100dvh;
   }
 }
 
@@ -104,6 +114,13 @@ body {
 
 @media (hover: none) and (pointer: coarse) {
   @supports (-webkit-touch-callout: none) {
+    html[data-ios-standalone-pwa='true'] {
+      width: 100%;
+      max-width: 100%;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
     html {
       width: 100%;
       max-width: 100%;
@@ -125,6 +142,13 @@ body {
       width: calc(100% / var(--ui-scale));
       min-height: var(--app-min-height);
       overflow-x: clip;
+    }
+
+    html[data-ios-standalone-pwa='true'] #root {
+      transform: none;
+      width: 100%;
+      min-height: var(--app-min-height);
+      overflow-x: hidden;
     }
 
     input,
@@ -154,6 +178,12 @@ body {
       transform-origin: bottom center;
       max-width: 100%;
       padding-bottom: calc(var(--app-safe-bottom) + 8px);
+    }
+
+    html[data-ios-standalone-pwa='true'] .mari-page-sheet [data-rsbs-overlay] {
+      scale: 1;
+      transform: none;
+      transform-origin: bottom center;
     }
   }
 }

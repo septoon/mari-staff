@@ -7,6 +7,38 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 
+function isIosStandalonePwa() {
+  const ua = window.navigator.userAgent;
+  const isIosDevice = /iPhone|iPad|iPod/i.test(ua);
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return isIosDevice && isStandalone;
+}
+
+function resolveIosStandaloneScale() {
+  const shortSide = Math.min(window.screen.width, window.screen.height);
+  if (shortSide <= 390) {
+    return 0.68;
+  }
+  if (shortSide <= 480) {
+    return 0.72;
+  }
+  return 0.8;
+}
+
+if (isIosStandalonePwa()) {
+  const scale = resolveIosStandaloneScale();
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (viewportMeta) {
+    viewportMeta.setAttribute(
+      'content',
+      `width=device-width, initial-scale=${scale}, viewport-fit=cover`,
+    );
+  }
+  document.documentElement.setAttribute('data-ios-standalone-pwa', 'true');
+}
+
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
