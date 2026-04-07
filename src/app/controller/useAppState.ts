@@ -216,6 +216,8 @@ export function useAppState() {
   const [editorPermissionCatalog, setEditorPermissionCatalog] = useState<StaffPermissionCatalogItem[]>([]);
   const [editorPermissionCodes, setEditorPermissionCodes] = useState<string[]>([]);
   const [editorPermissionBusyCode, setEditorPermissionBusyCode] = useState<string | null>(null);
+  const [editorAllAppointmentNotificationsBusy, setEditorAllAppointmentNotificationsBusy] =
+    useState(false);
   const [settingsClientCancelMinNoticeMinutes, setSettingsClientCancelMinNoticeMinutes] = useState<number | null>(null);
   const [settingsNotificationMinNoticeMinutes, setSettingsNotificationMinNoticeMinutes] = useState<number | null>(null);
   const [settingsNotificationSections, setSettingsNotificationSections] = useState<SettingsNotificationSection[]>([]);
@@ -404,6 +406,8 @@ export function useAppState() {
     setEditorPermissionCodes,
     editorPermissionBusyCode,
     setEditorPermissionBusyCode,
+    editorAllAppointmentNotificationsBusy,
+    setEditorAllAppointmentNotificationsBusy,
     settingsClientCancelMinNoticeMinutes,
     setSettingsClientCancelMinNoticeMinutes,
     settingsNotificationMinNoticeMinutes,

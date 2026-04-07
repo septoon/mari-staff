@@ -39,6 +39,9 @@ type StaffEditorScreenProps = {
   permissionCatalog: StaffPermissionCatalogItem[];
   permissionCodes: string[];
   permissionBusyCode: string | null;
+  receivesAllAppointmentNotifications: boolean;
+  receivesAllAppointmentNotificationsBusy: boolean;
+  canEditAllAppointmentNotifications: boolean;
   hasAccess: boolean;
   canDelete: boolean;
   loading: boolean;
@@ -48,6 +51,7 @@ type StaffEditorScreenProps = {
   onOpenServices: () => void;
   onOpenPermissions: () => void;
   onTogglePermission: (code: string, enabled: boolean) => void;
+  onToggleAllAppointmentNotifications: (enabled: boolean) => void;
   onSave: () => void;
   onDelete: () => void;
   onRestore: () => void;
@@ -70,6 +74,9 @@ export function StaffEditorScreen({
   permissionCatalog,
   permissionCodes,
   permissionBusyCode,
+  receivesAllAppointmentNotifications,
+  receivesAllAppointmentNotificationsBusy,
+  canEditAllAppointmentNotifications,
   hasAccess,
   canDelete,
   loading,
@@ -79,6 +86,7 @@ export function StaffEditorScreen({
   onOpenServices,
   onOpenPermissions,
   onTogglePermission,
+  onToggleAllAppointmentNotifications,
   onSave,
   onDelete,
   onRestore,
@@ -270,6 +278,28 @@ export function StaffEditorScreen({
             </div>
             <ChevronRight className="h-7 w-7 text-muted" />
           </button>
+
+          {mode === 'edit' ? (
+            <div className="flex items-center justify-between gap-4 border-b border-line pb-4">
+              <div>
+                <p className="text-[20px] font-medium text-ink">Все уведомления о записях</p>
+                <p className="max-w-[260px] text-[14px] font-medium text-muted">
+                  Email будут приходить по всем записям салона, не только по своим.
+                </p>
+              </div>
+              <PrimeSwitch
+                checked={receivesAllAppointmentNotifications}
+                onChange={onToggleAllAppointmentNotifications}
+                size="staff"
+                disabled={
+                  fieldsDisabled ||
+                  receivesAllAppointmentNotificationsBusy ||
+                  !canEditAllAppointmentNotifications
+                }
+                ariaLabel="Все уведомления о записях"
+              />
+            </div>
+          ) : null}
 
           {mode === 'create' ? (
             <div className="flex items-center justify-between gap-4 pt-1">
@@ -616,57 +646,92 @@ export function StaffEditorScreen({
                   <div className="mt-5 rounded-2xl border border-dashed border-[#e1c96e] bg-white/70 px-4 py-4 text-sm font-semibold leading-6 text-[#7c8491]">
                     После создания сотрудника здесь появится список доступов с переключателями.
                   </div>
-                ) : permissionCatalog.length === 0 ? (
-                  <div className="mt-5 rounded-2xl border border-[#ece5be] bg-white/70 px-4 py-4 text-sm font-semibold leading-6 text-[#7c8491]">
-                    Права загружаются...
-                  </div>
                 ) : (
-                  <div className="mt-5 space-y-5">
-                    {Object.entries(groupedPermissionCatalog).map(([group, items]) => {
-                      if (items.length === 0) {
-                        return null;
-                      }
-
-                      return (
-                        <section key={group}>
-                          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
-                            {PERMISSION_GROUP_TITLE[group as StaffPermissionCatalogItem['group']]}
+                  <>
+                    <div className="mt-5 rounded-2xl border border-[#e7e1bc] bg-white px-4 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[16px] font-bold leading-6 text-ink">
+                            Все уведомления о записях
                           </p>
-                          <div className="space-y-2">
-                            {items.map((item) => {
-                              const isEnabled = enabledPermissions.has(item.code);
-                              const isBusy = permissionBusyCode === item.code;
+                          <p className="mt-1 text-[13px] font-medium leading-5 text-[#7c8491]">
+                            Сотрудник будет получать email по всем записям салона, а не только по тем,
+                            где он назначен исполнителем.
+                          </p>
+                          {!canEditAllAppointmentNotifications ? (
+                            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+                              Изменение доступно только OWNER
+                            </p>
+                          ) : null}
+                        </div>
+                        <PrimeSwitch
+                          checked={receivesAllAppointmentNotifications}
+                          onChange={onToggleAllAppointmentNotifications}
+                          disabled={
+                            fieldsDisabled ||
+                            receivesAllAppointmentNotificationsBusy ||
+                            !canEditAllAppointmentNotifications
+                          }
+                          size="md"
+                          className="mt-0.5"
+                          ariaLabel="Все уведомления о записях"
+                        />
+                      </div>
+                    </div>
 
-                              return (
-                                <div
-                                  key={item.code}
-                                  className="flex items-start justify-between gap-4 rounded-2xl border border-[#e7e1bc] bg-white px-4 py-3"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-[16px] font-bold leading-6 text-ink">
-                                      {item.title}
-                                    </p>
-                                    <p className="mt-1 text-[13px] font-medium leading-5 text-[#7c8491]">
-                                      {item.description}
-                                    </p>
-                                  </div>
-                                  <PrimeSwitch
-                                    checked={isEnabled}
-                                    onChange={(checked) => onTogglePermission(item.code, checked)}
-                                    loading={isBusy}
-                                    disabled={isDeleted}
-                                    size="md"
-                                    className="mt-0.5"
-                                    ariaLabel={item.title}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </section>
-                      );
-                    })}
-                  </div>
+                    {permissionCatalog.length === 0 ? (
+                      <div className="mt-5 rounded-2xl border border-[#ece5be] bg-white/70 px-4 py-4 text-sm font-semibold leading-6 text-[#7c8491]">
+                        Права загружаются...
+                      </div>
+                    ) : (
+                      <div className="mt-5 space-y-5">
+                        {Object.entries(groupedPermissionCatalog).map(([group, items]) => {
+                          if (items.length === 0) {
+                            return null;
+                          }
+
+                          return (
+                            <section key={group}>
+                              <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
+                                {PERMISSION_GROUP_TITLE[group as StaffPermissionCatalogItem['group']]}
+                              </p>
+                              <div className="space-y-2">
+                                {items.map((item) => {
+                                  const isEnabled = enabledPermissions.has(item.code);
+                                  const isBusy = permissionBusyCode === item.code;
+
+                                  return (
+                                    <div
+                                      key={item.code}
+                                      className="flex items-start justify-between gap-4 rounded-2xl border border-[#e7e1bc] bg-white px-4 py-3"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-[16px] font-bold leading-6 text-ink">
+                                          {item.title}
+                                        </p>
+                                        <p className="mt-1 text-[13px] font-medium leading-5 text-[#7c8491]">
+                                          {item.description}
+                                        </p>
+                                      </div>
+                                      <PrimeSwitch
+                                        checked={isEnabled}
+                                        onChange={(checked) => onTogglePermission(item.code, checked)}
+                                        loading={isBusy}
+                                        disabled={isDeleted}
+                                        size="md"
+                                        className="mt-0.5"
+                                        ariaLabel={item.title}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

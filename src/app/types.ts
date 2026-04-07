@@ -42,6 +42,7 @@ export type StaffItem = {
   role: StaffRole;
   phoneE164: string;
   email: string | null;
+  receivesAllAppointmentNotifications: boolean;
   avatarUrl: string | null;
   avatarAssetId: string | null;
   isActive: boolean;
@@ -339,6 +340,8 @@ export type ControllerState = {
   editorPermissionCatalog: StaffPermissionCatalogItem[];
   editorPermissionCodes: string[];
   editorPermissionBusyCode: string | null;
+  editorAllAppointmentNotificationsEnabled: boolean;
+  editorAllAppointmentNotificationsBusy: boolean;
   canViewClients: boolean;
   canViewClientPhone: boolean;
   canCreateJournalAppointments: boolean;
@@ -449,6 +452,7 @@ export type ControllerActions = {
   openEditorPermissionsPanel: () => void;
   closeEditorPermissionsPanel: () => void;
   toggleEditorPermission: (code: string, enabled: boolean) => Promise<void>;
+  toggleEditorAllAppointmentNotifications: (enabled: boolean) => Promise<void>;
   handleOpenJournalStaffActions: (item: StaffItem) => void;
   handleCloseJournalStaffActions: () => void;
   closeJournalDatePicker: () => void;

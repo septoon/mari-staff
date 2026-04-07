@@ -28,6 +28,7 @@ export function parseStaff(value: unknown): StaffItem | null {
     role,
     phoneE164: toString(record.phoneE164) || toString(record.phone) || '',
     email: toNullableString(record.email),
+    receivesAllAppointmentNotifications: Boolean(record.receivesAllAppointmentNotifications),
     avatarUrl:
       toNullableString(record.avatarUrl) ||
       toNullableString(record.photoUrl) ||

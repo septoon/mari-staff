@@ -43,6 +43,7 @@ import {
 import {
   extractItems,
   parseAppointment,
+  parseStaff,
   parseScheduleCalendar,
   parseWorkingHours,
 } from './parsers';
@@ -386,6 +387,8 @@ export function useAppController(): AppController {
     setEditorPermissionCodes,
     editorPermissionBusyCode,
     setEditorPermissionBusyCode,
+    editorAllAppointmentNotificationsBusy,
+    setEditorAllAppointmentNotificationsBusy,
     settingsClientCancelMinNoticeMinutes,
     setSettingsClientCancelMinNoticeMinutes,
     settingsNotificationMinNoticeMinutes,
@@ -624,6 +627,7 @@ export function useAppController(): AppController {
         role: 'MASTER',
         phoneE164: '',
         email: null,
+        receivesAllAppointmentNotifications: false,
         avatarUrl: null,
         avatarAssetId: null,
         isActive: true,
@@ -1561,6 +1565,7 @@ export function useAppController(): AppController {
     setEditorPermissionCatalog([]);
     setEditorPermissionCodes([]);
     setEditorPermissionBusyCode(null);
+    setEditorAllAppointmentNotificationsBusy(false);
     setEditorPermissionsSheetOpen(false);
     resetStaffAvatarState();
     setStaffFormMode('create');
@@ -1588,6 +1593,7 @@ export function useAppController(): AppController {
     setEditorPermissionCatalog([]);
     setEditorPermissionCodes([]);
     setEditorPermissionBusyCode(null);
+    setEditorAllAppointmentNotificationsBusy(false);
     setEditorPermissionsSheetOpen(false);
     resetStaffAvatarState();
     setStaffAvatarPreviewUrl(item.avatarUrl || '');
@@ -1690,6 +1696,7 @@ export function useAppController(): AppController {
           role: session.staff.role,
           phoneE164: session.staff.phoneE164,
           email: session.staff.email,
+          receivesAllAppointmentNotifications: session.staff.role === 'OWNER',
           avatarUrl: null,
           avatarAssetId: null,
           isActive: true,
@@ -4003,6 +4010,57 @@ export function useAppController(): AppController {
     }
   };
 
+  const toggleEditorAllAppointmentNotifications = async (enabled: boolean) => {
+    if (!session || session.staff.role !== 'OWNER') {
+      setToast('Только OWNER может менять получение всех уведомлений');
+      return;
+    }
+    if (!editingStaffId) {
+      return;
+    }
+    if (editingStaffStatus === 'deleted') {
+      setToast('Удаленный сотрудник недоступен для редактирования');
+      return;
+    }
+
+    setEditorAllAppointmentNotificationsBusy(true);
+    try {
+      const payload = await api.patch<unknown>(
+        `/staff/${editingStaffId}/appointment-notifications`,
+        {
+          receivesAllAppointmentNotifications: enabled,
+        },
+      );
+      const updated =
+        parseStaff(toRecord(toRecord(payload)?.staff) ?? payload) ??
+        staff.find((item) => item.id === editingStaffId) ??
+        null;
+      if (!updated) {
+        throw new Error('Не удалось обновить настройки уведомлений');
+      }
+
+      setStaff((prev) =>
+        prev.map((item) =>
+          item.id === updated.id
+            ? {
+                ...item,
+                ...updated,
+              }
+            : item,
+        ),
+      );
+      setToast(
+        updated.receivesAllAppointmentNotifications
+          ? 'Сотрудник теперь получает уведомления по всем записям'
+          : 'Сотрудник получает уведомления только по своим записям',
+      );
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setEditorAllAppointmentNotificationsBusy(false);
+    }
+  };
+
   const fetchStaffWorkingHours = async (staffId: string) => {
     try {
       const data = await api.get<unknown>(`/schedule/staff/${staffId}/working-hours`);
@@ -4525,6 +4583,9 @@ export function useAppController(): AppController {
       editorPermissionCatalog,
       editorPermissionCodes,
       editorPermissionBusyCode,
+      editorAllAppointmentNotificationsEnabled:
+        editingStaff?.receivesAllAppointmentNotifications ?? false,
+      editorAllAppointmentNotificationsBusy,
       canViewClients,
       canViewClientPhone,
       canCreateJournalAppointments,
@@ -4632,6 +4693,7 @@ export function useAppController(): AppController {
       openEditorPermissionsPanel,
       closeEditorPermissionsPanel,
       toggleEditorPermission,
+      toggleEditorAllAppointmentNotifications,
       handleOpenJournalStaffActions,
       handleCloseJournalStaffActions,
       handleOpenJournalDayEditPage,

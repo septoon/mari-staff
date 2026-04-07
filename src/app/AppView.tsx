@@ -589,11 +589,17 @@ export function AppView({ controller }: AppViewProps) {
             permissionCatalog={state.editorPermissionCatalog}
             permissionCodes={state.editorPermissionCodes}
             permissionBusyCode={state.editorPermissionBusyCode}
+            receivesAllAppointmentNotifications={state.editorAllAppointmentNotificationsEnabled}
+            receivesAllAppointmentNotificationsBusy={state.editorAllAppointmentNotificationsBusy}
+            canEditAllAppointmentNotifications={state.session?.staff.role === 'OWNER'}
             hasAccess={state.editorAccessEnabled}
             canDelete={state.staffFormMode === 'edit' && state.editingStaffStatus !== 'deleted'}
             onBack={actions.backFromStaffEditor}
             onDraftChange={actions.setStaffDraft}
             onAccessChange={actions.setEditorAccessEnabled}
+            onToggleAllAppointmentNotifications={(enabled) => {
+              void actions.toggleEditorAllAppointmentNotifications(enabled);
+            }}
             onSave={
               state.staffFormMode === 'create'
                 ? () => {
