@@ -1,8 +1,8 @@
 import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, Loader2, UserRound } from 'lucide-react';
-import { buildRuPhoneValue, getRuPhoneLocalDigits, roleLabel } from '../helpers';
-import type { OwnerDraft, StaffRole } from '../types';
+import { buildRuPhoneValue, getRuPhoneLocalDigits } from '../helpers';
+import type { OwnerDraft } from '../types';
 
 const DESKTOP_PANEL_CLASS =
   'rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]';
@@ -11,7 +11,6 @@ const DESKTOP_INPUT_CLASS =
 
 type OwnerEditScreenProps = {
   draft: OwnerDraft;
-  role: StaffRole;
   canEdit: boolean;
   loading: boolean;
   avatarUrl: string;
@@ -27,12 +26,13 @@ type FieldRowProps = {
   label: string;
   value: string;
   canEdit: boolean;
+  readOnly?: boolean;
   type?: 'text' | 'email' | 'phone';
   onChange: (value: string) => void;
 };
 
-function FieldRow({ label, value, canEdit, type = 'text', onChange }: FieldRowProps) {
-  if (!canEdit) {
+function FieldRow({ label, value, canEdit, readOnly = false, type = 'text', onChange }: FieldRowProps) {
+  if (!canEdit || readOnly) {
     return (
       <div>
         <span className="mb-2 block text-[18px] font-medium text-muted">{label}</span>
@@ -73,7 +73,6 @@ function FieldRow({ label, value, canEdit, type = 'text', onChange }: FieldRowPr
 
 export function OwnerEditScreen({
   draft,
-  role,
   canEdit,
   loading,
   avatarUrl,
@@ -152,7 +151,6 @@ export function OwnerEditScreen({
             </button>
           ) : null}
           <p className="mt-3 text-[22px] font-semibold text-ink">{draft.name || 'Профиль'}</p>
-          <p className="mt-1 text-[16px] font-medium text-muted">{roleLabel(role)}</p>
           <p
             className={clsx(
               'mt-1 text-[14px] font-semibold',
@@ -187,8 +185,9 @@ export function OwnerEditScreen({
           <FieldRow
             label="Специализация"
             value={draft.positionName}
-            canEdit={canEdit}
-            onChange={(value) => onDraftChange((prev) => ({ ...prev, positionName: value }))}
+            canEdit={false}
+            readOnly
+            onChange={() => {}}
           />
 
           {canEdit ? (
@@ -217,10 +216,10 @@ export function OwnerEditScreen({
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Профиль</p>
               <h1 className="mt-3 text-[44px] font-extrabold leading-[0.94] tracking-[-0.04em] text-ink">
-                {draft.name || 'Владелец'}
+                {draft.name || 'Профиль'}
               </h1>
               <p className="mt-4 max-w-[760px] text-[15px] font-semibold leading-6 text-[#7c8491]">
-                Управление профилем владельца: контактные данные, специализация и фотография.
+                Здесь можно изменить только личные контактные данные и аватар.
               </p>
             </div>
 
@@ -271,7 +270,6 @@ export function OwnerEditScreen({
                   )}
                 </button>
                 <p className="mt-5 text-[24px] font-extrabold text-ink">{draft.name || 'Профиль'}</p>
-                <p className="mt-2 text-sm font-semibold text-[#7d8693]">{roleLabel(role)}</p>
                 <p
                   className={clsx(
                     'mt-2 text-sm font-semibold',
@@ -301,15 +299,6 @@ export function OwnerEditScreen({
                   ) : null}
                 </div>
               </div>
-            </section>
-
-            <section className={DESKTOP_PANEL_CLASS}>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Статус</p>
-              <p className="mt-3 text-[24px] font-extrabold text-ink">Уровень доступа</p>
-              <p className="mt-2 text-sm font-semibold text-[#7d8693]">{roleLabel(role)}</p>
-              <p className="mt-4 text-sm font-semibold leading-6 text-[#7c8491]">
-                Владелец имеет полный доступ к данным и настройкам рабочего пространства.
-              </p>
             </section>
           </div>
 
@@ -394,19 +383,9 @@ export function OwnerEditScreen({
                   <span className="mb-2 block text-sm font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
                     Специализация
                   </span>
-                  {canEdit ? (
-                    <input
-                      value={draft.positionName}
-                      onChange={(event) =>
-                        onDraftChange((prev) => ({ ...prev, positionName: event.target.value }))
-                      }
-                      className={DESKTOP_INPUT_CLASS}
-                    />
-                  ) : (
-                    <div className={`${DESKTOP_INPUT_CLASS} flex items-center bg-[#f6f8fb] text-[#5c6574]`}>
-                      {draft.positionName.trim() || '—'}
-                    </div>
-                  )}
+                  <div className={`${DESKTOP_INPUT_CLASS} flex items-center bg-[#f6f8fb] text-[#5c6574]`}>
+                    {draft.positionName.trim() || '—'}
+                  </div>
                 </label>
               </div>
             </div>

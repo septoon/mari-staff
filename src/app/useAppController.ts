@@ -456,16 +456,7 @@ export function useAppController(): AppController {
   );
   const canSelectPastJournalDates =
     !isMaster || canViewFullJournal || canEdit(EDIT_PERMISSION.journal);
-  const canEditOwnProfile = useMemo(() => {
-    if (!session) {
-      return false;
-    }
-    return (
-      session.staff.role === 'OWNER' ||
-      hasPermissionAccess(EDIT_PERMISSION.selfProfile) ||
-      (session.staff.role === 'ADMIN' && hasPermissionAccess(EDIT_PERMISSION.staff))
-    );
-  }, [hasPermissionAccess, session]);
+  const canEditOwnProfile = useMemo(() => Boolean(session), [session]);
   const visibleTabKeys = useMemo(
     () => (session ? resolveAllowedTabKeys(session) : []),
     [session],
@@ -1683,6 +1674,21 @@ export function useAppController(): AppController {
     if (!session) {
       return;
     }
+    const loadCurrentStaffProfile = async () => {
+      const payload = await api.getCurrentStaffProfile();
+      const parsed = parseStaff(payload);
+      if (!parsed) {
+        return null;
+      }
+      setStaff((prev) => {
+        const existingIndex = prev.findIndex((item) => item.id === parsed.id);
+        if (existingIndex === -1) {
+          return [...prev, parsed];
+        }
+        return prev.map((item) => (item.id === parsed.id ? parsed : item));
+      });
+      return parsed;
+    };
     setLoadingKey(setLoading, 'action', true);
     try {
       let rows = staff;
@@ -1690,7 +1696,8 @@ export function useAppController(): AppController {
         rows = await loadStaff();
       }
       const target =
-        rows.find((item) => item.id === session.staff.id) ?? {
+        rows.find((item) => item.id === session.staff.id) ??
+        (await loadCurrentStaffProfile()) ?? {
           id: session.staff.id,
           name: session.staff.name,
           role: session.staff.role,
@@ -1733,6 +1740,7 @@ export function useAppController(): AppController {
     setOwnerDraft,
     setOwnerEditId,
     setPage,
+    setStaff,
     setToast,
     staff,
   ]);
@@ -1766,7 +1774,6 @@ export function useAppController(): AppController {
         name,
         phone,
         email: ownerDraft.email.trim() ? ownerDraft.email.trim() : null,
-        positionName: ownerDraft.positionName.trim() || undefined,
       });
 
       if (ownerAvatarWebpBlob) {
@@ -1776,7 +1783,21 @@ export function useAppController(): AppController {
         }
       }
 
-      await loadStaff();
+      if (canViewStaff) {
+        await loadStaff();
+      } else {
+        const payload = await api.getCurrentStaffProfile();
+        const parsed = parseStaff(payload);
+        if (parsed) {
+          setStaff((prev) => {
+            const existingIndex = prev.findIndex((item) => item.id === parsed.id);
+            if (existingIndex === -1) {
+              return [...prev, parsed];
+            }
+            return prev.map((item) => (item.id === parsed.id ? parsed : item));
+          });
+        }
+      }
       setSession((prev) => {
         if (!prev || prev.staff.id !== ownerEditId) {
           return prev;
@@ -1799,7 +1820,6 @@ export function useAppController(): AppController {
                 name,
                 phoneE164: phone,
                 email: ownerDraft.email.trim() ? ownerDraft.email.trim() : null,
-                positionName: ownerDraft.positionName.trim() || null,
               }
             : item,
         ),

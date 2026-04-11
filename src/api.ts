@@ -288,6 +288,11 @@ class ApiClient {
     return data.items.map((item) => item.code);
   }
 
+  async getCurrentStaffProfile() {
+    const data = await this.get<{ staff: Record<string, unknown> }>('/staff/me');
+    return data.staff;
+  }
+
   async grantStaffPermission(staffId: string, code: string) {
     await this.post(`/staff/${staffId}/permissions`, { code });
   }

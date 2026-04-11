@@ -652,7 +652,6 @@ export function AppView({ controller }: AppViewProps) {
         {state.page === 'owner' ? (
           <OwnerEditScreen
             draft={state.ownerDraft}
-            role={state.session.staff.role}
             canEdit={state.ownerCanEdit}
             loading={state.loading.action}
             avatarUrl={state.ownerAvatarPreviewUrl}
