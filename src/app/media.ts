@@ -35,6 +35,24 @@ function sanitizeSegment(value: string) {
     .replace(/^-|-$/g, '') || 'item';
 }
 
+function inferFileExtension(originalName: string, mimeType: string) {
+  const fromName = originalName.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+  if (fromName) {
+    return fromName;
+  }
+  const normalizedMime = mimeType.toLowerCase();
+  if (normalizedMime === 'image/jpeg') {
+    return 'jpg';
+  }
+  if (normalizedMime === 'image/heic' || normalizedMime === 'image/heif') {
+    return 'heic';
+  }
+  if (normalizedMime.startsWith('image/')) {
+    return normalizedMime.slice('image/'.length);
+  }
+  return 'bin';
+}
+
 export function getServerMediaDirHint(scope: UploadScope, entityId: string) {
   const dir =
     scope === 'staff-avatar'
@@ -139,54 +157,12 @@ export async function convertImageFileToWebp(file: File) {
     throw new Error('Размер файла должен быть не больше 12 МБ');
   }
 
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Не удалось прочитать изображение'));
-      img.src = objectUrl;
-    });
-
-    const maxSize = 2200;
-    const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Canvas не поддерживается в браузере');
-    }
-
-    ctx.drawImage(image, 0, 0, width, height);
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (value) => {
-          if (!value) {
-            reject(new Error('Не удалось сконвертировать изображение в WEBP'));
-            return;
-          }
-          resolve(value);
-        },
-        'image/webp',
-        0.9,
-      );
-    });
-
-    return {
-      blob,
-      previewUrl: URL.createObjectURL(blob),
-      width,
-      height,
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  return {
+    blob: file,
+    previewUrl: URL.createObjectURL(file),
+    width: 0,
+    height: 0,
+  };
 }
 
 export async function uploadWebpImage({
@@ -204,9 +180,14 @@ export async function uploadWebpImage({
   const objectPath = buildObjectPath(scope, entityId, baseName);
   const serverDirPath = getServerMediaDirHint(scope, entityId);
   const entity = MEDIA_ENTITY_BY_SCOPE[scope];
+  const normalizedMimeType =
+    typeof webpBlob.type === 'string' && webpBlob.type.trim().length > 0
+      ? webpBlob.type
+      : 'application/octet-stream';
+  const fileExtension = inferFileExtension(originalName, normalizedMimeType);
 
-  const file = new File([webpBlob], `${sanitizeSegment(baseName)}.webp`, {
-    type: 'image/webp',
+  const file = new File([webpBlob], `${sanitizeSegment(baseName)}.${fileExtension}`, {
+    type: normalizedMimeType,
   });
 
   const formData = new FormData();

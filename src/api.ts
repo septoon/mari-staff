@@ -397,6 +397,9 @@ class ApiClient {
       await this.refresh();
       return this.request<T>(path, init, { ...options, allowRefresh: false });
     }
+    if (response.status === 401 && auth && !this.refreshToken) {
+      this.clearSession();
+    }
 
     if (!response.ok) {
       const error = envelope?.error;

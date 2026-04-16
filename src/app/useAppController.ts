@@ -347,6 +347,14 @@ export function useAppController(): AppController {
     setServiceCategoryEditorId,
     serviceCategoryEditorName,
     setServiceCategoryEditorName,
+    serviceCategoryEditorImagePreviewUrl,
+    setServiceCategoryEditorImagePreviewUrl,
+    serviceCategoryEditorImageAssetId,
+    setServiceCategoryEditorImageAssetId,
+    serviceCategoryEditorImageBlob,
+    setServiceCategoryEditorImageBlob,
+    serviceCategoryEditorImageOriginalName,
+    setServiceCategoryEditorImageOriginalName,
     serviceDraft,
     setServiceDraft,
     serviceEditorReturnPage,
@@ -400,6 +408,7 @@ export function useAppController(): AppController {
     routeSyncSourceRef,
     staffAvatarBlobUrlRef,
     ownerAvatarBlobUrlRef,
+    serviceCategoryEditorImageBlobUrlRef,
     serviceImageBlobUrlRef,
     loading,
     setLoading,
@@ -719,11 +728,20 @@ export function useAppController(): AppController {
       const name = item.categoryName || 'Без категории';
       const current = map.get(id);
       if (!current) {
-        map.set(id, { id, name, count: 1 });
+        map.set(id, {
+          id,
+          name,
+          count: 1,
+          imageAssetId: null,
+          imageUrl: item.imageUrl || null,
+        });
         return;
       }
       current.count += 1;
       current.name = name;
+      if (!current.imageUrl && item.imageUrl) {
+        current.imageUrl = item.imageUrl;
+      }
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }, [localServiceCategories, services]);
@@ -818,6 +836,21 @@ export function useAppController(): AppController {
     setOwnerAvatarWebpBlob,
   ]);
 
+  const resetServiceCategoryImageState = useCallback(() => {
+    clearBlobPreview(serviceCategoryEditorImageBlobUrlRef);
+    setServiceCategoryEditorImageBlob(null);
+    setServiceCategoryEditorImageOriginalName('category');
+    setServiceCategoryEditorImagePreviewUrl('');
+    setServiceCategoryEditorImageAssetId(null);
+  }, [
+    clearBlobPreview,
+    serviceCategoryEditorImageBlobUrlRef,
+    setServiceCategoryEditorImageAssetId,
+    setServiceCategoryEditorImageBlob,
+    setServiceCategoryEditorImageOriginalName,
+    setServiceCategoryEditorImagePreviewUrl,
+  ]);
+
   const resetServiceImageState = useCallback(() => {
     clearBlobPreview(serviceImageBlobUrlRef);
     setServiceImageWebpBlob(null);
@@ -860,11 +893,19 @@ export function useAppController(): AppController {
       if (ownerAvatarBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(ownerAvatarBlobUrlRef.current);
       }
+      if (serviceCategoryEditorImageBlobUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(serviceCategoryEditorImageBlobUrlRef.current);
+      }
       if (serviceImageBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(serviceImageBlobUrlRef.current);
       }
     };
-  }, [ownerAvatarBlobUrlRef, serviceImageBlobUrlRef, staffAvatarBlobUrlRef]);
+  }, [
+    ownerAvatarBlobUrlRef,
+    serviceCategoryEditorImageBlobUrlRef,
+    serviceImageBlobUrlRef,
+    staffAvatarBlobUrlRef,
+  ]);
 
   const {
     loadStaff,
@@ -898,6 +939,7 @@ export function useAppController(): AppController {
     setAppError,
     setStaff,
     setServices,
+    setLocalServiceCategories,
     setStaffServiceCounts,
     setEditorServiceCount,
     setEditorServiceNames,
@@ -2816,8 +2858,8 @@ export function useAppController(): AppController {
     let lastError: unknown = null;
     for (const mutate of mutations) {
       try {
-        await mutate();
-        return { ok: true, notFound: false };
+        const payload = await mutate();
+        return { ok: true, notFound: false, payload };
       } catch (error) {
         lastError = error;
         if (error instanceof ApiError && error.code === 'NOT_FOUND') {
@@ -2827,12 +2869,12 @@ export function useAppController(): AppController {
       }
     }
     if (lastError instanceof ApiError && lastError.code === 'NOT_FOUND') {
-      return { ok: false, notFound: true };
+      return { ok: false, notFound: true, payload: null };
     }
     if (lastError) {
       throw lastError;
     }
-    return { ok: false, notFound: true };
+    return { ok: false, notFound: true, payload: null };
   };
 
   const handleSelectStaffAvatarFile = async (file: File) => {
@@ -2844,7 +2886,7 @@ export function useAppController(): AppController {
       setStaffAvatarPreviewUrl(converted.previewUrl);
       setStaffAvatarWebpBlob(converted.blob);
       setStaffAvatarOriginalName(file.name || 'avatar');
-      setToast('Фото сотрудника подготовлено (WEBP)');
+      setToast('Фото сотрудника подготовлено');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -2861,7 +2903,24 @@ export function useAppController(): AppController {
       setOwnerAvatarPreviewUrl(converted.previewUrl);
       setOwnerAvatarWebpBlob(converted.blob);
       setOwnerAvatarOriginalName(file.name || 'avatar');
-      setToast('Фото профиля подготовлено (WEBP)');
+      setToast('Фото профиля подготовлено');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const handleSelectServiceCategoryImageFile = async (file: File) => {
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const converted = await convertImageFileToWebp(file);
+      clearBlobPreview(serviceCategoryEditorImageBlobUrlRef);
+      serviceCategoryEditorImageBlobUrlRef.current = converted.previewUrl;
+      setServiceCategoryEditorImagePreviewUrl(converted.previewUrl);
+      setServiceCategoryEditorImageBlob(converted.blob);
+      setServiceCategoryEditorImageOriginalName(file.name || 'category');
+      setToast('Изображение категории подготовлено');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -2879,12 +2938,16 @@ export function useAppController(): AppController {
       setServiceImageWebpBlob(converted.blob);
       setServiceImageOriginalName(file.name || 'service');
       setServiceDraft((prev) => ({ ...prev, imageUrl: converted.previewUrl }));
-      setToast('Изображение услуги подготовлено (WEBP)');
+      setToast('Изображение услуги подготовлено');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
+  };
+
+  const handleClearServiceCategoryImage = () => {
+    resetServiceCategoryImageState();
   };
 
   const patchStaffAvatarAsset = async (staffId: string, photoAssetId: string | null) => {
@@ -2912,6 +2975,15 @@ export function useAppController(): AppController {
       }
       throw error;
     }
+  };
+
+  const applyServiceCategoryLocally = (
+    categoryId: string,
+    patch: Partial<Pick<ServiceCategoryItem, 'name' | 'imageAssetId' | 'imageUrl'>>,
+  ) => {
+    setLocalServiceCategories((prev) =>
+      prev.map((item) => (item.id === categoryId ? { ...item, ...patch } : item)),
+    );
   };
 
   const applyAvatarLocally = (
@@ -3000,6 +3072,50 @@ export function useAppController(): AppController {
       setStaffAvatarAssetId(result.assetId ?? null);
     }
     return result;
+  };
+
+  const uploadServiceCategoryImageIfNeeded = async (categoryId: string) => {
+    if (!serviceCategoryEditorImageBlob) {
+      return {
+        assetId: serviceCategoryEditorImageAssetId,
+        url: serviceCategoryEditorImagePreviewUrl || null,
+        warning: '',
+      };
+    }
+    try {
+      const uploaded = await uploadWebpImage({
+        scope: 'service-image',
+        entityId: categoryId,
+        webpBlob: serviceCategoryEditorImageBlob,
+        originalName: serviceCategoryEditorImageOriginalName,
+      });
+      return {
+        assetId: uploaded.assetId ?? null,
+        url: uploaded.url,
+        warning: uploaded.assetId ? '' : 'Не удалось получить ID загруженного файла',
+      };
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.code === 'FORBIDDEN')
+      ) {
+        return {
+          assetId: serviceCategoryEditorImageAssetId,
+          url: serviceCategoryEditorImagePreviewUrl || null,
+          warning: 'Недостаточно прав для загрузки изображений категории',
+        };
+      }
+      const message = toErrorMessage(error);
+      if (message.startsWith('UPLOAD_ENDPOINT_NOT_FOUND')) {
+        return {
+          assetId: serviceCategoryEditorImageAssetId,
+          url: serviceCategoryEditorImagePreviewUrl || null,
+          warning:
+            'Серверный upload endpoint не найден. Проверьте API путь: /client-front/staff/media/upload',
+        };
+      }
+      throw error;
+    }
   };
 
   const uploadOwnerAvatarIfNeeded = async (staffId: string) => {
@@ -3158,6 +3274,7 @@ export function useAppController(): AppController {
     if (!categoryId) {
       setServiceCategoryEditorId(null);
       setServiceCategoryEditorName('');
+      resetServiceCategoryImageState();
       setPage('serviceCategoryEditor');
       return;
     }
@@ -3168,18 +3285,25 @@ export function useAppController(): AppController {
     }
     setServiceCategoryEditorId(found.id);
     setServiceCategoryEditorName(found.name);
+    resetServiceCategoryImageState();
+    setServiceCategoryEditorImagePreviewUrl(found.imageUrl || '');
+    setServiceCategoryEditorImageAssetId(found.imageAssetId || null);
     setPage('serviceCategoryEditor');
   };
 
   const closeServiceCategoryEditor = () => {
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
+    resetServiceCategoryImageState();
     setPage('servicesCategories');
   };
 
-  const createLocalCategory = (name: string) => {
+  const createLocalCategory = (name: string, imageAssetId: string | null, imageUrl: string | null) => {
     const nextId = `local-cat-${Date.now()}`;
-    setLocalServiceCategories((prev) => [...prev, { id: nextId, name, count: 0 }]);
+    setLocalServiceCategories((prev) => [
+      ...prev,
+      { id: nextId, name, count: 0, imageAssetId, imageUrl },
+    ]);
   };
 
   const saveServiceCategoryEditor = async () => {
@@ -3194,53 +3318,76 @@ export function useAppController(): AppController {
     }
     setLoadingKey(setLoading, 'action', true);
     try {
+      let nextToast = '';
       if (serviceCategoryEditorId) {
+        const uploadedCategoryImage = await uploadServiceCategoryImageIfNeeded(serviceCategoryEditorId);
         const result = await runServiceMutations([
-          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { name }),
-          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { name }),
-          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { name }),
-          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { name }),
+          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
         ]);
         if (result.ok) {
           await loadServices();
-          setToast('Категория обновлена');
+          if (uploadedCategoryImage.warning) {
+            nextToast = uploadedCategoryImage.warning;
+          }
+          if (!nextToast) {
+            nextToast = 'Категория обновлена';
+          }
         } else {
           setServices((prev) =>
             prev.map((item) =>
               item.categoryId === serviceCategoryEditorId
-                ? { ...item, categoryName: name }
+                ? { ...item, categoryName: name, imageUrl: uploadedCategoryImage.url || item.imageUrl }
                 : item,
             ),
           );
-          setLocalServiceCategories((prev) => {
-            const exists = prev.some((item) => item.id === serviceCategoryEditorId);
-            if (exists) {
-              return prev.map((item) =>
-                item.id === serviceCategoryEditorId ? { ...item, name } : item,
-              );
-            }
-            return [...prev, { id: serviceCategoryEditorId, name, count: 0 }];
+          applyServiceCategoryLocally(serviceCategoryEditorId, {
+            name,
+            imageAssetId: uploadedCategoryImage.assetId ?? null,
+            imageUrl: uploadedCategoryImage.url || null,
           });
           if (selectedServiceCategoryId === serviceCategoryEditorId) {
             setSelectedServiceCategoryName(name);
           }
-          setToast('Категория обновлена локально (API read-only)');
+          nextToast = uploadedCategoryImage.warning || 'Категория обновлена локально (API read-only)';
         }
       } else {
         const result = await runServiceMutations([
-          () => api.post('/services/categories', { name }),
-          () => api.post('/service-categories', { name }),
-          () => api.post('/services/category', { name }),
+          () => api.post('/services/categories', { name, imageAssetId: null }),
+          () => api.post('/service-categories', { name, imageAssetId: null }),
+          () => api.post('/services/category', { name, imageAssetId: null }),
         ]);
         if (result.ok) {
+          const createdRecord = toRecord(result.payload);
+          const createdItem = toRecord(createdRecord?.item) ?? createdRecord;
+          const createdCategoryId = toString(createdItem?.id);
+          if (createdCategoryId) {
+            const uploadedCategoryImage = await uploadServiceCategoryImageIfNeeded(createdCategoryId);
+            if (uploadedCategoryImage.assetId || serviceCategoryEditorImageAssetId === null) {
+              await runServiceMutations([
+                () => api.patch(`/services/categories/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.patch(`/service-categories/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.patch(`/services/category/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.put(`/service-categories/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+              ]);
+            }
+            if (uploadedCategoryImage.warning) {
+              nextToast = uploadedCategoryImage.warning;
+            }
+          }
           await loadServices();
-          setToast('Категория создана');
+          if (!nextToast) {
+            nextToast = 'Категория создана';
+          }
         } else {
-          createLocalCategory(name);
-          setToast('Категория создана локально (API read-only)');
+          createLocalCategory(name, null, serviceCategoryEditorImagePreviewUrl || null);
+          nextToast = 'Категория создана локально (API read-only)';
         }
       }
       closeServiceCategoryEditor();
+      setToast(nextToast);
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -4537,6 +4684,7 @@ export function useAppController(): AppController {
       servicesItemsSearch,
       serviceCategoryEditorId,
       serviceCategoryEditorName,
+      serviceCategoryEditorImagePreviewUrl,
       serviceDraft,
       serviceProviders,
       serviceAssignableStaff,
@@ -4734,6 +4882,8 @@ export function useAppController(): AppController {
       openServiceCategoryEditor,
       closeServiceCategoryEditor,
       setServiceCategoryEditorName,
+      handleSelectServiceCategoryImageFile,
+      handleClearServiceCategoryImage,
       saveServiceCategoryEditor,
       deleteServiceCategoryEditor,
       openServiceEditor,

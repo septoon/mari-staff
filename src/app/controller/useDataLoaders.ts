@@ -15,6 +15,7 @@ import {
   parseAppointment,
   parseClient,
   parseScheduleCalendar,
+  parseServiceCategory,
   parseService,
   parseStaff,
 } from '../parsers';
@@ -23,6 +24,7 @@ import type {
   ClientItem,
   LoadingState,
   SettingsNotificationSection,
+  ServiceCategoryItem,
   ServiceItem,
   StaffItem,
   StaffRole,
@@ -48,6 +50,7 @@ type UseDataLoadersParams = {
   setAppError: (value: string) => void;
   setStaff: (value: StaffItem[]) => void;
   setServices: (value: ServiceItem[]) => void;
+  setLocalServiceCategories: (value: ServiceCategoryItem[]) => void;
   setStaffServiceCounts: (value: Record<string, number>) => void;
   setEditorServiceCount: (value: number) => void;
   setEditorServiceNames: (value: string[]) => void;
@@ -89,6 +92,7 @@ export function useDataLoaders({
   setAppError,
   setStaff,
   setServices,
+  setLocalServiceCategories,
   setStaffServiceCounts,
   setEditorServiceCount,
   setEditorServiceNames,
@@ -150,13 +154,21 @@ export function useDataLoaders({
   const loadServices = useCallback(async () => {
     if (!isAuthorized || !canViewServices) {
       setServices([]);
+      setLocalServiceCategories([]);
       return [];
     }
     setLoadingKey(setLoading, 'services', true);
     try {
-      const data = await api.get<unknown>('/services');
-      const parsed = extractItems(data).map(parseService).filter(Boolean) as ServiceItem[];
+      const [servicesData, categoriesData] = await Promise.all([
+        api.get<unknown>('/services'),
+        api.get<unknown>('/services/categories'),
+      ]);
+      const parsed = extractItems(servicesData).map(parseService).filter(Boolean) as ServiceItem[];
+      const parsedCategories = extractItems(categoriesData)
+        .map(parseServiceCategory)
+        .filter(Boolean) as ServiceCategoryItem[];
       setServices(parsed);
+      setLocalServiceCategories(parsedCategories);
       return parsed;
     } catch (error) {
       setAppError(toErrorMessage(error));
@@ -164,7 +176,7 @@ export function useDataLoaders({
     } finally {
       setLoadingKey(setLoading, 'services', false);
     }
-  }, [canViewServices, isAuthorized, setAppError, setLoading, setServices]);
+  }, [canViewServices, isAuthorized, setAppError, setLoading, setLocalServiceCategories, setServices]);
 
   const loadStaffServiceMeta = useCallback(
     async (rows: StaffItem[]) => {

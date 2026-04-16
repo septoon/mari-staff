@@ -194,6 +194,10 @@ export function useAppState() {
   const [selectedServiceCategoryName, setSelectedServiceCategoryName] = useState('');
   const [serviceCategoryEditorId, setServiceCategoryEditorId] = useState<string | null>(null);
   const [serviceCategoryEditorName, setServiceCategoryEditorName] = useState('');
+  const [serviceCategoryEditorImagePreviewUrl, setServiceCategoryEditorImagePreviewUrl] = useState('');
+  const [serviceCategoryEditorImageAssetId, setServiceCategoryEditorImageAssetId] = useState<string | null>(null);
+  const [serviceCategoryEditorImageBlob, setServiceCategoryEditorImageBlob] = useState<Blob | null>(null);
+  const [serviceCategoryEditorImageOriginalName, setServiceCategoryEditorImageOriginalName] = useState('category');
   const [serviceDraft, setServiceDraft] = useState<ServiceDraft>(EMPTY_SERVICE_DRAFT);
   const [serviceEditorReturnPage, setServiceEditorReturnPage] = useState<
     'servicesCategories' | 'servicesCategory'
@@ -226,6 +230,7 @@ export function useAppState() {
   const routeSyncSourceRef = useRef<'idle' | 'state' | 'location'>('idle');
   const staffAvatarBlobUrlRef = useRef('');
   const ownerAvatarBlobUrlRef = useRef('');
+  const serviceCategoryEditorImageBlobUrlRef = useRef('');
   const serviceImageBlobUrlRef = useRef('');
   const [loading, setLoading] = useState<LoadingState>({
     boot: true,
@@ -366,6 +371,14 @@ export function useAppState() {
     setServiceCategoryEditorId,
     serviceCategoryEditorName,
     setServiceCategoryEditorName,
+    serviceCategoryEditorImagePreviewUrl,
+    setServiceCategoryEditorImagePreviewUrl,
+    serviceCategoryEditorImageAssetId,
+    setServiceCategoryEditorImageAssetId,
+    serviceCategoryEditorImageBlob,
+    setServiceCategoryEditorImageBlob,
+    serviceCategoryEditorImageOriginalName,
+    setServiceCategoryEditorImageOriginalName,
     serviceDraft,
     setServiceDraft,
     serviceEditorReturnPage,
@@ -419,6 +432,7 @@ export function useAppState() {
     routeSyncSourceRef,
     staffAvatarBlobUrlRef,
     ownerAvatarBlobUrlRef,
+    serviceCategoryEditorImageBlobUrlRef,
     serviceImageBlobUrlRef,
     loading,
     setLoading,

@@ -308,6 +308,9 @@ export function normalizePhoneForWhatsApp(phone: string): string {
 
 export function toErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.code === 'AUTH_REQUIRED' || error.status === 401) {
+      return '';
+    }
     if (error.code) {
       return `${error.code}: ${error.message}`;
     }

@@ -133,7 +133,7 @@ export function ResetPinScreen({
                 placeholder="name@example.com"
                 autoComplete="email"
                 inputMode="email"
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink outline-none md:h-14 md:px-5 md:text-base"
+                className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-base font-semibold text-ink outline-none md:h-14 md:px-5"
               />
             </label>
           </div>

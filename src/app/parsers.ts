@@ -1,4 +1,4 @@
-import type { AppointmentItem, ClientItem, ServiceItem, StaffItem } from './types';
+import type { AppointmentItem, ClientItem, ServiceCategoryItem, ServiceItem, StaffItem } from './types';
 import {
   asArray,
   dayNameToIso,
@@ -108,12 +108,35 @@ export function parseService(value: unknown): ServiceItem | null {
     description: toNullableString(record.description),
     imageUrl:
       toNullableString(record.imageUrl) ||
+      toNullableString(categoryRecord?.imageUrl) ||
       toNullableString(record.photoUrl) ||
       toNullableString(record.pictureUrl),
     isActive: Boolean(record.isActive ?? true),
     durationSec: toNumber(record.durationSec) ?? 0,
     priceMin: toNumber(record.priceMin) ?? 0,
     priceMax: toNumber(record.priceMax) ?? toNumber(record.priceMin) ?? 0,
+  };
+}
+
+export function parseServiceCategory(value: unknown): ServiceCategoryItem | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const id = toString(record.id);
+  const name = toString(record.name);
+  if (!id || !name) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    count: toNumber(record.count) ?? 0,
+    imageAssetId: toNullableString(record.imageAssetId),
+    imageUrl:
+      toNullableString(record.imageUrl) ||
+      toNullableString(record.photoUrl) ||
+      toNullableString(record.pictureUrl),
   };
 }
 

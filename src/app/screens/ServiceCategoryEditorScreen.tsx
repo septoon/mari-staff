@@ -1,4 +1,5 @@
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { useRef, type ChangeEvent } from 'react';
+import { ArrowLeft, ImagePlus, Trash2, X } from 'lucide-react';
 
 const DESKTOP_PANEL_CLASS =
   'rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]';
@@ -8,10 +9,13 @@ const DESKTOP_INPUT_CLASS =
 type ServiceCategoryEditorScreenProps = {
   title: string;
   name: string;
+  imagePreviewUrl: string;
   loading: boolean;
   canDelete: boolean;
   onBack: () => void;
   onNameChange: (value: string) => void;
+  onImageFilePick: (file: File) => void;
+  onImageClear: () => void;
   onSave: () => void;
   onDelete: () => void;
 };
@@ -19,15 +23,37 @@ type ServiceCategoryEditorScreenProps = {
 export function ServiceCategoryEditorScreen({
   title,
   name,
+  imagePreviewUrl,
   loading,
   canDelete,
   onBack,
   onNameChange,
+  onImageFilePick,
+  onImageClear,
   onSave,
   onDelete,
 }: ServiceCategoryEditorScreenProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    onImageFilePick(file);
+    event.target.value = '';
+  };
+
   return (
     <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageChange}
+        className="hidden"
+      />
+
       <div className="pb-6 pt-4 md:hidden">
         <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
           <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
@@ -52,6 +78,33 @@ export function ServiceCategoryEditorScreen({
             className="w-full bg-transparent text-[22px] font-medium text-ink outline-none"
           />
         </label>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border-[2px] border-line bg-[#eceff5] text-[#7b8290]"
+          >
+            {imagePreviewUrl ? (
+              <img src={imagePreviewUrl} alt="Изображение категории" className="h-full w-full object-cover" />
+            ) : (
+              <div className="text-center">
+                <ImagePlus className="mx-auto h-10 w-10" />
+                <div className="mt-1 text-[16px] font-semibold">Загрузить изображение категории</div>
+              </div>
+            )}
+          </button>
+          {imagePreviewUrl ? (
+            <button
+              type="button"
+              onClick={onImageClear}
+              className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-ink"
+            >
+              <X className="h-4 w-4" />
+              Убрать изображение
+            </button>
+          ) : null}
+        </div>
 
         <button
           type="button"
@@ -121,6 +174,36 @@ export function ServiceCategoryEditorScreen({
                 placeholder="Например: Маникюр"
               />
             </label>
+
+            <div className="mt-5">
+              <p className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
+                Изображение категории
+              </p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-64 w-full items-center justify-center overflow-hidden rounded-[28px] border border-[#dce2ea] bg-[#f6f8fb] text-[#7b8290]"
+              >
+                {imagePreviewUrl ? (
+                  <img src={imagePreviewUrl} alt="Изображение категории" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="text-center">
+                    <ImagePlus className="mx-auto h-10 w-10" />
+                    <div className="mt-3 text-base font-semibold">Загрузить изображение категории</div>
+                  </div>
+                )}
+              </button>
+              {imagePreviewUrl ? (
+                <button
+                  type="button"
+                  onClick={onImageClear}
+                  className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 py-3 text-sm font-semibold text-ink"
+                >
+                  <X className="h-4 w-4" />
+                  Убрать изображение
+                </button>
+              ) : null}
+            </div>
 
             <div className="mt-5 rounded-[24px] bg-[#f6f8fb] px-5 py-4 text-[15px] font-semibold leading-relaxed text-[#5f6773]">
               Используйте понятное название, по которому администратор сразу поймет, какие услуги лежат внутри категории.

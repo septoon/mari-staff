@@ -111,6 +111,8 @@ export type ServiceCategoryItem = {
   id: string;
   name: string;
   count: number;
+  imageAssetId: string | null;
+  imageUrl: string | null;
 };
 
 export type ServiceDraft = {
@@ -274,6 +276,7 @@ export type ControllerState = {
   servicesItemsSearch: string;
   serviceCategoryEditorId: string | null;
   serviceCategoryEditorName: string;
+  serviceCategoryEditorImagePreviewUrl: string;
   serviceDraft: ServiceDraft;
   serviceProviders: StaffItem[];
   serviceAssignableStaff: StaffItem[];
@@ -476,6 +479,8 @@ export type ControllerActions = {
   closeServiceCategoryEditor: () => void;
   openServiceProvidersEditor: (serviceId: string) => void;
   setServiceCategoryEditorName: (value: string) => void;
+  handleSelectServiceCategoryImageFile: (file: File) => Promise<void>;
+  handleClearServiceCategoryImage: () => void;
   saveServiceCategoryEditor: () => Promise<void>;
   deleteServiceCategoryEditor: () => Promise<void>;
   openServiceEditor: (serviceId: string | null) => void;

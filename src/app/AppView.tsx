@@ -49,6 +49,7 @@ import {
   appointmentMatchesClient,
   normalizePhoneForLink,
 } from './helpers';
+import { PUBLIC_UNAUTHORIZED_ROUTES } from './controller/routes';
 import type { AppController, ClientItem, StaffItem } from './types';
 
 type AppViewProps = {
@@ -102,7 +103,7 @@ export function AppView({ controller }: AppViewProps) {
   const [isMobileBottomNavVisible, setIsMobileBottomNavVisible] = useState(true);
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
   const setPinToken = new URLSearchParams(location.search).get('token') || '';
-  const isPinEntryRoute = pathname === '/staff/set-pin' || pathname === '/staff/reset-pin';
+  const isPublicAuthRoute = PUBLIC_UNAUTHORIZED_ROUTES.has(pathname);
 
   useEffect(() => {
     if (!('scrollRestoration' in window.history)) {
@@ -118,16 +119,19 @@ export function AppView({ controller }: AppViewProps) {
   useEffect(() => {
     const root = document.documentElement;
 
-    if (!isPinEntryRoute) {
+    if (!isPublicAuthRoute) {
       root.style.removeProperty('--ui-scale');
+      root.style.removeProperty('--sheet-ui-scale');
       return;
     }
 
-    root.style.setProperty('--ui-scale', '0.92');
+    root.style.setProperty('--ui-scale', '1');
+    root.style.setProperty('--sheet-ui-scale', '1');
     return () => {
       root.style.removeProperty('--ui-scale');
+      root.style.removeProperty('--sheet-ui-scale');
     };
-  }, [isPinEntryRoute]);
+  }, [isPublicAuthRoute]);
 
   useEffect(() => {
     try {
@@ -292,7 +296,7 @@ export function AppView({ controller }: AppViewProps) {
       clientsWithPhone.map((item) => normalizePhoneForLink(item.phone)).filter((value) => Boolean(value)),
     ),
   );
-  const showDesktopRail = Boolean(state.session) && !isPinEntryRoute;
+  const showDesktopRail = Boolean(state.session) && !isPublicAuthRoute;
   const desktopRailMarkedDates =
     state.tab === 'schedule'
       ? scheduleMarkedDates
@@ -1040,10 +1044,13 @@ export function AppView({ controller }: AppViewProps) {
           <ServiceCategoryEditorScreen
             title={state.serviceCategoryEditorName || 'Новая категория'}
             name={state.serviceCategoryEditorName}
+            imagePreviewUrl={state.serviceCategoryEditorImagePreviewUrl}
             loading={state.loading.action}
             canDelete={Boolean(state.serviceCategoryEditorId)}
             onBack={actions.closeServiceCategoryEditor}
             onNameChange={actions.setServiceCategoryEditorName}
+            onImageFilePick={actions.handleSelectServiceCategoryImageFile}
+            onImageClear={actions.handleClearServiceCategoryImage}
             onSave={() => {
               void actions.saveServiceCategoryEditor();
             }}
