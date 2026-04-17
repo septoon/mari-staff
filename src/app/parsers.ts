@@ -317,6 +317,7 @@ const createParsedScheduleInterval = (
   endRaw: string,
   bookingStartRaw?: string,
   bookingEndRaw?: string,
+  bookingSlotTimesRaw?: unknown,
 ): ScheduleInterval | null => {
   const start = normalizeScheduleTimeValue(startRaw);
   const end = normalizeScheduleTimeValue(endRaw);
@@ -330,11 +331,20 @@ const createParsedScheduleInterval = (
     return null;
   }
 
+  const bookingSlotsSource = Array.isArray(bookingSlotTimesRaw) ? bookingSlotTimesRaw : [];
+  const bookingSlots = bookingSlotsSource
+    .map((value) => normalizeScheduleTimeValue(toString(value)))
+    .filter(Boolean)
+    .filter((value, index, items) => items.indexOf(value) === index)
+    .filter((value) => value >= bookingStart && value < bookingEnd)
+    .sort();
+
   return {
     start,
     end,
     bookingStart,
     bookingEnd,
+    bookingSlots: Array.isArray(bookingSlotTimesRaw) ? bookingSlots : null,
   };
 };
 
@@ -356,7 +366,8 @@ const pushScheduleInterval = (
         item.start === interval.start &&
         item.end === interval.end &&
         item.bookingStart === interval.bookingStart &&
-        item.bookingEnd === interval.bookingEnd,
+        item.bookingEnd === interval.bookingEnd &&
+        JSON.stringify(item.bookingSlots ?? null) === JSON.stringify(interval.bookingSlots ?? null),
     )
   ) {
     return;
@@ -393,6 +404,7 @@ const readScheduleIntervalFromRecord = (record: Record<string, unknown>) => {
       toString(record.onlineEndTime) ||
       toString(record.availableEndTime) ||
       toString(record.bookingTo),
+    record.bookingSlotTimes,
   );
 };
 

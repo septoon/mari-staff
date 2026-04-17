@@ -861,6 +861,13 @@ export function AppView({ controller }: AppViewProps) {
             editorEnd={state.scheduleEditorEnd}
             editorBookingStart={state.scheduleEditorBookingStart}
             editorBookingEnd={state.scheduleEditorBookingEnd}
+            onlineSlotsStaff={state.scheduleOnlineSlotsStaff}
+            onlineSlotsDate={state.scheduleOnlineSlotsDate}
+            onlineSlotsShiftStart={state.scheduleOnlineSlotsShiftStart}
+            onlineSlotsShiftEnd={state.scheduleOnlineSlotsShiftEnd}
+            onlineSlotsBookingStart={state.scheduleOnlineSlotsBookingStart}
+            onlineSlotsBookingEnd={state.scheduleOnlineSlotsBookingEnd}
+            onlineSlotsSelectedTimes={state.scheduleOnlineSlotsSelectedTimes}
             loading={state.loading.schedule || state.loading.staff || state.loading.action}
             onReload={() => {
               void actions.refreshSchedule();
@@ -890,6 +897,20 @@ export function AppView({ controller }: AppViewProps) {
             }}
             onClearEditor={() => {
               void actions.clearScheduleEditor();
+            }}
+            onOpenOnlineSlots={(item: StaffItem, date: Date) => {
+              void actions.openScheduleOnlineSlotsForStaff(item, date);
+            }}
+            onCloseOnlineSlots={actions.closeScheduleOnlineSlots}
+            onOnlineSlotsBookingStartChange={actions.setScheduleOnlineSlotsBookingStart}
+            onOnlineSlotsBookingEndChange={actions.setScheduleOnlineSlotsBookingEnd}
+            onToggleOnlineSlotTime={actions.toggleScheduleOnlineSlotTime}
+            onToggleOnlineSlotGroup={actions.toggleScheduleOnlineSlotTimeGroup}
+            onResetOnlineSlots={() => {
+              void actions.resetScheduleOnlineSlots();
+            }}
+            onSaveOnlineSlots={() => {
+              void actions.saveScheduleOnlineSlots();
             }}
             onSelectDate={actions.setSelectedDate}
           />

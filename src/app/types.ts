@@ -232,6 +232,7 @@ export type ScheduleInterval = {
   end: string;
   bookingStart: string;
   bookingEnd: string;
+  bookingSlots?: string[] | null;
 };
 
 export type WorkingHoursMap = Record<string, Record<string, ScheduleInterval[]>>;
@@ -296,6 +297,13 @@ export type ControllerState = {
   scheduleEditorEnd: string;
   scheduleEditorBookingStart: string;
   scheduleEditorBookingEnd: string;
+  scheduleOnlineSlotsStaff: StaffItem | null;
+  scheduleOnlineSlotsDate: Date | null;
+  scheduleOnlineSlotsShiftStart: string;
+  scheduleOnlineSlotsShiftEnd: string;
+  scheduleOnlineSlotsBookingStart: string;
+  scheduleOnlineSlotsBookingEnd: string;
+  scheduleOnlineSlotsSelectedTimes: string[];
   appointments: AppointmentItem[];
   journalListAppointments: AppointmentItem[];
   journalCards: JournalCard[];
@@ -457,6 +465,14 @@ export type ControllerActions = {
   applyScheduleEditorPreset: (value: string) => void;
   saveScheduleEditor: () => Promise<void>;
   clearScheduleEditor: () => Promise<void>;
+  openScheduleOnlineSlotsForStaff: (item: StaffItem, date: Date) => Promise<void>;
+  closeScheduleOnlineSlots: () => void;
+  setScheduleOnlineSlotsBookingStart: (value: string) => void;
+  setScheduleOnlineSlotsBookingEnd: (value: string) => void;
+  toggleScheduleOnlineSlotTime: (value: string) => void;
+  toggleScheduleOnlineSlotTimeGroup: (values: string[]) => void;
+  resetScheduleOnlineSlots: () => Promise<void>;
+  saveScheduleOnlineSlots: () => Promise<void>;
   handleMoreAction: (title: string) => Promise<void>;
   saveNotificationMinNoticeMinutes: (value: number) => Promise<boolean>;
   toggleNotificationSetting: (id: string, enabled: boolean) => Promise<void>;

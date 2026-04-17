@@ -61,11 +61,13 @@ import {
   stateToRoute,
 } from './controller/routes';
 import {
+  buildBookingSlotTimes,
   createScheduleInterval,
   deriveEditorInterval,
   isScheduleIntervalValid,
   isValidTime,
   parseSlot,
+  timeValueToMinutes,
   toFlatWorkingHours,
 } from './controller/schedule';
 import { useDataLoaders } from './controller/useDataLoaders';
@@ -323,6 +325,26 @@ export function useAppController(): AppController {
     setScheduleEditorBookingStart,
     scheduleEditorBookingEnd,
     setScheduleEditorBookingEnd,
+    scheduleOnlineSlotsStaff,
+    setScheduleOnlineSlotsStaff,
+    scheduleOnlineSlotsDate,
+    setScheduleOnlineSlotsDate,
+    scheduleOnlineSlotsShiftStart,
+    setScheduleOnlineSlotsShiftStart,
+    scheduleOnlineSlotsShiftEnd,
+    setScheduleOnlineSlotsShiftEnd,
+    scheduleOnlineSlotsBookingStart,
+    setScheduleOnlineSlotsBookingStart,
+    scheduleOnlineSlotsBookingEnd,
+    setScheduleOnlineSlotsBookingEnd,
+    scheduleOnlineSlotsSelectedTimes,
+    setScheduleOnlineSlotsSelectedTimes,
+    scheduleOnlineSlotsInitialBookingStart,
+    setScheduleOnlineSlotsInitialBookingStart,
+    scheduleOnlineSlotsInitialBookingEnd,
+    setScheduleOnlineSlotsInitialBookingEnd,
+    scheduleOnlineSlotsInitialSelectedTimes,
+    setScheduleOnlineSlotsInitialSelectedTimes,
     journalDatePickerOpen,
     setJournalDatePickerOpen,
     journalMarkedDates,
@@ -1567,6 +1589,7 @@ export function useAppController(): AppController {
       setScheduleEditorStaff(null);
       setScheduleEditorDays([]);
       resetScheduleEditorDraft();
+      resetScheduleOnlineSlotsState();
       setJournalDatePickerOpen(false);
       setJournalMarkedDates([]);
       setStaffServicesEditorQuery('');
@@ -4316,6 +4339,73 @@ export function useAppController(): AppController {
     setScheduleEditorBookingEnd(interval.bookingEnd);
   };
 
+  const filterScheduleOnlineSlotTimes = useCallback(
+    (times: string[], bookingStart: string, bookingEnd: string) => {
+      const allowed = new Set(buildBookingSlotTimes(bookingStart, bookingEnd));
+      return times.filter((item) => allowed.has(item)).sort((left, right) => left.localeCompare(right));
+    },
+    [],
+  );
+
+  const applyScheduleOnlineSlotsDraft = useCallback(
+    (
+      input: {
+        staff: StaffItem | null;
+        date: Date | null;
+        shiftStart: string;
+        shiftEnd: string;
+        bookingStart: string;
+        bookingEnd: string;
+        selectedTimes: string[];
+      },
+      options?: { persistInitial?: boolean },
+    ) => {
+      const normalizedSelectedTimes = filterScheduleOnlineSlotTimes(
+        input.selectedTimes,
+        input.bookingStart,
+        input.bookingEnd,
+      );
+      setScheduleOnlineSlotsStaff(input.staff);
+      setScheduleOnlineSlotsDate(input.date);
+      setScheduleOnlineSlotsShiftStart(input.shiftStart);
+      setScheduleOnlineSlotsShiftEnd(input.shiftEnd);
+      setScheduleOnlineSlotsBookingStart(input.bookingStart);
+      setScheduleOnlineSlotsBookingEnd(input.bookingEnd);
+      setScheduleOnlineSlotsSelectedTimes(normalizedSelectedTimes);
+
+      if (options?.persistInitial) {
+        setScheduleOnlineSlotsInitialBookingStart(input.bookingStart);
+        setScheduleOnlineSlotsInitialBookingEnd(input.bookingEnd);
+        setScheduleOnlineSlotsInitialSelectedTimes(normalizedSelectedTimes);
+      }
+    },
+    [
+      filterScheduleOnlineSlotTimes,
+      setScheduleOnlineSlotsBookingEnd,
+      setScheduleOnlineSlotsBookingStart,
+      setScheduleOnlineSlotsDate,
+      setScheduleOnlineSlotsInitialBookingEnd,
+      setScheduleOnlineSlotsInitialBookingStart,
+      setScheduleOnlineSlotsInitialSelectedTimes,
+      setScheduleOnlineSlotsSelectedTimes,
+      setScheduleOnlineSlotsShiftEnd,
+      setScheduleOnlineSlotsShiftStart,
+      setScheduleOnlineSlotsStaff,
+    ],
+  );
+
+  const resetScheduleOnlineSlotsState = useCallback(() => {
+    applyScheduleOnlineSlotsDraft({
+      staff: null,
+      date: null,
+      shiftStart: '10:00',
+      shiftEnd: '18:00',
+      bookingStart: '10:00',
+      bookingEnd: '18:00',
+      selectedTimes: [],
+    }, { persistInitial: true });
+  }, [applyScheduleOnlineSlotsDraft]);
+
   const fetchStaffWorkingHours = async (staffId: string) => {
     try {
       const data = await api.get<unknown>(`/schedule/staff/${staffId}/working-hours`);
@@ -4341,6 +4431,7 @@ export function useAppController(): AppController {
         endTime: item.end,
         bookingStartTime: item.bookingStart,
         bookingEndTime: item.bookingEnd,
+        bookingSlotTimes: item.bookingSlots ?? undefined,
       }));
     await api.put<unknown>(`/schedule/staff/${staffId}/daily-schedule/${isoDate}`, { items });
   };
@@ -4423,6 +4514,184 @@ export function useAppController(): AppController {
     setScheduleEditorStaff(null);
     setScheduleEditorDays([]);
     resetScheduleEditorDraft();
+  };
+
+  const openScheduleOnlineSlotsForStaff = async (item: StaffItem, date: Date) => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
+    if (item.role === 'OWNER') {
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const intervals = await fetchStaffDailySchedule(item.id, date);
+      if (intervals.length === 0) {
+        setToast('На выбранный день нет графика');
+        return;
+      }
+      if (intervals.length > 1) {
+        setToast('Для дня с несколькими интервалами используйте редактирование дня');
+        return;
+      }
+
+      const interval = intervals[0]!;
+      applyScheduleOnlineSlotsDraft(
+        {
+          staff: item,
+          date,
+          shiftStart: interval.start,
+          shiftEnd: interval.end,
+          bookingStart: interval.bookingStart,
+          bookingEnd: interval.bookingEnd,
+          selectedTimes:
+            interval.bookingSlots ?? buildBookingSlotTimes(interval.bookingStart, interval.bookingEnd),
+        },
+        { persistInitial: true },
+      );
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const closeScheduleOnlineSlots = () => {
+    resetScheduleOnlineSlotsState();
+  };
+
+  const handleScheduleOnlineSlotsBookingStartChange = (value: string) => {
+    setScheduleOnlineSlotsBookingStart(value);
+    setScheduleOnlineSlotsSelectedTimes((prev) =>
+      filterScheduleOnlineSlotTimes(prev, value, scheduleOnlineSlotsBookingEnd),
+    );
+  };
+
+  const handleScheduleOnlineSlotsBookingEndChange = (value: string) => {
+    setScheduleOnlineSlotsBookingEnd(value);
+    setScheduleOnlineSlotsSelectedTimes((prev) =>
+      filterScheduleOnlineSlotTimes(prev, scheduleOnlineSlotsBookingStart, value),
+    );
+  };
+
+  const toggleScheduleOnlineSlotTime = (value: string) => {
+    const allowed = new Set(
+      buildBookingSlotTimes(scheduleOnlineSlotsBookingStart, scheduleOnlineSlotsBookingEnd),
+    );
+    if (!allowed.has(value)) {
+      return;
+    }
+
+    setScheduleOnlineSlotsSelectedTimes((prev) => {
+      if (prev.includes(value)) {
+        return prev.filter((item) => item !== value);
+      }
+      return [...prev, value].sort((left, right) => left.localeCompare(right));
+    });
+  };
+
+  const toggleScheduleOnlineSlotTimeGroup = (values: string[]) => {
+    const allowedByRange = new Set(
+      buildBookingSlotTimes(scheduleOnlineSlotsBookingStart, scheduleOnlineSlotsBookingEnd),
+    );
+    const allowed = values.filter((value) => allowedByRange.has(value));
+    if (allowed.length === 0) {
+      return;
+    }
+
+    setScheduleOnlineSlotsSelectedTimes((prev) => {
+      const next = new Set(prev);
+      const allSelected = allowed.every((value) => next.has(value));
+
+      allowed.forEach((value) => {
+        if (allSelected) {
+          next.delete(value);
+        } else {
+          next.add(value);
+        }
+      });
+
+      return Array.from(next).sort((left, right) => left.localeCompare(right));
+    });
+  };
+
+  const resetScheduleOnlineSlots = async () => {
+    if (!scheduleOnlineSlotsStaff || !scheduleOnlineSlotsDate) {
+      resetScheduleOnlineSlotsState();
+      return;
+    }
+
+    applyScheduleOnlineSlotsDraft(
+      {
+        staff: scheduleOnlineSlotsStaff,
+        date: scheduleOnlineSlotsDate,
+        shiftStart: scheduleOnlineSlotsShiftStart,
+        shiftEnd: scheduleOnlineSlotsShiftEnd,
+        bookingStart: scheduleOnlineSlotsInitialBookingStart,
+        bookingEnd: scheduleOnlineSlotsInitialBookingEnd,
+        selectedTimes: scheduleOnlineSlotsInitialSelectedTimes,
+      },
+      { persistInitial: false },
+    );
+  };
+
+  const saveScheduleOnlineSlots = async () => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
+    if (!scheduleOnlineSlotsStaff || !scheduleOnlineSlotsDate) {
+      setToast('День не выбран');
+      return;
+    }
+    if (
+      !isValidTime(scheduleOnlineSlotsBookingStart) ||
+      !isValidTime(scheduleOnlineSlotsBookingEnd)
+    ) {
+      setToast('Время в формате HH:mm');
+      return;
+    }
+
+    const shiftStartMinutes = timeValueToMinutes(scheduleOnlineSlotsShiftStart);
+    const shiftEndMinutes = timeValueToMinutes(scheduleOnlineSlotsShiftEnd);
+    const bookingStartMinutes = timeValueToMinutes(scheduleOnlineSlotsBookingStart);
+    const bookingEndMinutes = timeValueToMinutes(scheduleOnlineSlotsBookingEnd);
+
+    if (
+      bookingStartMinutes < shiftStartMinutes ||
+      bookingEndMinutes > shiftEndMinutes ||
+      bookingStartMinutes >= bookingEndMinutes
+    ) {
+      setToast('Окно онлайн-записи должно быть внутри рабочей смены');
+      return;
+    }
+
+    const interval = createScheduleInterval(
+      scheduleOnlineSlotsShiftStart,
+      scheduleOnlineSlotsShiftEnd,
+      scheduleOnlineSlotsBookingStart,
+      scheduleOnlineSlotsBookingEnd,
+      scheduleOnlineSlotsSelectedTimes,
+    );
+
+    if (!isScheduleIntervalValid(interval)) {
+      setToast('Некорректные слоты онлайн-записи');
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await putStaffDailySchedule(scheduleOnlineSlotsStaff.id, scheduleOnlineSlotsDate, [interval]);
+      await loadWorkingHours(staff);
+      setToast('Слоты онлайн-записи сохранены');
+      closeScheduleOnlineSlots();
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
   };
 
   const toggleScheduleEditorDay = (day: number) => {
@@ -4659,6 +4928,7 @@ export function useAppController(): AppController {
     setScheduleEditorStaff(null);
     setScheduleEditorDays([]);
     resetScheduleEditorDraft();
+    resetScheduleOnlineSlotsState();
     setJournalDatePickerOpen(false);
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
@@ -4780,6 +5050,13 @@ export function useAppController(): AppController {
       scheduleEditorEnd,
       scheduleEditorBookingStart,
       scheduleEditorBookingEnd,
+      scheduleOnlineSlotsStaff,
+      scheduleOnlineSlotsDate,
+      scheduleOnlineSlotsShiftStart,
+      scheduleOnlineSlotsShiftEnd,
+      scheduleOnlineSlotsBookingStart,
+      scheduleOnlineSlotsBookingEnd,
+      scheduleOnlineSlotsSelectedTimes,
       appointments,
       journalListAppointments,
       journalCards,
@@ -4939,6 +5216,14 @@ export function useAppController(): AppController {
       applyScheduleEditorPreset,
       saveScheduleEditor,
       clearScheduleEditor,
+      openScheduleOnlineSlotsForStaff,
+      closeScheduleOnlineSlots,
+      setScheduleOnlineSlotsBookingStart: handleScheduleOnlineSlotsBookingStartChange,
+      setScheduleOnlineSlotsBookingEnd: handleScheduleOnlineSlotsBookingEndChange,
+      toggleScheduleOnlineSlotTime,
+      toggleScheduleOnlineSlotTimeGroup,
+      resetScheduleOnlineSlots,
+      saveScheduleOnlineSlots,
       handleMoreAction,
       saveNotificationMinNoticeMinutes,
       toggleNotificationSetting,

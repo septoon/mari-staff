@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   BadgePercent,
   ChevronRight,
+  Eye,
+  EyeOff,
   FileText,
   House,
   Image,
@@ -72,6 +74,12 @@ import {
   type SitePageHeroDraft,
   type SitePageHeroKey,
 } from '../clientSitePageHeroes';
+import {
+  mergeSiteVisibilityIntoExtra,
+  readSiteHiddenBlockKeys,
+  SITE_BLOCK_KEYS,
+  toggleSiteHiddenBlockKey,
+} from '../clientSiteVisibility';
 
 type ClientSiteEditorScreenProps = {
   onBack: () => void;
@@ -1415,6 +1423,28 @@ function SectionCard({
   );
 }
 
+function VisibilityActionButton({
+  hidden,
+  onClick,
+  disabled,
+}: {
+  hidden: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[13px] font-extrabold text-[#5f6773] disabled:opacity-50"
+    >
+      {hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      {hidden ? 'Показать' : 'Скрыть'}
+    </button>
+  );
+}
+
 function TextField({
   label,
   value,
@@ -1722,6 +1752,18 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       void loadPreview();
     }
   }, [activeCategory, loadPreview]);
+
+  const hiddenBlockKeys = useMemo(
+    () => readSiteHiddenBlockKeys(config?.extra ?? {}),
+    [config],
+  );
+
+  const hiddenBlockKeySet = useMemo(() => new Set(hiddenBlockKeys), [hiddenBlockKeys]);
+
+  const hasHiddenBlock = useCallback(
+    (blockKey: string) => hiddenBlockKeySet.has(blockKey),
+    [hiddenBlockKeySet],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia('(min-width: 768px)').matches) {
@@ -2078,29 +2120,67 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     [contacts],
   );
 
-  const saveConfigPatch = async (payload: Record<string, unknown>, successMessage: string) => {
-    setBusyKey('config');
-    setMessage(null);
-    try {
-      await api.patch('/client-front/staff/config', payload);
+  const saveConfigPatch = useCallback(
+    async (payload: Record<string, unknown>, successMessage: string) => {
+      setBusyKey('config');
+      setMessage(null);
       try {
-        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
-        await loadData({ silent: true });
-        if (previewState.data || previewState.error || activeCategory === 'publish') {
-          const preview = await safeGet<PreviewRecord>('/client-front/staff/preview?platform=web');
-          setPreviewState(preview);
+        await api.patch('/client-front/staff/config', payload);
+        try {
+          const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+          await loadData({ silent: true });
+          if (previewState.data || previewState.error || activeCategory === 'publish') {
+            const preview = await safeGet<PreviewRecord>('/client-front/staff/preview?platform=web');
+            setPreviewState(preview);
+          }
+          setBanner('success', `${successMessage}. Сразу опубликована версия v${result.version}.`);
+        } catch (publishError) {
+          await loadData({ silent: true });
+          setBanner('error', `Изменения сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
         }
-        setBanner('success', `${successMessage}. Сразу опубликована версия v${result.version}.`);
-      } catch (publishError) {
-        await loadData({ silent: true });
-        setBanner('error', `Изменения сохранены, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      } catch (error) {
+        setBanner('error', getErrorMessage(error));
+      } finally {
+        setBusyKey(null);
       }
-    } catch (error) {
-      setBanner('error', getErrorMessage(error));
-    } finally {
-      setBusyKey(null);
-    }
-  };
+    },
+    [activeCategory, loadData, previewState.data, previewState.error],
+  );
+
+  const saveSiteVisibility = useCallback(
+    async (extra: Record<string, unknown>, blockKey: string, label: string) => {
+      const nextHiddenBlockKeys = toggleSiteHiddenBlockKey(hiddenBlockKeys, blockKey);
+      const nextHidden = !hiddenBlockKeySet.has(blockKey);
+      await saveConfigPatch(
+        {
+          extra: mergeSiteVisibilityIntoExtra(extra, nextHiddenBlockKeys),
+        },
+        `${label} ${nextHidden ? 'скрыт' : 'снова показан'}`,
+      );
+    },
+    [hiddenBlockKeySet, hiddenBlockKeys, saveConfigPatch],
+  );
+
+  const buildSpecialistsExtra = useCallback(() => {
+    const nextExtra = mergeSiteSpecialistsPageIntoExtra(config?.extra ?? {}, specialistsPageDraft);
+    const currentPageHero = asObjectRecord(asObjectRecord(config?.extra ?? {}).pageHero);
+
+    nextExtra.pageHero = {
+      ...currentPageHero,
+      masters: pageHeroDraft.masters,
+      masterDetails: pageHeroDraft.masterDetails,
+    };
+
+    return nextExtra;
+  }, [config?.extra, pageHeroDraft.masterDetails, pageHeroDraft.masters, specialistsPageDraft]);
+
+  const buildBookingExtra = useCallback(
+    () => mergeSitePageHeroesIntoExtra(
+      mergeSiteBookingPageIntoExtra(config?.extra ?? {}, bookingPageDraft),
+      pageHeroDraft,
+    ),
+    [bookingPageDraft, config?.extra, pageHeroDraft],
+  );
 
   const updatePageHeroField = (key: SitePageHeroKey, field: keyof SitePageHeroDraft[SitePageHeroKey], value: string) => {
     setPageHeroDraft((prev) => ({
@@ -2275,18 +2355,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   };
 
   const saveSpecialistsPage = async () => {
-    const nextExtra = mergeSiteSpecialistsPageIntoExtra(config?.extra ?? {}, specialistsPageDraft);
-    const currentPageHero = asObjectRecord(asObjectRecord(config?.extra ?? {}).pageHero);
-
-    nextExtra.pageHero = {
-      ...currentPageHero,
-      masters: pageHeroDraft.masters,
-      masterDetails: pageHeroDraft.masterDetails,
-    };
-
     await saveConfigPatch(
       {
-        extra: nextExtra,
+        extra: buildSpecialistsExtra(),
       },
       'Страницы специалистов сохранены',
     );
@@ -2322,7 +2393,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const saveBookingPage = async () => {
     await saveConfigPatch(
       {
-        extra: mergeSiteBookingPageIntoExtra(config?.extra ?? {}, bookingPageDraft),
+        extra: buildBookingExtra(),
       },
       'Контент страницы записи сохранен',
     );
@@ -3127,6 +3198,34 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       } catch (publishError) {
         await loadData({ silent: true });
         setBanner('error', `Блок удалён, но автопубликация не удалась: ${getErrorMessage(publishError)}`);
+      }
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const toggleBlockEnabled = async (block: BlockRecord) => {
+    setBusyKey(`block-visibility:${block.id}`);
+    setMessage(null);
+    try {
+      await api.patch(`/client-front/staff/blocks/${block.id}`, {
+        isEnabled: !block.isEnabled,
+      });
+      try {
+        const result = await api.post<{ version: number }>('/client-front/staff/publish', {});
+        await loadData({ silent: true });
+        setBanner(
+          'success',
+          `Блок ${block.isEnabled ? 'скрыт' : 'снова показан'} и опубликован. Версия v${result.version}.`,
+        );
+      } catch (publishError) {
+        await loadData({ silent: true });
+        setBanner(
+          'error',
+          `Статус блока сохранён, но автопубликация не удалась: ${getErrorMessage(publishError)}`,
+        );
       }
     } catch (error) {
       setBanner('error', getErrorMessage(error));
@@ -4219,6 +4318,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       <span className="rounded-full bg-[#eef2f7] px-2 py-1 text-[12px] font-bold text-[#596373]">
                         {PLATFORM_LABELS[block.platform ?? 'all']}
                       </span>
+                      <span className={`rounded-full px-2 py-1 text-[12px] font-bold ${block.isEnabled ? 'bg-[#e9f7ef] text-[#2d6a45]' : 'bg-[#f5eaea] text-[#8a4b4b]'}`}>
+                        {block.isEnabled ? 'Показан' : 'Скрыт'}
+                      </span>
                     </div>
                     <p className="mt-2 text-[18px] font-extrabold text-ink">{blockTitle(block)}</p>
                     <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">{blockSubtitle(block)}</p>
@@ -4227,6 +4329,22 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void toggleBlockEnabled(block);
+                      }}
+                      disabled={busyKey === `block-visibility:${block.id}`}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                    >
+                      {busyKey === `block-visibility:${block.id}` ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : block.isEnabled ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => openBlockEditor(allowedTypes, title, block)}
@@ -4354,17 +4472,30 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           title="Первый экран /"
           subtitle="Hero, кнопки и редакционный визуал в верхней части главной страницы сайта MARI."
           action={
-            <button
-              type="button"
-              onClick={() => {
-                void saveHomePage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать
-            </button>
+            <>
+              <VisibilityActionButton
+                hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.hero)}
+                disabled={busyKey === 'config'}
+                onClick={() => {
+                  void saveSiteVisibility(
+                    mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                    SITE_BLOCK_KEYS.homePage.hero,
+                    'Первый экран главной',
+                  );
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void saveHomePage();
+                }}
+                disabled={busyKey === 'config'}
+                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+              >
+                {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Сохранить и опубликовать
+              </button>
+            </>
           }
         >
           <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
@@ -4495,6 +4626,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 >
                   Сбросить
                 </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.categories)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(
+                      mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                      SITE_BLOCK_KEYS.homePage.categories,
+                      'Секция популярных направлений',
+                    );
+                  }}
+                />
               </div>
               <div className="mt-4 grid gap-3 xl:grid-cols-2">
                 <TextField label="Eyebrow" value={homePageDraft.categories.eyebrow} onChange={(value) => updateHomePageField('categories', 'eyebrow', value)} />
@@ -4519,6 +4661,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 >
                   Сбросить
                 </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.valuePillars)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(
+                      mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                      SITE_BLOCK_KEYS.homePage.valuePillars,
+                      'Секция преимуществ',
+                    );
+                  }}
+                />
               </div>
               <div className="mt-4 grid gap-3">
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -4556,6 +4709,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   >
                     Сбросить
                   </button>
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.featuredServices)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                        SITE_BLOCK_KEYS.homePage.featuredServices,
+                        'Блок услуг на главной',
+                      );
+                    }}
+                  />
                 </div>
                 <div className="mt-4 grid gap-3">
                   <TextField label="Eyebrow" value={homePageDraft.featuredServices.eyebrow} onChange={(value) => updateHomePageField('featuredServices', 'eyebrow', value)} />
@@ -4580,6 +4744,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   >
                     Сбросить
                   </button>
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.featuredSpecialists)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                        SITE_BLOCK_KEYS.homePage.featuredSpecialists,
+                        'Блок специалистов на главной',
+                      );
+                    }}
+                  />
                 </div>
                 <div className="mt-4 grid gap-3">
                   <TextField label="Eyebrow" value={homePageDraft.featuredSpecialists.eyebrow} onChange={(value) => updateHomePageField('featuredSpecialists', 'eyebrow', value)} />
@@ -4627,6 +4802,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   >
                     Сбросить
                   </button>
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.contacts)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                        SITE_BLOCK_KEYS.homePage.contacts,
+                        'Контактный блок на главной',
+                      );
+                    }}
+                  />
                 </div>
                 <div className="mt-4 grid gap-3">
                   <TextField label="Eyebrow" value={homePageDraft.contacts.eyebrow} onChange={(value) => updateHomePageField('contacts', 'eyebrow', value)} />
@@ -4654,6 +4840,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   >
                     Сбросить
                   </button>
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.highlights)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                        SITE_BLOCK_KEYS.homePage.highlights,
+                        'Карточки доверия на главной',
+                      );
+                    }}
+                  />
                 </div>
                 <div className="mt-4 grid gap-4">
                   {homePageDraft.highlights.map((item, index) => (
@@ -4740,6 +4937,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               >
                 Сбросить
               </button>
+              <VisibilityActionButton
+                hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.bottomCta)}
+                disabled={busyKey === 'config'}
+                onClick={() => {
+                  void saveSiteVisibility(
+                    mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                    SITE_BLOCK_KEYS.homePage.bottomCta,
+                    'Финальный CTA главной',
+                  );
+                }}
+              />
             </div>
 
             <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
@@ -5048,6 +5256,28 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pageHero('masters'))}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.pageHero('masters'),
+                        'Hero страницы /masters',
+                      );
+                    }}
+                  />
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.specialistsPage.listCta)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.specialistsPage.listCta,
+                        'CTA списка специалистов',
+                      );
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => resetPageHeroFields('masters')}
@@ -5163,6 +5393,61 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pageHero('masterDetails'))}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.pageHero('masterDetails'),
+                        'Hero карточки специалиста',
+                      );
+                    }}
+                  />
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.specialistsPage.detailAbout)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.specialistsPage.detailAbout,
+                        'Блок "О специалисте"',
+                      );
+                    }}
+                  />
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.specialistsPage.detailApproach)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.specialistsPage.detailApproach,
+                        'Блок "Подход"',
+                      );
+                    }}
+                  />
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.specialistsPage.detailServices)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.specialistsPage.detailServices,
+                        'Секция услуг специалиста',
+                      );
+                    }}
+                  />
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.specialistsPage.detailCta)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        buildSpecialistsExtra(),
+                        SITE_BLOCK_KEYS.specialistsPage.detailCta,
+                        'Финальный CTA специалиста',
+                      );
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => resetPageHeroFields('masterDetails')}
@@ -5587,17 +5872,30 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           title="Шапка страницы /booking"
           subtitle="Это hero-блок в верхней части страницы записи: eyebrow, заголовок и описание."
           action={
-            <button
-              type="button"
-              onClick={() => {
-                void savePageHeroes();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать
-            </button>
+            <>
+              <VisibilityActionButton
+                hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pageHero('booking'))}
+                disabled={busyKey === 'config'}
+                onClick={() => {
+                  void saveSiteVisibility(
+                    buildBookingExtra(),
+                    SITE_BLOCK_KEYS.pageHero('booking'),
+                    'Шапка страницы /booking',
+                  );
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void savePageHeroes();
+                }}
+                disabled={busyKey === 'config'}
+                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+              >
+                {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Сохранить и опубликовать
+              </button>
+            </>
           }
         >
           <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
@@ -5723,6 +6021,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 >
                   Сбросить кнопки
                 </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.bookingPage.connectivityNotice)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(
+                      buildBookingExtra(),
+                      SITE_BLOCK_KEYS.bookingPage.connectivityNotice,
+                      'Сервисное предупреждение на /booking',
+                    );
+                  }}
+                />
               </div>
 
               <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
@@ -5954,6 +6263,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       >
                         Сбросить
                       </button>
+                      <VisibilityActionButton
+                        hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pageHero(definition.key))}
+                        disabled={busyKey === 'config'}
+                        onClick={() => {
+                          void saveSiteVisibility(
+                            mergeSitePageHeroesIntoExtra(config?.extra ?? {}, pageHeroDraft),
+                            SITE_BLOCK_KEYS.pageHero(definition.key),
+                            `Шапка страницы ${definition.route}`,
+                          );
+                        }}
+                      />
                     </div>
 
                     <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
@@ -6044,8 +6364,31 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                     <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
                       {offer.badge} • {offer.ctaHref}
                     </p>
+                    <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
+                      {hasHiddenBlock(SITE_BLOCK_KEYS.offers.item(offer.slug)) ? 'Временно скрыто' : 'Показывается на сайте'}
+                    </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void saveSiteVisibility(
+                          mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft),
+                          SITE_BLOCK_KEYS.offers.item(offer.slug),
+                          `Предложение ${offer.title}`,
+                        );
+                      }}
+                      disabled={busyKey === 'config'}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                    >
+                      {busyKey === 'config' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : hasHiddenBlock(SITE_BLOCK_KEYS.offers.item(offer.slug)) ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => openOfferEditor(offer)}
@@ -6098,8 +6441,31 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       {article.category} • {article.publishedAt}
                     </p>
                     <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{article.excerpt}</p>
+                    <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
+                      {hasHiddenBlock(SITE_BLOCK_KEYS.news.item(article.slug)) ? 'Временно скрыто' : 'Показывается на сайте'}
+                    </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void saveSiteVisibility(
+                          mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft),
+                          SITE_BLOCK_KEYS.news.item(article.slug),
+                          `Статья ${article.title}`,
+                        );
+                      }}
+                      disabled={busyKey === 'config'}
+                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
+                    >
+                      {busyKey === 'config' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : hasHiddenBlock(SITE_BLOCK_KEYS.news.item(article.slug)) ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => openNewsEditor(article)}
@@ -6181,10 +6547,25 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               </article>
 
               <article className="rounded-[24px] border border-line bg-white px-4 py-4">
-                <h3 className="text-[20px] font-extrabold text-ink">Левый блок «Кратко»</h3>
-                <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                  Это фиксированный summary-блок слева на странице политики. Значения оператора, почты и адреса подставляются из разделов `Контакты` и `Служебные настройки`.
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-[20px] font-extrabold text-ink">Левый блок «Кратко»</h3>
+                    <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                      Это фиксированный summary-блок слева на странице политики. Значения оператора, почты и адреса подставляются из разделов `Контакты` и `Служебные настройки`.
+                    </p>
+                  </div>
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.policy.summary)}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft),
+                        SITE_BLOCK_KEYS.policy.summary,
+                        'Summary-блок политики',
+                      );
+                    }}
+                  />
+                </div>
                 <div className="mt-4 grid gap-3 xl:grid-cols-2">
                   <TextField label="Eyebrow" value={siteCardsDraft.policy.summaryEyebrow} onChange={(value) => updatePolicyField('summaryEyebrow', value)} />
                   <TextField label="Заголовок" value={siteCardsDraft.policy.summaryTitle} onChange={(value) => updatePolicyField('summaryTitle', value)} />
@@ -6294,6 +6675,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   >
                     Удалить
                   </button>
+                  <VisibilityActionButton
+                    hidden={hasHiddenBlock(SITE_BLOCK_KEYS.policy.section(section.id))}
+                    disabled={busyKey === 'config'}
+                    onClick={() => {
+                      void saveSiteVisibility(
+                        mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft),
+                        SITE_BLOCK_KEYS.policy.section(section.id),
+                        `Секция политики ${section.title}`,
+                      );
+                    }}
+                  />
                 </div>
 
                 <div className="mt-4 grid gap-3">

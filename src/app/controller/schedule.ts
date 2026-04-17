@@ -1,7 +1,51 @@
 import type { ScheduleInterval } from '../types';
 
+export const ONLINE_BOOKING_SLOT_STEP_MINUTES = 10;
+
 export function isValidTime(value: string) {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
+export function timeValueToMinutes(value: string) {
+  const [hours, minutes] = value.split(':').map(Number);
+  if (![hours, minutes].every(Number.isFinite)) {
+    return NaN;
+  }
+  return hours * 60 + minutes;
+}
+
+export function minutesToTimeValue(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function buildBookingSlotTimes(
+  start: string,
+  end: string,
+  stepMinutes = ONLINE_BOOKING_SLOT_STEP_MINUTES,
+  includeEnd = false,
+) {
+  if (!isValidTime(start) || !isValidTime(end)) {
+    return [] as string[];
+  }
+
+  const startMinutes = timeValueToMinutes(start);
+  const endMinutes = timeValueToMinutes(end);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+    return [] as string[];
+  }
+
+  const result: string[] = [];
+  for (
+    let cursor = startMinutes;
+    includeEnd ? cursor <= endMinutes : cursor < endMinutes;
+    cursor += stepMinutes
+  ) {
+    result.push(minutesToTimeValue(cursor));
+  }
+
+  return result;
 }
 
 export function parseSlot(slot: string) {
@@ -16,13 +60,15 @@ export function createScheduleInterval(
   start = '10:00',
   end = '18:00',
   bookingStart = start,
-  bookingEnd = end
+  bookingEnd = end,
+  bookingSlots?: string[] | null
 ): ScheduleInterval {
   return {
     start,
     end,
     bookingStart,
     bookingEnd,
+    bookingSlots: bookingSlots ?? null,
   };
 }
 
@@ -43,6 +89,26 @@ export function isScheduleIntervalValid(interval: ScheduleInterval) {
   }
   if (interval.bookingStart < interval.start || interval.bookingEnd > interval.end) {
     return false;
+  }
+  if (interval.bookingSlots) {
+    const slotStart = timeValueToMinutes(interval.bookingStart);
+    const slotEnd = timeValueToMinutes(interval.bookingEnd);
+    if (
+      interval.bookingSlots.some((slot) => {
+        if (!isValidTime(slot)) {
+          return true;
+        }
+        const minutes = timeValueToMinutes(slot);
+        return (
+          !Number.isFinite(minutes) ||
+          minutes < slotStart ||
+          minutes >= slotEnd ||
+          minutes % ONLINE_BOOKING_SLOT_STEP_MINUTES !== 0
+        );
+      })
+    ) {
+      return false;
+    }
   }
   return true;
 }

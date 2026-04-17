@@ -176,6 +176,16 @@ export function useAppState() {
   const [scheduleEditorEnd, setScheduleEditorEnd] = useState('18:00');
   const [scheduleEditorBookingStart, setScheduleEditorBookingStart] = useState('10:00');
   const [scheduleEditorBookingEnd, setScheduleEditorBookingEnd] = useState('18:00');
+  const [scheduleOnlineSlotsStaff, setScheduleOnlineSlotsStaff] = useState<StaffItem | null>(null);
+  const [scheduleOnlineSlotsDate, setScheduleOnlineSlotsDate] = useState<Date | null>(null);
+  const [scheduleOnlineSlotsShiftStart, setScheduleOnlineSlotsShiftStart] = useState('10:00');
+  const [scheduleOnlineSlotsShiftEnd, setScheduleOnlineSlotsShiftEnd] = useState('18:00');
+  const [scheduleOnlineSlotsBookingStart, setScheduleOnlineSlotsBookingStart] = useState('10:00');
+  const [scheduleOnlineSlotsBookingEnd, setScheduleOnlineSlotsBookingEnd] = useState('18:00');
+  const [scheduleOnlineSlotsSelectedTimes, setScheduleOnlineSlotsSelectedTimes] = useState<string[]>([]);
+  const [scheduleOnlineSlotsInitialBookingStart, setScheduleOnlineSlotsInitialBookingStart] = useState('10:00');
+  const [scheduleOnlineSlotsInitialBookingEnd, setScheduleOnlineSlotsInitialBookingEnd] = useState('18:00');
+  const [scheduleOnlineSlotsInitialSelectedTimes, setScheduleOnlineSlotsInitialSelectedTimes] = useState<string[]>([]);
   const [journalDatePickerOpen, setJournalDatePickerOpen] = useState(false);
   const [journalMarkedDates, setJournalMarkedDates] = useState<string[]>([]);
   const [journalActionStaff, setJournalActionStaff] = useState<StaffItem | null>(null);
@@ -345,6 +355,26 @@ export function useAppState() {
     setScheduleEditorBookingStart,
     scheduleEditorBookingEnd,
     setScheduleEditorBookingEnd,
+    scheduleOnlineSlotsStaff,
+    setScheduleOnlineSlotsStaff,
+    scheduleOnlineSlotsDate,
+    setScheduleOnlineSlotsDate,
+    scheduleOnlineSlotsShiftStart,
+    setScheduleOnlineSlotsShiftStart,
+    scheduleOnlineSlotsShiftEnd,
+    setScheduleOnlineSlotsShiftEnd,
+    scheduleOnlineSlotsBookingStart,
+    setScheduleOnlineSlotsBookingStart,
+    scheduleOnlineSlotsBookingEnd,
+    setScheduleOnlineSlotsBookingEnd,
+    scheduleOnlineSlotsSelectedTimes,
+    setScheduleOnlineSlotsSelectedTimes,
+    scheduleOnlineSlotsInitialBookingStart,
+    setScheduleOnlineSlotsInitialBookingStart,
+    scheduleOnlineSlotsInitialBookingEnd,
+    setScheduleOnlineSlotsInitialBookingEnd,
+    scheduleOnlineSlotsInitialSelectedTimes,
+    setScheduleOnlineSlotsInitialSelectedTimes,
     journalDatePickerOpen,
     setJournalDatePickerOpen,
     journalMarkedDates,

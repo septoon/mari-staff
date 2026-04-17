@@ -8,9 +8,14 @@ import {
   RefreshCw,
   Settings2,
   UserRound,
+  X,
 } from 'lucide-react';
 import { MONTHS_RU_GENITIVE } from '../constants';
-import { calculateScheduleIntervalHours } from '../controller/schedule';
+import {
+  buildBookingSlotTimes,
+  calculateScheduleIntervalHours,
+  timeValueToMinutes,
+} from '../controller/schedule';
 import { toISODate, toISODay } from '../helpers';
 import type { ScheduleInterval, StaffItem, WorkingHoursMap } from '../types';
 
@@ -24,6 +29,13 @@ type ScheduleScreenProps = {
   editorEnd: string;
   editorBookingStart: string;
   editorBookingEnd: string;
+  onlineSlotsStaff: StaffItem | null;
+  onlineSlotsDate: Date | null;
+  onlineSlotsShiftStart: string;
+  onlineSlotsShiftEnd: string;
+  onlineSlotsBookingStart: string;
+  onlineSlotsBookingEnd: string;
+  onlineSlotsSelectedTimes: string[];
   loading: boolean;
   onReload: () => void;
   onEdit: () => void;
@@ -38,7 +50,21 @@ type ScheduleScreenProps = {
   onEditorPresetSelect: (value: string) => void;
   onSaveEditor: () => void;
   onClearEditor: () => void;
+  onOpenOnlineSlots: (item: StaffItem, date: Date) => void;
+  onCloseOnlineSlots: () => void;
+  onOnlineSlotsBookingStartChange: (value: string) => void;
+  onOnlineSlotsBookingEndChange: (value: string) => void;
+  onToggleOnlineSlotTime: (value: string) => void;
+  onToggleOnlineSlotGroup: (values: string[]) => void;
+  onResetOnlineSlots: () => void;
+  onSaveOnlineSlots: () => void;
   onSelectDate: (value: Date) => void;
+};
+
+type OnlineSlotGroup = {
+  key: 'morning' | 'day' | 'evening';
+  label: string;
+  times: string[];
 };
 
 const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
@@ -97,8 +123,12 @@ function formatBookingLabel(intervals: ScheduleInterval[]) {
   if (first.bookingStart === first.start && first.bookingEnd === first.end && intervals.length === 1) {
     return 'Совпадает со сменой';
   }
+  const explicitCount =
+    intervals.length === 1 && first.bookingSlots && first.bookingSlots.length > 0
+      ? ` · ${first.bookingSlots.length} слотов`
+      : '';
   const suffix = intervals.length > 1 ? ` +${intervals.length - 1}` : '';
-  return `${label}${suffix}`;
+  return `${label}${explicitCount}${suffix}`;
 }
 
 function getIntervalsForDate(hoursByStaff: WorkingHoursMap, staffId: string, date: Date) {
@@ -123,6 +153,42 @@ function getWeekSummary(hoursByStaff: WorkingHoursMap, staffId: string, weekDate
 function formatHours(hours: number) {
   const rounded = Math.round(hours * 10) / 10;
   return Number.isInteger(rounded) ? `${rounded} ч` : `${rounded.toFixed(1).replace('.', ',')} ч`;
+}
+
+function isTimeInsideRange(value: string, start: string, end: string) {
+  const minutes = timeValueToMinutes(value);
+  const startMinutes = timeValueToMinutes(start);
+  const endMinutes = timeValueToMinutes(end);
+  return minutes >= startMinutes && minutes < endMinutes;
+}
+
+function buildOnlineSlotGroups(shiftStart: string, shiftEnd: string): OnlineSlotGroup[] {
+  const groups: Record<OnlineSlotGroup['key'], string[]> = {
+    morning: [],
+    day: [],
+    evening: [],
+  };
+
+  buildBookingSlotTimes(shiftStart, shiftEnd).forEach((time) => {
+    const minutes = timeValueToMinutes(time);
+    if (minutes < 12 * 60) {
+      groups.morning.push(time);
+      return;
+    }
+    if (minutes < 18 * 60) {
+      groups.day.push(time);
+      return;
+    }
+    groups.evening.push(time);
+  });
+
+  const orderedGroups: OnlineSlotGroup[] = [
+    { key: 'morning', label: 'Утро', times: groups.morning },
+    { key: 'day', label: 'День', times: groups.day },
+    { key: 'evening', label: 'Вечер', times: groups.evening },
+  ];
+
+  return orderedGroups.filter((group) => group.times.length > 0);
 }
 
 function TimeField({
@@ -265,6 +331,188 @@ function DayEditorPanel({
   );
 }
 
+function OnlineSlotsModal({
+  staff,
+  date,
+  shiftStart,
+  shiftEnd,
+  bookingStart,
+  bookingEnd,
+  selectedTimes,
+  loading,
+  onClose,
+  onBookingStartChange,
+  onBookingEndChange,
+  onToggleTime,
+  onToggleGroup,
+  onReset,
+  onSave,
+}: {
+  staff: StaffItem;
+  date: Date;
+  shiftStart: string;
+  shiftEnd: string;
+  bookingStart: string;
+  bookingEnd: string;
+  selectedTimes: string[];
+  loading: boolean;
+  onClose: () => void;
+  onBookingStartChange: (value: string) => void;
+  onBookingEndChange: (value: string) => void;
+  onToggleTime: (value: string) => void;
+  onToggleGroup: (values: string[]) => void;
+  onReset: () => void;
+  onSave: () => void;
+}) {
+  const slotGroups = useMemo(
+    () => buildOnlineSlotGroups(shiftStart, shiftEnd),
+    [shiftEnd, shiftStart],
+  );
+  const selectedSet = useMemo(() => new Set(selectedTimes), [selectedTimes]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(34,43,51,0.48)] px-3 py-6"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="max-h-full w-full max-w-[980px] overflow-hidden rounded-[32px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5 sm:px-6">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
+              Слоты онлайн-записи
+            </p>
+            <h2 className="mt-2 text-[30px] font-extrabold tracking-[-0.05em] text-[#28313b]">
+              Время для онлайн записи
+            </h2>
+            <p className="mt-2 text-[15px] text-[#66707d]">
+              {staff.name} · {formatDayLabel(date)} · смена {formatRange(shiftStart, shiftEnd)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dce2ea] bg-white text-[#39424d]"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-5 py-5 sm:px-6">
+          <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="space-y-4">
+              <div className="rounded-[28px] border border-[#e1e6ee] bg-white p-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
+                  Рабочее время
+                </p>
+                <p className="mt-3 text-[28px] font-extrabold tracking-[-0.04em] text-[#28313b]">
+                  {formatRange(shiftStart, shiftEnd)}
+                </p>
+                <p className="mt-2 text-[14px] leading-6 text-[#66707d]">
+                  Ниже можно сузить окно онлайн-записи и выбрать конкретные старты слотов для `mari`.
+                </p>
+              </div>
+
+              <div className="rounded-[28px] border border-[#e1e6ee] bg-white p-4">
+                <div className="flex items-center gap-2 text-[#28313b]">
+                  <MonitorSmartphone className="h-4 w-4 text-[#946d00]" />
+                  <h3 className="text-[18px] font-extrabold tracking-[-0.03em]">Окно онлайн-записи</h3>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <TimeField label="Начало" value={bookingStart} onChange={onBookingStartChange} />
+                  <TimeField label="Конец" value={bookingEnd} onChange={onBookingEndChange} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {slotGroups.map((group) => {
+                const availableTimes = group.times.filter((time) =>
+                  isTimeInsideRange(time, bookingStart, bookingEnd),
+                );
+                const selectedCount = availableTimes.filter((time) => selectedSet.has(time)).length;
+                const allSelected = availableTimes.length > 0 && selectedCount === availableTimes.length;
+
+                return (
+                  <section
+                    key={group.key}
+                    className="rounded-[28px] border border-[#e1e6ee] bg-white p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#28313b]">
+                          {group.label}
+                        </p>
+                        <p className="mt-1 text-[14px] text-[#66707d]">
+                          {selectedCount} из {availableTimes.length} доступны онлайн
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={availableTimes.length === 0}
+                        onClick={() => onToggleGroup(availableTimes)}
+                        className="inline-flex h-10 items-center rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-[#39424d] disabled:opacity-50"
+                      >
+                        {allSelected ? 'Снять группу' : 'Выбрать группу'}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {group.times.map((time) => {
+                        const available = isTimeInsideRange(time, bookingStart, bookingEnd);
+                        const selected = selectedSet.has(time);
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            disabled={!available}
+                            onClick={() => onToggleTime(time)}
+                            className={clsx(
+                              'inline-flex min-w-[84px] items-center justify-center rounded-2xl px-3 py-2 text-sm font-bold transition',
+                              selected && available
+                                ? 'bg-[#f4c900] text-[#2c3540] shadow-[0_10px_24px_rgba(244,201,0,0.22)]'
+                                : available
+                                  ? 'border border-[#dce2ea] bg-white text-[#39424d] hover:border-[#f4c900]'
+                                  : 'border border-[#eef2f6] bg-[#f5f7fa] text-[#b0b7c1]',
+                            )}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#e5eaf1] px-5 py-4 sm:px-6">
+          <button
+            type="button"
+            onClick={onReset}
+            className="inline-flex h-12 items-center rounded-2xl border border-[#dce2ea] bg-white px-5 text-sm font-semibold text-[#39424d]"
+          >
+            Сбросить изменения
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading}
+            className="inline-flex h-12 items-center rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#2c3540] shadow-[0_14px_30px_rgba(244,201,0,0.28)] disabled:opacity-60"
+          >
+            {loading ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ScheduleScreen({
   selectedDate,
   staff,
@@ -275,6 +523,13 @@ export function ScheduleScreen({
   editorEnd,
   editorBookingStart,
   editorBookingEnd,
+  onlineSlotsStaff,
+  onlineSlotsDate,
+  onlineSlotsShiftStart,
+  onlineSlotsShiftEnd,
+  onlineSlotsBookingStart,
+  onlineSlotsBookingEnd,
+  onlineSlotsSelectedTimes,
   loading,
   onReload,
   onEdit,
@@ -289,6 +544,14 @@ export function ScheduleScreen({
   onEditorPresetSelect,
   onSaveEditor,
   onClearEditor,
+  onOpenOnlineSlots,
+  onCloseOnlineSlots,
+  onOnlineSlotsBookingStartChange,
+  onOnlineSlotsBookingEndChange,
+  onToggleOnlineSlotTime,
+  onToggleOnlineSlotGroup,
+  onResetOnlineSlots,
+  onSaveOnlineSlots,
   onSelectDate,
 }: ScheduleScreenProps) {
   const weekDates = useMemo(() => {
@@ -308,6 +571,8 @@ export function ScheduleScreen({
   }, [hoursByStaff, selectedDate, staff]);
 
   const firstEditableStaff = staff.find((item) => item.role !== 'OWNER') ?? null;
+  void editorSelectedDays;
+  void onToggleEditorDay;
 
   return (
     <>
@@ -324,7 +589,7 @@ export function ScheduleScreen({
                     {formatWeekLabel(selectedDate)}
                   </h1>
                   <p className="mt-3 text-[16px] leading-7 text-[#66707d]">
-                    Рабочая смена и окно онлайн-записи редактируются раздельно. Клиентская запись в mari строится только по booking-window.
+                    Рабочая смена и окно онлайн-записи редактируются раздельно. Клиентская запись в mari строится только по booking-window и сохраненным слотам.
                   </p>
                 </div>
 
@@ -400,7 +665,7 @@ export function ScheduleScreen({
             <section className="overflow-hidden rounded-[36px] border border-[#e0e5ed] bg-[#fbfcfe] shadow-[0_20px_48px_rgba(41,49,58,0.08)]">
               <div className="overflow-x-auto">
                 <div className="min-w-[1080px]">
-                  <div className="grid grid-cols-[280px_repeat(7,minmax(110px,1fr))] gap-3 border-b border-[#ebeff5] px-5 py-5">
+                  <div className="grid grid-cols-[320px_repeat(7,minmax(110px,1fr))] gap-3 border-b border-[#ebeff5] px-5 py-5">
                     <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#98a0ac]">
                       Сотрудник
                     </div>
@@ -433,7 +698,7 @@ export function ScheduleScreen({
                       return (
                         <div
                           key={person.id}
-                          className="grid grid-cols-[280px_repeat(7,minmax(110px,1fr))] gap-3 rounded-[30px] bg-white p-4 shadow-[0_12px_28px_rgba(41,49,58,0.06)]"
+                          className="grid grid-cols-[320px_repeat(7,minmax(110px,1fr))] gap-3 rounded-[30px] bg-white p-4 shadow-[0_12px_28px_rgba(41,49,58,0.06)]"
                         >
                           <div className="rounded-[24px] border border-[#edf1f6] bg-[#fbfcfe] p-4">
                             <div className="flex items-center gap-3">
@@ -469,9 +734,16 @@ export function ScheduleScreen({
                               <button
                                 type="button"
                                 onClick={() => onOpenDesktopEditor(person, selectedDate)}
-                                className="inline-flex h-11 items-center rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#2c3540]"
+                                className="inline-flex h-11 items-center rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-[#39424d]"
                               >
                                 Изменить день
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenOnlineSlots(person, selectedDate)}
+                                className="inline-flex h-11 items-center rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#2c3540]"
+                              >
+                                Слоты онлайн
                               </button>
                             </div>
                           </div>
@@ -656,7 +928,7 @@ export function ScheduleScreen({
                   <span className="rounded-full bg-screen px-3 py-2">{formatHours(weekSummary.hours)}</span>
                 </div>
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => onEditStaff(person)}
@@ -667,9 +939,16 @@ export function ScheduleScreen({
                   <button
                     type="button"
                     onClick={() => onOpenDesktopEditor(person, selectedDate)}
-                    className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-accent text-sm font-extrabold text-[#222b33]"
+                    className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-line bg-white text-sm font-semibold text-ink"
                   >
                     Изменить день
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenOnlineSlots(person, selectedDate)}
+                    className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-accent text-sm font-extrabold text-[#222b33]"
+                  >
+                    Слоты онлайн
                   </button>
                 </div>
               </section>
@@ -706,6 +985,26 @@ export function ScheduleScreen({
           </div>
         ) : null}
       </div>
+
+      {onlineSlotsStaff && onlineSlotsDate ? (
+        <OnlineSlotsModal
+          staff={onlineSlotsStaff}
+          date={onlineSlotsDate}
+          shiftStart={onlineSlotsShiftStart}
+          shiftEnd={onlineSlotsShiftEnd}
+          bookingStart={onlineSlotsBookingStart}
+          bookingEnd={onlineSlotsBookingEnd}
+          selectedTimes={onlineSlotsSelectedTimes}
+          loading={loading}
+          onClose={onCloseOnlineSlots}
+          onBookingStartChange={onOnlineSlotsBookingStartChange}
+          onBookingEndChange={onOnlineSlotsBookingEndChange}
+          onToggleTime={onToggleOnlineSlotTime}
+          onToggleGroup={onToggleOnlineSlotGroup}
+          onReset={onResetOnlineSlots}
+          onSave={onSaveOnlineSlots}
+        />
+      ) : null}
     </>
   );
 }
