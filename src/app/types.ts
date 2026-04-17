@@ -225,7 +225,14 @@ export type SettingsNotificationSection = {
   groups: SettingsNotificationGroup[];
 };
 
-export type WorkingHoursMap = Record<string, Record<string, string[]>>;
+export type ScheduleInterval = {
+  start: string;
+  end: string;
+  bookingStart: string;
+  bookingEnd: string;
+};
+
+export type WorkingHoursMap = Record<string, Record<string, ScheduleInterval[]>>;
 
 export type InfoPanelState = {
   title: string;
@@ -285,6 +292,8 @@ export type ControllerState = {
   scheduleEditorDays: number[];
   scheduleEditorStart: string;
   scheduleEditorEnd: string;
+  scheduleEditorBookingStart: string;
+  scheduleEditorBookingEnd: string;
   appointments: AppointmentItem[];
   journalListAppointments: AppointmentItem[];
   journalCards: JournalCard[];
@@ -441,6 +450,8 @@ export type ControllerActions = {
   toggleScheduleEditorDay: (day: number) => void;
   setScheduleEditorStart: (value: string) => void;
   setScheduleEditorEnd: (value: string) => void;
+  setScheduleEditorBookingStart: (value: string) => void;
+  setScheduleEditorBookingEnd: (value: string) => void;
   applyScheduleEditorPreset: (value: string) => void;
   saveScheduleEditor: () => Promise<void>;
   clearScheduleEditor: () => Promise<void>;
@@ -497,6 +508,7 @@ export type ControllerActions = {
   handleSelectOwnerAvatarFile: (file: File) => Promise<void>;
   handleDeleteOwnerAvatar: () => Promise<void>;
   handleSelectServiceImageFile: (file: File) => Promise<void>;
+  handleClearServiceImage: () => void;
   savePrivacyPolicy: (value: string) => Promise<boolean>;
 };
 

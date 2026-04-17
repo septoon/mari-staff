@@ -23,6 +23,7 @@ import type {
   AppointmentItem,
   ClientItem,
   LoadingState,
+  ScheduleInterval,
   SettingsNotificationSection,
   ServiceCategoryItem,
   ServiceItem,
@@ -566,7 +567,7 @@ export function useDataLoaders({
         return;
       }
       const { from, to } = buildScheduleRange(selectedDate);
-      const hasSlots = (hours: Record<string, string[]>) =>
+      const hasSlots = (hours: Record<string, ScheduleInterval[]>) =>
         Object.values(hours).some((slots) => slots.length > 0);
 
       setLoadingKey(setLoading, 'schedule', true);
@@ -578,9 +579,9 @@ export function useDataLoaders({
                 `/schedule/staff/${item.id}/working-hours?from=${from}&to=${to}`,
               );
               const parsed = parseScheduleCalendar(data);
-              return [item.id, hasSlots(parsed) ? parsed : {} as Record<string, string[]>] as const;
+              return [item.id, hasSlots(parsed) ? parsed : {} as Record<string, ScheduleInterval[]>] as const;
             } catch {
-              return [item.id, {} as Record<string, string[]>] as const;
+              return [item.id, {} as Record<string, ScheduleInterval[]>] as const;
             }
           }),
         );

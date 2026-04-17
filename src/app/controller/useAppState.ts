@@ -174,6 +174,8 @@ export function useAppState() {
   const [scheduleEditorDays, setScheduleEditorDays] = useState<number[]>([]);
   const [scheduleEditorStart, setScheduleEditorStart] = useState('10:00');
   const [scheduleEditorEnd, setScheduleEditorEnd] = useState('18:00');
+  const [scheduleEditorBookingStart, setScheduleEditorBookingStart] = useState('10:00');
+  const [scheduleEditorBookingEnd, setScheduleEditorBookingEnd] = useState('18:00');
   const [journalDatePickerOpen, setJournalDatePickerOpen] = useState(false);
   const [journalMarkedDates, setJournalMarkedDates] = useState<string[]>([]);
   const [journalActionStaff, setJournalActionStaff] = useState<StaffItem | null>(null);
@@ -339,6 +341,10 @@ export function useAppState() {
     setScheduleEditorStart,
     scheduleEditorEnd,
     setScheduleEditorEnd,
+    scheduleEditorBookingStart,
+    setScheduleEditorBookingStart,
+    scheduleEditorBookingEnd,
+    setScheduleEditorBookingEnd,
     journalDatePickerOpen,
     setJournalDatePickerOpen,
     journalMarkedDates,

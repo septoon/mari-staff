@@ -859,6 +859,8 @@ export function AppView({ controller }: AppViewProps) {
             editorSelectedDays={state.scheduleEditorDays}
             editorStart={state.scheduleEditorStart}
             editorEnd={state.scheduleEditorEnd}
+            editorBookingStart={state.scheduleEditorBookingStart}
+            editorBookingEnd={state.scheduleEditorBookingEnd}
             loading={state.loading.schedule || state.loading.staff || state.loading.action}
             onReload={() => {
               void actions.refreshSchedule();
@@ -880,6 +882,8 @@ export function AppView({ controller }: AppViewProps) {
             onToggleEditorDay={actions.toggleScheduleEditorDay}
             onEditorStartChange={actions.setScheduleEditorStart}
             onEditorEndChange={actions.setScheduleEditorEnd}
+            onEditorBookingStartChange={actions.setScheduleEditorBookingStart}
+            onEditorBookingEndChange={actions.setScheduleEditorBookingEnd}
             onEditorPresetSelect={actions.applyScheduleEditorPreset}
             onSaveEditor={() => {
               void actions.saveScheduleEditor();
@@ -897,11 +901,15 @@ export function AppView({ controller }: AppViewProps) {
             selectedDays={state.scheduleEditorDays}
             start={state.scheduleEditorStart}
             end={state.scheduleEditorEnd}
+            bookingStart={state.scheduleEditorBookingStart}
+            bookingEnd={state.scheduleEditorBookingEnd}
             loading={state.loading.action}
             onBack={actions.closeScheduleEditor}
             onToggleDay={actions.toggleScheduleEditorDay}
             onStartChange={actions.setScheduleEditorStart}
             onEndChange={actions.setScheduleEditorEnd}
+            onBookingStartChange={actions.setScheduleEditorBookingStart}
+            onBookingEndChange={actions.setScheduleEditorBookingEnd}
             onPresetSelect={actions.applyScheduleEditorPreset}
             onSave={() => {
               void actions.saveScheduleEditor();
@@ -1086,6 +1094,7 @@ export function AppView({ controller }: AppViewProps) {
             onImageFilePick={(file: File) => {
               void actions.handleSelectServiceImageFile(file);
             }}
+            onImageClear={actions.handleClearServiceImage}
           />
         ) : null}
         {state.page === 'serviceProvidersEditor' ? (

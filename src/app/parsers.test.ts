@@ -70,7 +70,21 @@ test('parseScheduleCalendar groups slots by explicit date', () => {
   });
 
   expect(schedule).toEqual({
-    '2026-04-03': ['10:00-18:00'],
-    '2026-04-04': ['11:00-17:00'],
+    '2026-04-03': [
+      {
+        start: '10:00',
+        end: '18:00',
+        bookingStart: '10:00',
+        bookingEnd: '18:00',
+      },
+    ],
+    '2026-04-04': [
+      {
+        start: '11:00',
+        end: '17:00',
+        bookingStart: '11:00',
+        bookingEnd: '17:00',
+      },
+    ],
   });
 });

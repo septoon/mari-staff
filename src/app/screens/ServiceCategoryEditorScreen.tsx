@@ -98,12 +98,20 @@ export function ServiceCategoryEditorScreen({
             <button
               type="button"
               onClick={onImageClear}
-              className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-ink"
+              className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-[#f2d4d4] bg-white px-4 py-3 text-sm font-semibold text-[#a14d4d]"
             >
               <X className="h-4 w-4" />
-              Убрать изображение
+              Удалить изображение
             </button>
           ) : null}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-ink"
+          >
+            <ImagePlus className="h-4 w-4" />
+            {imagePreviewUrl ? 'Заменить изображение' : 'Загрузить изображение'}
+          </button>
         </div>
 
         <button
@@ -197,12 +205,20 @@ export function ServiceCategoryEditorScreen({
                 <button
                   type="button"
                   onClick={onImageClear}
-                  className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 py-3 text-sm font-semibold text-ink"
+                  className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-[#f2d4d4] bg-white px-4 py-3 text-sm font-semibold text-[#a14d4d]"
                 >
                   <X className="h-4 w-4" />
-                  Убрать изображение
+                  Удалить изображение
                 </button>
               ) : null}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-4 py-3 text-sm font-semibold text-ink"
+              >
+                <ImagePlus className="h-4 w-4" />
+                {imagePreviewUrl ? 'Заменить изображение' : 'Загрузить изображение'}
+              </button>
             </div>
 
             <div className="mt-5 rounded-[24px] bg-[#f6f8fb] px-5 py-4 text-[15px] font-semibold leading-relaxed text-[#5f6773]">

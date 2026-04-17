@@ -25,6 +25,7 @@ type ServiceEditorScreenProps = {
   onRemoveProvider: (staffId: string) => void;
   imagePreviewUrl: string;
   onImageFilePick: (file: File) => void;
+  onImageClear: () => void;
 };
 
 export function ServiceEditorScreen({
@@ -43,6 +44,7 @@ export function ServiceEditorScreen({
   onRemoveProvider,
   imagePreviewUrl,
   onImageFilePick,
+  onImageClear,
 }: ServiceEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [assignSheetOpen, setAssignSheetOpen] = useState(false);
@@ -215,6 +217,27 @@ export function ServiceEditorScreen({
               </div>
             )}
           </button>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={pickImage}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-ink"
+            >
+              <ImagePlus className="h-4 w-4" />
+              {imagePreviewUrl ? 'Заменить изображение' : 'Загрузить изображение'}
+            </button>
+            {imagePreviewUrl ? (
+              <button
+                type="button"
+                onClick={onImageClear}
+                className="inline-flex items-center gap-2 rounded-2xl border border-[#f2d4d4] bg-white px-4 py-3 text-sm font-semibold text-[#a14d4d]"
+              >
+                <X className="h-4 w-4" />
+                Удалить изображение
+              </button>
+            ) : null}
+          </div>
 
           {draft.id ? (
             <section className="space-y-4 border-t border-line pt-4">
@@ -443,6 +466,26 @@ export function ServiceEditorScreen({
                   </div>
                 )}
               </button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={pickImage}
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-ink"
+                >
+                  <ImagePlus className="h-4 w-4" />
+                  {imagePreviewUrl ? 'Заменить изображение' : 'Загрузить изображение'}
+                </button>
+                {imagePreviewUrl ? (
+                  <button
+                    type="button"
+                    onClick={onImageClear}
+                    className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#f2d4d4] bg-white px-4 text-sm font-semibold text-[#a14d4d]"
+                  >
+                    <X className="h-4 w-4" />
+                    Удалить изображение
+                  </button>
+                ) : null}
+              </div>
             </section>
 
             <section className={DESKTOP_PANEL_CLASS}>

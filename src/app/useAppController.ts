@@ -60,7 +60,14 @@ import {
   routeToState,
   stateToRoute,
 } from './controller/routes';
-import { deriveEditorTimes, isValidTime, parseSlot, toFlatWorkingHours } from './controller/schedule';
+import {
+  createScheduleInterval,
+  deriveEditorInterval,
+  isScheduleIntervalValid,
+  isValidTime,
+  parseSlot,
+  toFlatWorkingHours,
+} from './controller/schedule';
 import { useDataLoaders } from './controller/useDataLoaders';
 import { useAppState } from './controller/useAppState';
 import type {
@@ -69,6 +76,7 @@ import type {
   ClientItem,
   JournalCreateDraft,
   JournalCard,
+  ScheduleInterval,
   ScheduleEditorOpenOptions,
   ServiceCategoryItem,
   ServiceItem,
@@ -315,6 +323,10 @@ export function useAppController(): AppController {
     setScheduleEditorStart,
     scheduleEditorEnd,
     setScheduleEditorEnd,
+    scheduleEditorBookingStart,
+    setScheduleEditorBookingStart,
+    scheduleEditorBookingEnd,
+    setScheduleEditorBookingEnd,
     journalDatePickerOpen,
     setJournalDatePickerOpen,
     journalMarkedDates,
@@ -1558,8 +1570,7 @@ export function useAppController(): AppController {
       setOwnerDraft(EMPTY_OWNER_DRAFT);
       setScheduleEditorStaff(null);
       setScheduleEditorDays([]);
-      setScheduleEditorStart('10:00');
-      setScheduleEditorEnd('18:00');
+      resetScheduleEditorDraft();
       setJournalDatePickerOpen(false);
       setJournalMarkedDates([]);
       setStaffServicesEditorQuery('');
@@ -2946,8 +2957,59 @@ export function useAppController(): AppController {
     }
   };
 
+  const handleClearServiceImage = () => {
+    resetServiceImageState();
+    setServiceDraft((prev) => ({ ...prev, imageUrl: '' }));
+  };
+
   const handleClearServiceCategoryImage = () => {
-    resetServiceCategoryImageState();
+    if (!serviceCategoryEditorImagePreviewUrl && !serviceCategoryEditorImageAssetId) {
+      resetServiceCategoryImageState();
+      return;
+    }
+
+    if (!serviceCategoryEditorId || !serviceCategoryEditorImageAssetId) {
+      resetServiceCategoryImageState();
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    void (async () => {
+      try {
+        const name = serviceCategoryEditorName.trim();
+        const result = await runServiceMutations([
+          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
+          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
+          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
+          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
+        ]);
+
+        if (result.ok) {
+          await deleteMediaAssetById(serviceCategoryEditorImageAssetId);
+          await loadServices();
+          setToast('Изображение категории удалено');
+        } else {
+          await deleteMediaAssetById(serviceCategoryEditorImageAssetId);
+          applyServiceCategoryLocally(serviceCategoryEditorId, {
+            imageAssetId: null,
+            imageUrl: null,
+          });
+          setServices((prev) =>
+            prev.map((item) =>
+              item.categoryId === serviceCategoryEditorId && item.imageUrl === serviceCategoryEditorImagePreviewUrl
+                ? { ...item, imageUrl: null }
+                : item,
+            ),
+          );
+          setToast('Изображение категории удалено локально (API read-only)');
+        }
+        resetServiceCategoryImageState();
+      } catch (error) {
+        setToast(toErrorMessage(error));
+      } finally {
+        setLoadingKey(setLoading, 'action', false);
+      }
+    })();
   };
 
   const patchStaffAvatarAsset = async (staffId: string, photoAssetId: string | null) => {
@@ -3642,7 +3704,7 @@ export function useAppController(): AppController {
               categoryId: serviceDraft.categoryId || item.categoryId,
               categoryName: serviceDraft.categoryName || item.categoryName,
               description: serviceDraft.description || null,
-              imageUrl: serviceImagePreviewUrl || serviceDraft.imageUrl || item.imageUrl,
+              imageUrl: serviceImagePreviewUrl || serviceDraft.imageUrl || null,
               durationSec: Math.max(0, serviceDraft.durationSec),
               priceMin: Math.max(0, serviceDraft.priceMin),
               priceMax: Math.max(0, serviceDraft.priceMin),
@@ -4228,6 +4290,13 @@ export function useAppController(): AppController {
     }
   };
 
+  const resetScheduleEditorDraft = (interval: ScheduleInterval = createScheduleInterval()) => {
+    setScheduleEditorStart(interval.start);
+    setScheduleEditorEnd(interval.end);
+    setScheduleEditorBookingStart(interval.bookingStart);
+    setScheduleEditorBookingEnd(interval.bookingEnd);
+  };
+
   const fetchStaffWorkingHours = async (staffId: string) => {
     try {
       const data = await api.get<unknown>(`/schedule/staff/${staffId}/working-hours`);
@@ -4244,21 +4313,22 @@ export function useAppController(): AppController {
     return parsed[isoDate] ?? [];
   };
 
-  const putStaffDailySchedule = async (staffId: string, date: Date, slots: string[]) => {
+  const putStaffDailySchedule = async (staffId: string, date: Date, intervals: ScheduleInterval[]) => {
     const isoDate = toISODate(date);
-    const items = slots
-      .map((slot) => parseSlot(slot))
-      .filter((item): item is { start: string; end: string } => Boolean(item))
+    const items = intervals
+      .filter((item) => isScheduleIntervalValid(item))
       .map((item) => ({
         startTime: item.start,
         endTime: item.end,
+        bookingStartTime: item.bookingStart,
+        bookingEndTime: item.bookingEnd,
       }));
     await api.put<unknown>(`/schedule/staff/${staffId}/daily-schedule/${isoDate}`, { items });
   };
 
   const putStaffWorkingHours = async (
     staffId: string,
-    hours: Record<number, string[]>,
+    hours: Record<number, ScheduleInterval[]>,
   ) => {
     const flatItems = toFlatWorkingHours(hours);
     const payloads: unknown[] = [
@@ -4294,8 +4364,7 @@ export function useAppController(): AppController {
     const focusedDay = focusDate ? toISODay(focusDate) : null;
     setScheduleEditorStaff(item);
     setScheduleEditorDays(focusedDay ? [focusedDay] : []);
-    setScheduleEditorStart('10:00');
-    setScheduleEditorEnd('18:00');
+    resetScheduleEditorDraft();
     if (presentation === 'page') {
       setPage('scheduleEditor');
     } else {
@@ -4306,19 +4375,10 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       if (focusDate && focusedDay) {
-        const focusedSlots = await fetchStaffDailySchedule(item.id, focusDate);
+        const focusedIntervals = await fetchStaffDailySchedule(item.id, focusDate);
         const days = [focusedDay];
-        let start = '10:00';
-        let end = '18:00';
-        if (focusedSlots.length > 0) {
-          const focusedHours: Record<number, string[]> = { [focusedDay]: focusedSlots };
-          const focusedTimes = deriveEditorTimes(focusedHours, days);
-          start = focusedTimes.start;
-          end = focusedTimes.end;
-        }
         setScheduleEditorDays(days);
-        setScheduleEditorStart(start);
-        setScheduleEditorEnd(end);
+        resetScheduleEditorDraft(deriveEditorInterval({ [focusedDay]: focusedIntervals }, days));
         return;
       }
 
@@ -4329,10 +4389,8 @@ export function useAppController(): AppController {
         .filter((day) => Number.isFinite(day) && day >= 1 && day <= 7)
         .sort((a, b) => a - b);
 
-      const { start, end } = deriveEditorTimes(hours, days);
       setScheduleEditorDays(days);
-      setScheduleEditorStart(start);
-      setScheduleEditorEnd(end);
+      resetScheduleEditorDraft(deriveEditorInterval(hours, days));
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -4345,8 +4403,7 @@ export function useAppController(): AppController {
     setTab('schedule');
     setScheduleEditorStaff(null);
     setScheduleEditorDays([]);
-    setScheduleEditorStart('10:00');
-    setScheduleEditorEnd('18:00');
+    resetScheduleEditorDraft();
   };
 
   const toggleScheduleEditorDay = (day: number) => {
@@ -4369,8 +4426,7 @@ export function useAppController(): AppController {
     if (!parsed) {
       return;
     }
-    setScheduleEditorStart(parsed.start);
-    setScheduleEditorEnd(parsed.end);
+    resetScheduleEditorDraft(createScheduleInterval(parsed.start, parsed.end));
   };
 
   const saveScheduleEditor = async () => {
@@ -4382,12 +4438,23 @@ export function useAppController(): AppController {
       setToast('Сотрудник не выбран');
       return;
     }
-    if (!isValidTime(scheduleEditorStart) || !isValidTime(scheduleEditorEnd)) {
+    const interval = createScheduleInterval(
+      scheduleEditorStart,
+      scheduleEditorEnd,
+      scheduleEditorBookingStart,
+      scheduleEditorBookingEnd,
+    );
+    if (
+      !isValidTime(scheduleEditorStart) ||
+      !isValidTime(scheduleEditorEnd) ||
+      !isValidTime(scheduleEditorBookingStart) ||
+      !isValidTime(scheduleEditorBookingEnd)
+    ) {
       setToast('Время в формате HH:mm');
       return;
     }
-    if (scheduleEditorStart >= scheduleEditorEnd) {
-      setToast('Время окончания должно быть позже начала');
+    if (!isScheduleIntervalValid(interval)) {
+      setToast('Окно онлайн-записи должно быть внутри рабочей смены');
       return;
     }
     if (page !== 'tabs' && scheduleEditorDays.length === 0) {
@@ -4398,11 +4465,11 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       if (page === 'tabs') {
-        await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, [`${scheduleEditorStart}-${scheduleEditorEnd}`]);
+        await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, [interval]);
       } else {
-        const next: Record<number, string[]> = {};
+        const next: Record<number, ScheduleInterval[]> = {};
         scheduleEditorDays.forEach((day) => {
-          next[day] = [`${scheduleEditorStart}-${scheduleEditorEnd}`];
+          next[day] = [interval];
         });
         await putStaffWorkingHours(scheduleEditorStaff.id, next);
       }
@@ -4468,9 +4535,9 @@ export function useAppController(): AppController {
     void (async () => {
       try {
         const daySlots = await fetchStaffDailySchedule(journalActionStaff.id, selectedDate);
-        const firstSlot = daySlots.length > 0 ? parseSlot(daySlots[0]) : null;
-        setJournalDayStart(firstSlot?.start || '10:00');
-        setJournalDayEnd(firstSlot?.end || '18:00');
+        const firstSlot = daySlots[0] || createScheduleInterval();
+        setJournalDayStart(firstSlot.start);
+        setJournalDayEnd(firstSlot.end);
         setPage('journalDayEdit');
       } catch (error) {
         setToast(toErrorMessage(error));
@@ -4503,7 +4570,7 @@ export function useAppController(): AppController {
     setJournalActionStaff(null);
   };
 
-  const updateStaffScheduleForSelectedDay = async (slots: string[]) => {
+  const updateStaffScheduleForSelectedDay = async (intervals: ScheduleInterval[]) => {
     const target = journalActionStaff;
     if (!target) {
       setToast('Сотрудник не выбран');
@@ -4511,7 +4578,7 @@ export function useAppController(): AppController {
     }
     setLoadingKey(setLoading, 'action', true);
     try {
-      await putStaffDailySchedule(target.id, selectedDate, slots);
+      await putStaffDailySchedule(target.id, selectedDate, intervals);
       await loadWorkingHours(staff);
       return true;
     } catch (error) {
@@ -4536,7 +4603,7 @@ export function useAppController(): AppController {
       return;
     }
     const success = await updateStaffScheduleForSelectedDay([
-      `${journalDayStart}-${journalDayEnd}`,
+      createScheduleInterval(journalDayStart, journalDayEnd),
     ]);
     if (!success) {
       return;
@@ -4572,8 +4639,7 @@ export function useAppController(): AppController {
     setJournalActionStaff(null);
     setScheduleEditorStaff(null);
     setScheduleEditorDays([]);
-    setScheduleEditorStart('10:00');
-    setScheduleEditorEnd('18:00');
+    resetScheduleEditorDraft();
     setJournalDatePickerOpen(false);
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
@@ -4693,6 +4759,8 @@ export function useAppController(): AppController {
       scheduleEditorDays,
       scheduleEditorStart,
       scheduleEditorEnd,
+      scheduleEditorBookingStart,
+      scheduleEditorBookingEnd,
       appointments,
       journalListAppointments,
       journalCards,
@@ -4847,6 +4915,8 @@ export function useAppController(): AppController {
       toggleScheduleEditorDay,
       setScheduleEditorStart,
       setScheduleEditorEnd,
+      setScheduleEditorBookingStart,
+      setScheduleEditorBookingEnd,
       applyScheduleEditorPreset,
       saveScheduleEditor,
       clearScheduleEditor,
@@ -4901,6 +4971,7 @@ export function useAppController(): AppController {
       handleSelectOwnerAvatarFile,
       handleDeleteOwnerAvatar,
       handleSelectServiceImageFile,
+      handleClearServiceImage,
       savePrivacyPolicy,
     },
   };

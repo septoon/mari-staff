@@ -1,4 +1,11 @@
-import type { AppointmentItem, ClientItem, ServiceCategoryItem, ServiceItem, StaffItem } from './types';
+import type {
+  AppointmentItem,
+  ClientItem,
+  ScheduleInterval,
+  ServiceCategoryItem,
+  ServiceItem,
+  StaffItem,
+} from './types';
 import {
   asArray,
   dayNameToIso,
@@ -281,8 +288,115 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
   };
 }
 
-export function parseWorkingHours(value: unknown): Record<number, string[]> {
-  const result: Record<number, string[]> = {};
+const normalizeScheduleTimeValue = (input: string) => {
+  const clean = input.trim();
+  const match = clean.match(/([01]\d|2[0-3]):([0-5]\d)/);
+  if (!match) {
+    return '';
+  }
+  return `${match[1]}:${match[2]}`;
+};
+
+const parseScheduleIntervalString = (input: string) => {
+  const normalized = input.replace(/[–—]/g, '-').replace(/\s+/g, '');
+  const tokens = normalized.match(/([01]\d|2[0-3]):([0-5]\d)/g);
+  if (!tokens || tokens.length < 2) {
+    return null;
+  }
+  const start = normalizeScheduleTimeValue(tokens[0]);
+  const end = normalizeScheduleTimeValue(tokens[1]);
+  if (!start || !end) {
+    return null;
+  }
+  return { start, end };
+};
+
+const createParsedScheduleInterval = (
+  startRaw: string,
+  endRaw: string,
+  bookingStartRaw?: string,
+  bookingEndRaw?: string,
+): ScheduleInterval | null => {
+  const start = normalizeScheduleTimeValue(startRaw);
+  const end = normalizeScheduleTimeValue(endRaw);
+  if (!start || !end || start >= end) {
+    return null;
+  }
+
+  const bookingStart = normalizeScheduleTimeValue(bookingStartRaw || '') || start;
+  const bookingEnd = normalizeScheduleTimeValue(bookingEndRaw || '') || end;
+  if (bookingStart >= bookingEnd || bookingStart < start || bookingEnd > end) {
+    return null;
+  }
+
+  return {
+    start,
+    end,
+    bookingStart,
+    bookingEnd,
+  };
+};
+
+const pushScheduleInterval = (
+  target: Record<string, ScheduleInterval[]>,
+  key: string | number | null,
+  interval: ScheduleInterval | null,
+) => {
+  const normalizedKey = key === null ? '' : String(key);
+  if (!normalizedKey || !interval) {
+    return;
+  }
+  if (!target[normalizedKey]) {
+    target[normalizedKey] = [];
+  }
+  if (
+    target[normalizedKey].some(
+      (item) =>
+        item.start === interval.start &&
+        item.end === interval.end &&
+        item.bookingStart === interval.bookingStart &&
+        item.bookingEnd === interval.bookingEnd,
+    )
+  ) {
+    return;
+  }
+  target[normalizedKey].push(interval);
+};
+
+const readScheduleIntervalFromRecord = (record: Record<string, unknown>) => {
+  const start =
+    toString(record.startTime) ||
+    toString(record.from) ||
+    toString(record.start) ||
+    toString(record.begin);
+  const end =
+    toString(record.endTime) ||
+    toString(record.to) ||
+    toString(record.end) ||
+    toString(record.finish);
+
+  if (!start || !end) {
+    const slotText = toString(record.slot) || toString(record.interval) || toString(record.value);
+    const parsed = slotText ? parseScheduleIntervalString(slotText) : null;
+    return parsed ? createParsedScheduleInterval(parsed.start, parsed.end) : null;
+  }
+
+  return createParsedScheduleInterval(
+    start,
+    end,
+    toString(record.bookingStartTime) ||
+      toString(record.onlineStartTime) ||
+      toString(record.availableStartTime) ||
+      toString(record.bookingFrom),
+    toString(record.bookingEndTime) ||
+      toString(record.onlineEndTime) ||
+      toString(record.availableEndTime) ||
+      toString(record.bookingTo),
+  );
+};
+
+export function parseWorkingHours(value: unknown): Record<string, ScheduleInterval[]> {
+  const result: Record<string, ScheduleInterval[]> = {};
   const dateToIsoDay = (raw: string) => {
     if (!raw) {
       return null;
@@ -295,58 +409,14 @@ export function parseWorkingHours(value: unknown): Record<number, string[]> {
     return day === 0 ? 7 : day;
   };
 
-  const normalizeTimeValue = (input: string) => {
-    const clean = input.trim();
-    const match = clean.match(/([01]\d|2[0-3]):([0-5]\d)/);
-    if (!match) {
-      return '';
-    }
-    return `${match[1]}:${match[2]}`;
-  };
-
-  const parseIntervalString = (input: string) => {
-    const normalized = input.replace(/[–—]/g, '-').replace(/\s+/g, '');
-    const tokens = normalized.match(/([01]\d|2[0-3]):([0-5]\d)/g);
-    if (!tokens || tokens.length < 2) {
-      return null;
-    }
-    const start = normalizeTimeValue(tokens[0]);
-    const end = normalizeTimeValue(tokens[1]);
-    if (!start || !end) {
-      return null;
-    }
-    return {
-      start,
-      end,
-    };
-  };
-
-  const pushRange = (day: number | null, startRaw: string, endRaw: string) => {
-    if (!day) {
-      return;
-    }
-    const start = normalizeTimeValue(startRaw);
-    const end = normalizeTimeValue(endRaw);
-    if (!start || !end) {
-      return;
-    }
-    if (!result[day]) {
-      result[day] = [];
-    }
-    const slot = `${start}-${end}`;
-    if (!result[day].includes(slot)) {
-      result[day].push(slot);
-    }
-  };
-
   const appendIntervalsFromValue = (day: number | null, source: unknown) => {
     if (!day) {
       return;
     }
     if (typeof source === 'string') {
-      const parsed = parseIntervalString(source);
+      const parsed = parseScheduleIntervalString(source);
       if (parsed) {
-        pushRange(day, parsed.start, parsed.end);
+        pushScheduleInterval(result, day, createParsedScheduleInterval(parsed.start, parsed.end));
       }
       return;
     }
@@ -376,30 +446,7 @@ export function parseWorkingHours(value: unknown): Record<number, string[]> {
       return;
     }
 
-    const start =
-      toString(record.startTime) ||
-      toString(record.from) ||
-      toString(record.start) ||
-      toString(record.begin);
-    const end =
-      toString(record.endTime) ||
-      toString(record.to) ||
-      toString(record.end) ||
-      toString(record.finish);
-
-    if (start && end) {
-      pushRange(day, start, end);
-      return;
-    }
-
-    const slotText = toString(record.slot) || toString(record.interval) || toString(record.value);
-    if (!slotText) {
-      return;
-    }
-    const parsed = parseIntervalString(slotText);
-    if (parsed) {
-      pushRange(day, parsed.start, parsed.end);
-    }
+    pushScheduleInterval(result, day, readScheduleIntervalFromRecord(record));
   };
 
   const dayFromRecord = (record: Record<string, unknown>) =>
@@ -462,8 +509,8 @@ export function parseWorkingHours(value: unknown): Record<number, string[]> {
   return result;
 }
 
-export function parseScheduleCalendar(value: unknown): Record<string, string[]> {
-  const result: Record<string, string[]> = {};
+export function parseScheduleCalendar(value: unknown): Record<string, ScheduleInterval[]> {
+  const result: Record<string, ScheduleInterval[]> = {};
 
   const normalizeDateKey = (raw: string) => {
     const clean = raw.trim();
@@ -480,55 +527,14 @@ export function parseScheduleCalendar(value: unknown): Record<string, string[]> 
     return `${year}-${month}-${day}`;
   };
 
-  const normalizeTimeValue = (input: string) => {
-    const clean = input.trim();
-    const match = clean.match(/([01]\d|2[0-3]):([0-5]\d)/);
-    if (!match) {
-      return '';
-    }
-    return `${match[1]}:${match[2]}`;
-  };
-
-  const parseIntervalString = (input: string) => {
-    const normalized = input.replace(/[–—]/g, '-').replace(/\s+/g, '');
-    const tokens = normalized.match(/([01]\d|2[0-3]):([0-5]\d)/g);
-    if (!tokens || tokens.length < 2) {
-      return null;
-    }
-    const start = normalizeTimeValue(tokens[0]);
-    const end = normalizeTimeValue(tokens[1]);
-    if (!start || !end) {
-      return null;
-    }
-    return { start, end };
-  };
-
-  const pushRange = (dateKey: string, startRaw: string, endRaw: string) => {
-    if (!dateKey) {
-      return;
-    }
-    const start = normalizeTimeValue(startRaw);
-    const end = normalizeTimeValue(endRaw);
-    if (!start || !end) {
-      return;
-    }
-    if (!result[dateKey]) {
-      result[dateKey] = [];
-    }
-    const slot = `${start}-${end}`;
-    if (!result[dateKey].includes(slot)) {
-      result[dateKey].push(slot);
-    }
-  };
-
   const appendIntervalsFromValue = (dateKey: string, source: unknown) => {
     if (!dateKey) {
       return;
     }
     if (typeof source === 'string') {
-      const parsed = parseIntervalString(source);
+      const parsed = parseScheduleIntervalString(source);
       if (parsed) {
-        pushRange(dateKey, parsed.start, parsed.end);
+        pushScheduleInterval(result, dateKey, createParsedScheduleInterval(parsed.start, parsed.end));
       }
       return;
     }
@@ -556,30 +562,7 @@ export function parseScheduleCalendar(value: unknown): Record<string, string[]> 
       return;
     }
 
-    const start =
-      toString(record.startTime) ||
-      toString(record.from) ||
-      toString(record.start) ||
-      toString(record.begin);
-    const end =
-      toString(record.endTime) ||
-      toString(record.to) ||
-      toString(record.end) ||
-      toString(record.finish);
-
-    if (start && end) {
-      pushRange(dateKey, start, end);
-      return;
-    }
-
-    const slotText = toString(record.slot) || toString(record.interval) || toString(record.value);
-    if (!slotText) {
-      return;
-    }
-    const parsed = parseIntervalString(slotText);
-    if (parsed) {
-      pushRange(dateKey, parsed.start, parsed.end);
-    }
+    pushScheduleInterval(result, dateKey, readScheduleIntervalFromRecord(record));
   };
 
   const appendRow = (row: unknown) => {
