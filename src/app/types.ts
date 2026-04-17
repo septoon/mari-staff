@@ -100,6 +100,7 @@ export type ServiceItem = {
   categoryName: string;
   nameOnline: string | null;
   description: string | null;
+  imageAssetId: string | null;
   imageUrl: string | null;
   isActive: boolean;
   durationSec: number;
@@ -121,6 +122,7 @@ export type ServiceDraft = {
   categoryId: string;
   categoryName: string;
   description: string;
+  imageAssetId: string | null;
   imageUrl: string;
   durationSec: number;
   priceMin: number;

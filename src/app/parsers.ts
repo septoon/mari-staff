@@ -113,6 +113,7 @@ export function parseService(value: unknown): ServiceItem | null {
     categoryName,
     nameOnline: toNullableString(record.nameOnline),
     description: toNullableString(record.description),
+    imageAssetId: toNullableString(record.imageAssetId),
     imageUrl:
       toNullableString(record.imageUrl) ||
       toNullableString(categoryRecord?.imageUrl) ||

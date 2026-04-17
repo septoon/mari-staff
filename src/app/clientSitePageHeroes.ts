@@ -10,6 +10,7 @@ export type SitePageHeroKey =
   | 'news'
   | 'newsArticle'
   | 'offers'
+  | 'privacyPolicy'
   | 'prices'
   | 'services'
   | 'serviceCategory'
@@ -21,7 +22,11 @@ type SitePageHeroDefaults = {
   description: string;
 };
 
-type SitePageHeroOverrides = Partial<SitePageHeroDefaults>;
+type SitePageHeroOverrides = Partial<
+  SitePageHeroDefaults & {
+    imageAssetId: string;
+  }
+>;
 
 export type SitePageHeroDraft = Record<
   SitePageHeroKey,
@@ -29,6 +34,7 @@ export type SitePageHeroDraft = Record<
     eyebrow: string;
     title: string;
     description: string;
+    imageAssetId: string;
   }
 >;
 
@@ -60,6 +66,7 @@ const SITE_PAGE_HERO_KEYS: SitePageHeroKey[] = [
   'news',
   'newsArticle',
   'offers',
+  'privacyPolicy',
   'prices',
   'services',
   'serviceCategory',
@@ -196,6 +203,19 @@ export const SITE_PAGE_HERO_DEFINITIONS: SitePageHeroDefinition[] = [
       title: 'Специальные предложения MARI.',
       description:
         'Здесь собраны выгодные форматы визитов, бонусы и идеи для тех, кто хочет попробовать больше за один визит.'
+    },
+    tokens: []
+  },
+  {
+    key: 'privacyPolicy',
+    title: 'Политика конфиденциальности',
+    route: '/privacy-policy',
+    scope: 'Отдельная страница',
+    note: 'Hero для страницы политики конфиденциальности.',
+    defaults: {
+      eyebrow: 'Политика конфиденциальности',
+      title: 'Политика конфиденциальности MARI.',
+      description: 'Условия обработки персональных данных, тексты согласия и основные правила использования сайта.'
     },
     tokens: []
   },
@@ -350,6 +370,9 @@ export const extractSitePageHeroConfig = (
     if (typeof value.description === 'string') {
       next.description = value.description;
     }
+    if (typeof value.imageAssetId === 'string') {
+      next.imageAssetId = value.imageAssetId;
+    }
 
     if (Object.keys(next).length > 0) {
       result[key] = next;
@@ -367,7 +390,8 @@ export const createSitePageHeroDraft = (extra: Record<string, unknown>): SitePag
     acc[definition.key] = {
       eyebrow: current?.eyebrow ?? '',
       title: current?.title ?? '',
-      description: current?.description ?? ''
+      description: current?.description ?? '',
+      imageAssetId: current?.imageAssetId ?? '',
     };
     return acc;
   }, {} as SitePageHeroDraft);
@@ -375,7 +399,13 @@ export const createSitePageHeroDraft = (extra: Record<string, unknown>): SitePag
 
 export const countConfiguredSitePageHeroes = (extra: Record<string, unknown>) =>
   Object.values(extractSitePageHeroConfig(extra)).filter(
-    (item) => Boolean(item.eyebrow?.trim() || item.title?.trim() || item.description?.trim())
+    (item) =>
+      Boolean(
+        item.eyebrow?.trim() ||
+          item.title?.trim() ||
+          item.description?.trim() ||
+          item.imageAssetId?.trim(),
+      )
   ).length;
 
 export const mergeSitePageHeroesIntoExtra = (
@@ -397,6 +427,9 @@ export const mergeSitePageHeroesIntoExtra = (
     }
     if (current.description.trim()) {
       next.description = current.description.trim();
+    }
+    if (current.imageAssetId.trim()) {
+      next.imageAssetId = current.imageAssetId.trim();
     }
 
     if (Object.keys(next).length > 0) {

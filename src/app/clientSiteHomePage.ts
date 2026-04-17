@@ -18,6 +18,7 @@ export type SiteHomePageDraft = {
     visualLabel: string;
     visualTitle: string;
     visualSubtitle: string;
+    visualImageAssetId: string;
   };
   categories: {
     eyebrow: string;
@@ -74,6 +75,7 @@ export const SITE_HOME_PAGE_DEFAULTS: SiteHomePageDraft = {
     visualTitle: 'Пространство для ухода, цвета и точной работы с образом.',
     visualSubtitle:
       'Путь от первого знакомства до записи был коротким, понятным и приятным.',
+    visualImageAssetId: '',
   },
   categories: {
     eyebrow: 'Популярные направления',
@@ -222,6 +224,10 @@ export const createSiteHomePageDraft = (extra: Record<string, unknown>): SiteHom
       visualSubtitle: readString(
         hero.visualSubtitle,
         SITE_HOME_PAGE_DEFAULTS.hero.visualSubtitle,
+      ),
+      visualImageAssetId: readString(
+        hero.visualImageAssetId,
+        SITE_HOME_PAGE_DEFAULTS.hero.visualImageAssetId,
       ),
     },
     categories: {

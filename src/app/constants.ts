@@ -127,6 +127,7 @@ export const EMPTY_SERVICE_DRAFT: ServiceDraft = {
   categoryId: '',
   categoryName: '',
   description: '',
+  imageAssetId: null,
   imageUrl: '',
   durationSec: 3600,
   priceMin: 0,

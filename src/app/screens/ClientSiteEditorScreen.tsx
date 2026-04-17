@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -223,6 +223,8 @@ type ServiceRecord = {
   name: string;
   nameOnline: string | null;
   description: string | null;
+  imageAssetId: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   durationSec: number;
   priceMin: number;
@@ -489,6 +491,8 @@ type ServiceEditorState = {
     nameOnline: string;
     description: string;
     categoryId: string;
+    imageAssetId: string;
+    imagePreviewUrl: string;
     durationMinutes: string;
     priceMin: string;
     priceMax: string;
@@ -507,6 +511,7 @@ type OfferEditorState = {
     badge: string;
     priceNote: string;
     ctaHref: string;
+    imageAssetId: string;
   };
 };
 
@@ -520,6 +525,7 @@ type NewsEditorState = {
     publishedAt: string;
     excerpt: string;
     bodyText: string;
+    imageAssetId: string;
   };
 };
 
@@ -537,6 +543,7 @@ type LocationEditorState = {
     mapUrl: string;
     description: string;
     note: string;
+    imageAssetId: string;
   };
 };
 
@@ -1224,6 +1231,8 @@ function createServiceEditorState(
       nameOnline: service?.nameOnline ?? '',
       description: service?.description ?? '',
       categoryId: service?.category.id ?? categories[0]?.id ?? '',
+      imageAssetId: service?.imageAssetId ?? '',
+      imagePreviewUrl: service?.imageUrl ?? '',
       durationMinutes: service ? String(Math.max(1, Math.round(service.durationSec / 60))) : '60',
       priceMin: service ? String(service.priceMin) : '0',
       priceMax: service?.priceMax === null || service?.priceMax === undefined ? '' : String(service.priceMax),
@@ -1244,6 +1253,7 @@ function createOfferEditorState(offer: SiteOfferRecord | null): OfferEditorState
       badge: offer?.badge ?? '',
       priceNote: offer?.priceNote ?? '',
       ctaHref: offer?.ctaHref ?? '/booking',
+      imageAssetId: offer?.imageAssetId ?? '',
     },
   };
 }
@@ -1259,6 +1269,7 @@ function createNewsEditorState(article: SiteNewsRecord | null): NewsEditorState 
       publishedAt: article?.publishedAt ?? '',
       excerpt: article?.excerpt ?? '',
       bodyText: article?.body.join('\n\n') ?? '',
+      imageAssetId: article?.imageAssetId ?? '',
     },
   };
 }
@@ -1455,6 +1466,77 @@ function TextAreaField({
         className="w-full rounded-2xl border-[2px] border-line bg-white px-4 py-3 text-[16px] font-medium text-ink outline-none"
       />
     </label>
+  );
+}
+
+function InlineImageField({
+  label,
+  previewUrl,
+  placeholder,
+  busy,
+  onSelect,
+  onClear,
+}: {
+  label: string;
+  previewUrl: string;
+  placeholder: string;
+  busy: boolean;
+  onSelect: (file: File) => void;
+  onClear: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <div className="rounded-2xl border border-line bg-[#f4f6f9] px-4 py-4">
+      <div className="flex items-start gap-4">
+        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
+          {previewUrl ? (
+            <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
+          ) : (
+            <Image className="h-8 w-8 text-[#68768a]" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-extrabold text-ink">{label}</p>
+          <p className="mt-1 text-[13px] font-semibold text-[#8590a0]">{placeholder}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[13px] font-extrabold text-ink"
+            >
+              <Upload className="h-4 w-4" />
+              {previewUrl ? 'Заменить' : 'Загрузить'}
+            </button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[13px] font-extrabold text-ink"
+            >
+              <Trash2 className="h-4 w-4" />
+              Убрать
+            </button>
+          </div>
+          {busy ? (
+            <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">Идёт загрузка изображения...</p>
+          ) : null}
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) {
+            onSelect(file);
+          }
+        }}
+      />
+    </div>
   );
 }
 
@@ -1705,6 +1787,33 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       collectAssetIdsFromPayload(block.blockType, asObjectRecord(block.payload)).forEach((id) => ids.add(id));
     });
 
+    Object.values(pageHeroDraft).forEach((item) => {
+      if (item.imageAssetId) {
+        ids.add(item.imageAssetId);
+      }
+    });
+    if (homePageDraft.hero.visualImageAssetId) {
+      ids.add(homePageDraft.hero.visualImageAssetId);
+    }
+    siteCardsDraft.offers.forEach((item) => {
+      if (item.imageAssetId) {
+        ids.add(item.imageAssetId);
+      }
+    });
+    siteCardsDraft.news.forEach((item) => {
+      if (item.imageAssetId) {
+        ids.add(item.imageAssetId);
+      }
+    });
+    siteCardsDraft.locations.forEach((item) => {
+      if (item.imageAssetId) {
+        ids.add(item.imageAssetId);
+      }
+    });
+    if (serviceEditor?.draft.imageAssetId) {
+      ids.add(serviceEditor.draft.imageAssetId);
+    }
+
     const missingIds = Array.from(ids).filter((id) => !(id in assetUrlMap));
     if (missingIds.length === 0) {
       return;
@@ -1741,7 +1850,18 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     return () => {
       cancelled = true;
     };
-  }, [assetUrlMap, blockEditor, contacts, previewState.data]);
+  }, [
+    assetUrlMap,
+    blockEditor,
+    contacts,
+    homePageDraft.hero.visualImageAssetId,
+    pageHeroDraft,
+    previewState.data,
+    serviceEditor?.draft.imageAssetId,
+    siteCardsDraft.locations,
+    siteCardsDraft.news,
+    siteCardsDraft.offers,
+  ]);
 
   const handleRefresh = async () => {
     setMessage(null);
@@ -2306,6 +2426,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         nameOnline: serviceEditor.draft.nameOnline.trim() || null,
         description: serviceEditor.draft.description.trim() || undefined,
         categoryId: serviceEditor.draft.categoryId,
+        imageAssetId: serviceEditor.draft.imageAssetId || null,
         durationSec: Math.round(durationMinutes * 60),
         priceMin,
         priceMax,
@@ -2369,6 +2490,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       badge: draft.badge.trim(),
       priceNote: draft.priceNote.trim(),
       ctaHref: draft.ctaHref.trim(),
+      imageAssetId: draft.imageAssetId.trim() || undefined,
     };
     const nextDraft: SiteCardsDraft = {
       ...siteCardsDraft,
@@ -2432,6 +2554,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       publishedAt: draft.publishedAt.trim(),
       excerpt: draft.excerpt.trim(),
       body,
+      imageAssetId: draft.imageAssetId.trim() || undefined,
     };
 
     const nextDraft: SiteCardsDraft = {
@@ -2495,6 +2618,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       mapUrl: draft.mapUrl.trim(),
       description: draft.description.trim(),
       note: draft.note.trim(),
+      imageAssetId: draft.imageAssetId.trim() || undefined,
     };
 
     const nextDraft: SiteCardsDraft = {
@@ -3095,6 +3219,173 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       return;
     }
     await uploadBlockImage(file, { offerIndex });
+  };
+
+  const uploadManagedImage = async ({
+    file,
+    busyState,
+    scope,
+    entityId,
+  }: {
+    file: File;
+    busyState: string;
+    scope: 'service-image' | 'client-content';
+    entityId: string;
+  }) => {
+    setBusyKey(busyState);
+    setMessage(null);
+    try {
+      const converted = await convertImageFileToWebp(file);
+      const uploaded = await uploadWebpImage({
+        scope,
+        entityId,
+        webpBlob: converted.blob,
+        originalName: file.name,
+      });
+      if (uploaded.assetId) {
+        setAssetUrlMap((prev) => ({ ...prev, [uploaded.assetId!]: uploaded.url }));
+      }
+      return uploaded;
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const uploadPageHeroImage = async (key: SitePageHeroKey, file: File) => {
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: `page-hero-image:${key}`,
+        scope: 'client-content',
+        entityId: `page-hero-${key}`,
+      });
+      setPageHeroDraft((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          imageAssetId: uploaded.assetId ?? '',
+        },
+      }));
+      setBanner('success', 'Изображение шапки подготовлено. Не забудьте сохранить раздел.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
+  };
+
+  const uploadHomeHeroVisualImage = async (file: File) => {
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: 'home-hero-image',
+        scope: 'client-content',
+        entityId: 'home-hero-visual',
+      });
+      setHomePageDraft((prev) => ({
+        ...prev,
+        hero: {
+          ...prev.hero,
+          visualImageAssetId: uploaded.assetId ?? '',
+        },
+      }));
+      setBanner('success', 'Изображение визуала подготовлено. Не забудьте сохранить главную страницу.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
+  };
+
+  const uploadServiceEditorImage = async (file: File) => {
+    if (!serviceEditor) {
+      return;
+    }
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: 'service-editor-image',
+        scope: 'service-image',
+        entityId: serviceEditor.source?.id || serviceEditor.draft.name || 'service',
+      });
+      setServiceEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              draft: {
+                ...prev.draft,
+                imageAssetId: uploaded.assetId ?? '',
+                imagePreviewUrl: uploaded.url,
+              },
+            }
+          : prev,
+      );
+      setBanner('success', 'Изображение услуги подготовлено. Не забудьте сохранить услугу.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
+  };
+
+  const uploadOfferEditorImage = async (file: File) => {
+    if (!offerEditor) {
+      return;
+    }
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: 'offer-editor-image',
+        scope: 'client-content',
+        entityId: offerEditor.sourceSlug || offerEditor.draft.slug || 'offer',
+      });
+      setOfferEditor((prev) =>
+        prev
+          ? { ...prev, draft: { ...prev.draft, imageAssetId: uploaded.assetId ?? '' } }
+          : prev,
+      );
+      setBanner('success', 'Изображение предложения подготовлено. Не забудьте сохранить предложение.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
+  };
+
+  const uploadNewsEditorImage = async (file: File) => {
+    if (!newsEditor) {
+      return;
+    }
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: 'news-editor-image',
+        scope: 'client-content',
+        entityId: newsEditor.sourceSlug || newsEditor.draft.slug || 'news',
+      });
+      setNewsEditor((prev) =>
+        prev
+          ? { ...prev, draft: { ...prev.draft, imageAssetId: uploaded.assetId ?? '' } }
+          : prev,
+      );
+      setBanner('success', 'Изображение новости подготовлено. Не забудьте сохранить статью.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
+  };
+
+  const uploadLocationEditorImage = async (file: File) => {
+    if (!locationEditor) {
+      return;
+    }
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: 'location-editor-image',
+        scope: 'client-content',
+        entityId: locationEditor.sourceSlug || locationEditor.draft.slug || 'location',
+      });
+      setLocationEditor((prev) =>
+        prev
+          ? { ...prev, draft: { ...prev.draft, imageAssetId: uploaded.assetId ?? '' } }
+          : prev,
+      );
+      setBanner('success', 'Изображение локации подготовлено. Не забудьте сохранить локацию.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
   };
 
   const renderBlockPayloadEditor = () => {
@@ -4155,6 +4446,24 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <TextField label="Label" value={homePageDraft.hero.visualLabel} onChange={(value) => updateHomePageField('hero', 'visualLabel', value)} />
                 <TextAreaField label="Заголовок визуала" value={homePageDraft.hero.visualTitle} onChange={(value) => updateHomePageField('hero', 'visualTitle', value)} rows={3} />
                 <TextAreaField label="Подзаголовок визуала" value={homePageDraft.hero.visualSubtitle} onChange={(value) => updateHomePageField('hero', 'visualSubtitle', value)} rows={4} />
+                <InlineImageField
+                  label="Фото визуала"
+                  previewUrl={assetUrlMap[homePageDraft.hero.visualImageAssetId] ?? ''}
+                  placeholder="Этот слот отображается в правом hero-блоке главной страницы."
+                  busy={busyKey === 'home-hero-image'}
+                  onSelect={(file) => {
+                    void uploadHomeHeroVisualImage(file);
+                  }}
+                  onClear={() =>
+                    setHomePageDraft((prev) => ({
+                      ...prev,
+                      hero: {
+                        ...prev.hero,
+                        visualImageAssetId: '',
+                      },
+                    }))
+                  }
+                />
               </div>
 
               <div className="rounded-[24px] bg-[#1d5055] px-4 py-4 text-white">
@@ -5652,6 +5961,16 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                         <TextField label="Eyebrow / подпись" value={draft.eyebrow} onChange={(value) => updatePageHeroField(definition.key, 'eyebrow', value)} placeholder={definition.defaults.eyebrow || 'Пусто = текст по умолчанию'} />
                         <TextField label="Title / заголовок" value={draft.title} onChange={(value) => updatePageHeroField(definition.key, 'title', value)} placeholder={definition.defaults.title} />
                         <TextAreaField label="Description / описание" value={draft.description} onChange={(value) => updatePageHeroField(definition.key, 'description', value)} rows={4} placeholder={definition.defaults.description} />
+                        <InlineImageField
+                          label="Фото шапки"
+                          previewUrl={assetUrlMap[draft.imageAssetId] ?? ''}
+                          placeholder="Этот слот отображается справа в PageHero на клиентском сайте."
+                          busy={busyKey === `page-hero-image:${definition.key}`}
+                          onSelect={(file) => {
+                            void uploadPageHeroImage(definition.key, file);
+                          }}
+                          onClear={() => updatePageHeroField(definition.key, 'imageAssetId', '')}
+                        />
                       </div>
 
                       <div className="rounded-[24px] bg-white px-4 py-4">
@@ -7666,6 +7985,29 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 onChange={(value) => setServiceEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))}
                 rows={4}
               />
+              <InlineImageField
+                label="Фото услуги"
+                previewUrl={serviceEditor.draft.imagePreviewUrl || assetUrlMap[serviceEditor.draft.imageAssetId] || ''}
+                placeholder="Это фото используется в карточках услуг и на детальной странице процедуры."
+                busy={busyKey === 'service-editor-image'}
+                onSelect={(file) => {
+                  void uploadServiceEditorImage(file);
+                }}
+                onClear={() =>
+                  setServiceEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          draft: {
+                            ...prev.draft,
+                            imageAssetId: '',
+                            imagePreviewUrl: '',
+                          },
+                        }
+                      : prev,
+                  )
+                }
+              />
 
               <label className="block">
                 <span className="mb-1 block text-[14px] font-semibold text-muted">Категория</span>
@@ -7758,6 +8100,28 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
               <TextField label="Title" value={offerEditor.draft.title} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
               <TextField label="Subtitle" value={offerEditor.draft.subtitle} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, subtitle: value } } : prev))} />
               <TextAreaField label="Description" value={offerEditor.draft.description} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))} rows={4} />
+              <InlineImageField
+                label="Фото предложения"
+                previewUrl={assetUrlMap[offerEditor.draft.imageAssetId] ?? ''}
+                placeholder="Это фото используется в карточках акций, на странице /offers и в промо-блоках."
+                busy={busyKey === 'offer-editor-image'}
+                onSelect={(file) => {
+                  void uploadOfferEditorImage(file);
+                }}
+                onClear={() =>
+                  setOfferEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          draft: {
+                            ...prev.draft,
+                            imageAssetId: '',
+                          },
+                        }
+                      : prev,
+                  )
+                }
+              />
               <div className="grid gap-3 sm:grid-cols-2">
                 <TextField label="Badge" value={offerEditor.draft.badge} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, badge: value } } : prev))} />
                 <TextField label="CTA href" value={offerEditor.draft.ctaHref} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, ctaHref: value } } : prev))} />
@@ -7807,6 +8171,28 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <TextField label="Category" value={newsEditor.draft.category} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, category: value } } : prev))} />
                 <TextField label="Published at" value={newsEditor.draft.publishedAt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, publishedAt: value } } : prev))} placeholder="2026-03-15" />
               </div>
+              <InlineImageField
+                label="Фото статьи"
+                previewUrl={assetUrlMap[newsEditor.draft.imageAssetId] ?? ''}
+                placeholder="Это фото используется в карточке новости и на детальной странице статьи."
+                busy={busyKey === 'news-editor-image'}
+                onSelect={(file) => {
+                  void uploadNewsEditorImage(file);
+                }}
+                onClear={() =>
+                  setNewsEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          draft: {
+                            ...prev.draft,
+                            imageAssetId: '',
+                          },
+                        }
+                      : prev,
+                  )
+                }
+              />
               <TextAreaField label="Excerpt" value={newsEditor.draft.excerpt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, excerpt: value } } : prev))} rows={4} />
               <TextAreaField
                 label="Body"
@@ -7861,6 +8247,28 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <TextField label="Телефон" value={locationEditor.draft.phone} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, phone: value } } : prev))} />
                 <TextField label="Часы работы" value={locationEditor.draft.workingHours} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, workingHours: value } } : prev))} />
               </div>
+              <InlineImageField
+                label="Фото локации"
+                previewUrl={assetUrlMap[locationEditor.draft.imageAssetId] ?? ''}
+                placeholder="Это фото используется в карточках локаций и связанных контентных блоках."
+                busy={busyKey === 'location-editor-image'}
+                onSelect={(file) => {
+                  void uploadLocationEditorImage(file);
+                }}
+                onClear={() =>
+                  setLocationEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          draft: {
+                            ...prev.draft,
+                            imageAssetId: '',
+                          },
+                        }
+                      : prev,
+                  )
+                }
+              />
               <TextField label="Ссылка на карту" value={locationEditor.draft.mapUrl} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, mapUrl: value } } : prev))} />
               <TextAreaField label="Описание" value={locationEditor.draft.description} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))} rows={4} />
               <TextAreaField label="Примечание" value={locationEditor.draft.note} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, note: value } } : prev))} rows={3} />

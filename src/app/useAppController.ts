@@ -2948,7 +2948,7 @@ export function useAppController(): AppController {
       setServiceImagePreviewUrl(converted.previewUrl);
       setServiceImageWebpBlob(converted.blob);
       setServiceImageOriginalName(file.name || 'service');
-      setServiceDraft((prev) => ({ ...prev, imageUrl: converted.previewUrl }));
+      setServiceDraft((prev) => ({ ...prev, imageAssetId: null, imageUrl: converted.previewUrl }));
       setToast('Изображение услуги подготовлено');
     } catch (error) {
       setToast(toErrorMessage(error));
@@ -2959,7 +2959,7 @@ export function useAppController(): AppController {
 
   const handleClearServiceImage = () => {
     resetServiceImageState();
-    setServiceDraft((prev) => ({ ...prev, imageUrl: '' }));
+    setServiceDraft((prev) => ({ ...prev, imageAssetId: null, imageUrl: '' }));
   };
 
   const handleClearServiceCategoryImage = () => {
@@ -3249,7 +3249,7 @@ export function useAppController(): AppController {
 
   const uploadServiceImageIfNeeded = async (serviceId: string) => {
     if (!serviceImageWebpBlob) {
-      return { url: null, warning: '' };
+      return { assetId: null, url: null, warning: '' };
     }
     try {
       const uploaded = await uploadWebpImage({
@@ -3259,19 +3259,22 @@ export function useAppController(): AppController {
         originalName: serviceImageOriginalName,
       });
       setServiceImagePreviewUrl(uploaded.url);
-      setServiceDraft((prev) => ({ ...prev, imageUrl: uploaded.url }));
+      setServiceDraft((prev) => ({ ...prev, imageAssetId: uploaded.assetId, imageUrl: uploaded.url }));
       setServices((prev) =>
         prev.map((item) =>
-          item.id === serviceId ? { ...item, imageUrl: uploaded.url } : item,
+          item.id === serviceId
+            ? { ...item, imageAssetId: uploaded.assetId, imageUrl: uploaded.url }
+            : item,
         ),
       );
-      return { url: uploaded.url, warning: '' };
+      return { assetId: uploaded.assetId, url: uploaded.url, warning: '' };
     } catch (error) {
       if (
         error instanceof ApiError &&
         (error.status === 403 || error.code === 'FORBIDDEN')
       ) {
         return {
+          assetId: null,
           url: null,
           warning: 'Недостаточно прав для media upload (нужно MANAGE_MEDIA)',
         };
@@ -3279,6 +3282,7 @@ export function useAppController(): AppController {
       const message = toErrorMessage(error);
       if (message.startsWith('UPLOAD_ENDPOINT_NOT_FOUND')) {
         return {
+          assetId: null,
           url: null,
           warning:
             'Серверный upload endpoint не найден. Проверьте API путь: /client-front/staff/media/upload',
@@ -3617,6 +3621,7 @@ export function useAppController(): AppController {
       categoryId: found.categoryId,
       categoryName: found.categoryName,
       description: found.description || '',
+      imageAssetId: found.imageAssetId || null,
       imageUrl: found.imageUrl || '',
       durationSec: found.durationSec || 0,
       priceMin: found.priceMin || 0,
@@ -3647,6 +3652,7 @@ export function useAppController(): AppController {
       categoryId: found.categoryId,
       categoryName: found.categoryName,
       description: found.description || '',
+      imageAssetId: found.imageAssetId || null,
       imageUrl: found.imageUrl || '',
       durationSec: found.durationSec || 0,
       priceMin: found.priceMin || 0,
@@ -3704,6 +3710,7 @@ export function useAppController(): AppController {
               categoryId: serviceDraft.categoryId || item.categoryId,
               categoryName: serviceDraft.categoryName || item.categoryName,
               description: serviceDraft.description || null,
+              imageAssetId: serviceDraft.imageAssetId,
               imageUrl: serviceImagePreviewUrl || serviceDraft.imageUrl || null,
               durationSec: Math.max(0, serviceDraft.durationSec),
               priceMin: Math.max(0, serviceDraft.priceMin),
@@ -3734,6 +3741,7 @@ export function useAppController(): AppController {
       name,
       nameOnline: name,
       categoryId: serviceDraft.categoryId,
+      imageAssetId: serviceDraft.imageAssetId,
       description: serviceDraft.description.trim() || undefined,
       durationSec: Math.max(600, Math.round(serviceDraft.durationSec)),
       priceMin: Math.max(0, Math.round(serviceDraft.priceMin)),
@@ -3753,6 +3761,13 @@ export function useAppController(): AppController {
           await loadServices();
           if (serviceImageWebpBlob) {
             const uploadResult = await uploadServiceImageIfNeeded(serviceDraft.id);
+            if (uploadResult.assetId) {
+              await runServiceMutations([
+                () => api.patch(`/services/${serviceDraft.id}`, { ...payload, imageAssetId: uploadResult.assetId }),
+                () => api.put(`/services/${serviceDraft.id}`, { ...payload, imageAssetId: uploadResult.assetId }),
+              ]);
+              await loadServices();
+            }
             if (uploadResult.warning) {
               nextToast = uploadResult.warning;
             }
@@ -3786,6 +3801,13 @@ export function useAppController(): AppController {
               null;
             if (created) {
               const uploadResult = await uploadServiceImageIfNeeded(created.id);
+              if (uploadResult.assetId) {
+                await runServiceMutations([
+                  () => api.patch(`/services/${created.id}`, { ...payload, imageAssetId: uploadResult.assetId }),
+                  () => api.put(`/services/${created.id}`, { ...payload, imageAssetId: uploadResult.assetId }),
+                ]);
+                await loadServices();
+              }
               if (uploadResult.warning) {
                 nextToast = uploadResult.warning;
               }
@@ -3808,6 +3830,7 @@ export function useAppController(): AppController {
               categoryName: serviceDraft.categoryName,
               nameOnline: payload.nameOnline,
               description: payload.description || null,
+              imageAssetId: serviceDraft.imageAssetId,
               imageUrl: serviceImagePreviewUrl || serviceDraft.imageUrl || null,
               durationSec: payload.durationSec,
               priceMin: payload.priceMin,

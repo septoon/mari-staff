@@ -6,6 +6,7 @@ export type SiteOfferRecord = {
   badge: string;
   priceNote: string;
   ctaHref: string;
+  imageAssetId?: string;
 };
 
 export type SiteNewsRecord = {
@@ -15,6 +16,7 @@ export type SiteNewsRecord = {
   publishedAt: string;
   excerpt: string;
   body: string[];
+  imageAssetId?: string;
 };
 
 export type SiteLocationRecord = {
@@ -27,6 +29,7 @@ export type SiteLocationRecord = {
   mapUrl: string;
   description: string;
   note: string;
+  imageAssetId?: string;
   serviceSlugs: string[];
   masterSlugs: string[];
   features: string[];
@@ -77,7 +80,8 @@ const DEFAULT_OFFERS: SiteOfferRecord[] = [
     description: 'Удобный формат для тех, кто хочет освежить образ за одно посещение и не тратить лишнее время.',
     badge: '-15%',
     priceNote: 'По будням до 15:00, по предварительной записи',
-    ctaHref: '/booking?offer=weekday-signature'
+    ctaHref: '/booking?offer=weekday-signature',
+    imageAssetId: ''
   },
   {
     slug: 'facial-membership',
@@ -86,7 +90,8 @@ const DEFAULT_OFFERS: SiteOfferRecord[] = [
     description: 'Формат для тех, кто хочет ухаживать за кожей регулярно и видеть стабильный результат без спешки.',
     badge: '4 визита',
     priceNote: 'Персональный график и приоритет при выборе времени',
-    ctaHref: '/booking?offer=facial-membership'
+    ctaHref: '/booking?offer=facial-membership',
+    imageAssetId: ''
   },
   {
     slug: 'gift-season',
@@ -95,7 +100,8 @@ const DEFAULT_OFFERS: SiteOfferRecord[] = [
     description: 'При покупке сертификата от 15 000 ₽ добавляем приятный бонус к подарку.',
     badge: 'Подарок',
     priceNote: 'Можно оформить онлайн или в салоне',
-    ctaHref: '/gift-cards'
+    ctaHref: '/gift-cards',
+    imageAssetId: ''
   }
 ];
 
@@ -106,6 +112,7 @@ const DEFAULT_NEWS: SiteNewsRecord[] = [
     category: 'Пространство',
     publishedAt: '2026-02-18',
     excerpt: 'Во флагманском пространстве появились тихие кабинеты для длительных визитов и комплексного ухода.',
+    imageAssetId: '',
     body: [
       'В Mari Center Residence появились новые приватные кабинеты для тех, кто ценит тишину, спокойствие и персональный ритм визита.',
       'Они особенно удобны для длительных процедур, комплексного ухода и визитов, когда хочется провести несколько часов в комфортной обстановке.',
@@ -118,6 +125,7 @@ const DEFAULT_NEWS: SiteNewsRecord[] = [
     category: 'Уход',
     publishedAt: '2026-03-03',
     excerpt: 'Собрали сезонные процедуры для обезвоженной кожи, тусклого тона и усталого вида.',
+    imageAssetId: '',
     body: [
       'Весной коже чаще всего нужны не интенсивные процедуры, а мягкое восстановление влаги, барьера и ровного тона.',
       'В сезонное меню вошли процедуры для сияния, тонуса и свежего вида, которые удобно вписываются даже в плотный график.',
@@ -130,6 +138,7 @@ const DEFAULT_NEWS: SiteNewsRecord[] = [
     category: 'Сервис',
     publishedAt: '2026-01-22',
     excerpt: 'Теперь сертификат можно оформить дистанционно, выбрать номинал и добавить тёплое личное сообщение.',
+    imageAssetId: '',
     body: [
       'Теперь подарочный сертификат MARI можно оформить онлайн и отправить близкому в удобном формате.',
       'Вы сами выбираете номинал, а использовать сертификат можно на услуги, программы ухода и комплексные визиты.',
@@ -149,6 +158,7 @@ const DEFAULT_LOCATIONS: SiteLocationRecord[] = [
     mapUrl: 'https://maps.google.com/?q=44.9521,34.1024',
     description: 'Флагманский филиал для цветовых сервисов, facial-care и точных beauty-ритуалов в тихом премиальном интерьере.',
     note: 'Подходит для длительных beauty-дней и спокойных персональных визитов.',
+    imageAssetId: '',
     serviceSlugs: ['signature-color', 'silk-recovery', 'architect-manicure', 'brow-sculpt', 'glass-skin-care', 'lymphatic-touch', 'mens-cut', 'mens-face-reset'],
     masterSlugs: ['elena-orlova', 'mila-rudneva', 'sofia-levina', 'alisa-gromova', 'polina-cherkasova', 'vera-soboleva'],
     features: ['private beauty suites', 'тихая lounge-зона', 'парковка по записи'],
@@ -167,6 +177,7 @@ const DEFAULT_LOCATIONS: SiteLocationRecord[] = [
     mapUrl: 'https://maps.google.com/?q=44.965,34.113',
     description: 'Камерный филиал для регулярного ухода: nail-сервис, эпиляция и деликатные beauty-процедуры рядом с домом.',
     note: 'Оптимален для поддерживающих визитов и коротких beauty-ритуалов.',
+    imageAssetId: '',
     serviceSlugs: ['silk-recovery', 'architect-manicure', 'spa-pedicure', 'brow-sculpt', 'laser-comfort', 'wax-ritual'],
     masterSlugs: ['sofia-levina', 'alisa-gromova', 'vera-soboleva', 'ira-melnik'],
     features: ['easy access parking', 'домашняя камерная атмосфера', 'быстрые утренние слоты'],
@@ -185,6 +196,7 @@ const DEFAULT_LOCATIONS: SiteLocationRecord[] = [
     mapUrl: 'https://maps.google.com/?q=44.4952,34.1663',
     description: 'Клубное пространство для facial-care, body-ритуалов и colour-сервисов в более приватном и slow-paced формате.',
     note: 'Хороший выбор для beauty-weekend и восстановительных программ.',
+    imageAssetId: '',
     serviceSlugs: ['signature-color', 'spa-pedicure', 'lash-lift', 'glass-skin-care', 'sculpt-lift', 'detox-wrap', 'lymphatic-touch', 'laser-comfort', 'mens-cut'],
     masterSlugs: ['elena-orlova', 'alisa-gromova', 'polina-cherkasova', 'vera-soboleva'],
     features: ['spa rhythm', 'видовые окна', 'extended-care sessions'],
@@ -314,7 +326,8 @@ const readOffers = (value: unknown): SiteOfferRecord[] => {
       description: typeof current.description === 'string' ? current.description : '',
       badge: typeof current.badge === 'string' ? current.badge : '',
       priceNote: typeof current.priceNote === 'string' ? current.priceNote : '',
-      ctaHref: typeof current.ctaHref === 'string' ? current.ctaHref : ''
+      ctaHref: typeof current.ctaHref === 'string' ? current.ctaHref : '',
+      imageAssetId: typeof current.imageAssetId === 'string' ? current.imageAssetId : '',
     };
   });
 };
@@ -332,7 +345,8 @@ const readNews = (value: unknown): SiteNewsRecord[] => {
       category: typeof current.category === 'string' ? current.category : '',
       publishedAt: typeof current.publishedAt === 'string' ? current.publishedAt : '',
       excerpt: typeof current.excerpt === 'string' ? current.excerpt : '',
-      body: asStringArray(current.body)
+      body: asStringArray(current.body),
+      imageAssetId: typeof current.imageAssetId === 'string' ? current.imageAssetId : '',
     };
   });
 };
@@ -354,6 +368,7 @@ const readLocations = (value: unknown): SiteLocationRecord[] => {
       mapUrl: typeof current.mapUrl === 'string' ? current.mapUrl : '',
       description: typeof current.description === 'string' ? current.description : '',
       note: typeof current.note === 'string' ? current.note : '',
+      imageAssetId: typeof current.imageAssetId === 'string' ? current.imageAssetId : '',
       serviceSlugs: asStringArray(current.serviceSlugs),
       masterSlugs: asStringArray(current.masterSlugs),
       features: asStringArray(current.features),
