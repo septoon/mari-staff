@@ -155,6 +155,38 @@ function formatHours(hours: number) {
   return Number.isInteger(rounded) ? `${rounded} ч` : `${rounded.toFixed(1).replace('.', ',')} ч`;
 }
 
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: Date;
+  onChange: (value: Date) => void;
+}) {
+  return (
+    <label className="rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
+      <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">{label}</span>
+      <input
+        type="date"
+        value={toISODate(value)}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          if (!nextValue) {
+            return;
+          }
+          const nextDate = new Date(`${nextValue}T00:00:00`);
+          if (Number.isNaN(nextDate.getTime())) {
+            return;
+          }
+          onChange(nextDate);
+        }}
+        className="mt-3 w-full bg-transparent text-[22px] font-extrabold tracking-[-0.04em] text-[#28313b] outline-none"
+      />
+    </label>
+  );
+}
+
 function isTimeInsideRange(value: string, start: string, end: string) {
   const minutes = timeValueToMinutes(value);
   const startMinutes = timeValueToMinutes(start);
@@ -252,7 +284,7 @@ function DayEditorPanel({
     <section
       className={clsx(
         'rounded-[32px] border border-[#e0e5ed] bg-[#fbfcfe] shadow-[0_20px_48px_rgba(41,49,58,0.12)]',
-        mobile ? 'p-4' : 'sticky top-24 p-5',
+        mobile ? 'p-4' : 'p-5',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -331,6 +363,96 @@ function DayEditorPanel({
   );
 }
 
+function DayEditorModal({
+  staff,
+  date,
+  start,
+  end,
+  bookingStart,
+  bookingEnd,
+  loading,
+  onClose,
+  onStartChange,
+  onEndChange,
+  onBookingStartChange,
+  onBookingEndChange,
+  onPresetSelect,
+  onSave,
+  onClear,
+}: {
+  staff: StaffItem;
+  date: Date;
+  start: string;
+  end: string;
+  bookingStart: string;
+  bookingEnd: string;
+  loading: boolean;
+  onClose: () => void;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+  onBookingStartChange: (value: string) => void;
+  onBookingEndChange: (value: string) => void;
+  onPresetSelect: (value: string) => void;
+  onSave: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[80] bg-[rgba(34,43,51,0.48)]"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="hidden h-full items-center justify-center px-6 py-8 md:flex">
+        <div className="w-full max-w-[560px]">
+          <DayEditorPanel
+            staff={staff}
+            date={date}
+            start={start}
+            end={end}
+            bookingStart={bookingStart}
+            bookingEnd={bookingEnd}
+            loading={loading}
+            onClose={onClose}
+            onStartChange={onStartChange}
+            onEndChange={onEndChange}
+            onBookingStartChange={onBookingStartChange}
+            onBookingEndChange={onBookingEndChange}
+            onPresetSelect={onPresetSelect}
+            onSave={onSave}
+            onClear={onClear}
+          />
+        </div>
+      </div>
+
+      <div className="flex h-full items-end md:hidden">
+        <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[34px] bg-white shadow-[0_-24px_64px_rgba(41,49,58,0.24)]">
+          <DayEditorPanel
+            staff={staff}
+            date={date}
+            start={start}
+            end={end}
+            bookingStart={bookingStart}
+            bookingEnd={bookingEnd}
+            loading={loading}
+            onClose={onClose}
+            onStartChange={onStartChange}
+            onEndChange={onEndChange}
+            onBookingStartChange={onBookingStartChange}
+            onBookingEndChange={onBookingEndChange}
+            onPresetSelect={onPresetSelect}
+            onSave={onSave}
+            onClear={onClear}
+            mobile
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OnlineSlotsModal({
   staff,
   date,
@@ -341,6 +463,7 @@ function OnlineSlotsModal({
   selectedTimes,
   loading,
   onClose,
+  onDateChange,
   onBookingStartChange,
   onBookingEndChange,
   onToggleTime,
@@ -357,6 +480,7 @@ function OnlineSlotsModal({
   selectedTimes: string[];
   loading: boolean;
   onClose: () => void;
+  onDateChange: (value: Date) => void;
   onBookingStartChange: (value: string) => void;
   onBookingEndChange: (value: string) => void;
   onToggleTime: (value: string) => void;
@@ -369,19 +493,20 @@ function OnlineSlotsModal({
     [shiftEnd, shiftStart],
   );
   const selectedSet = useMemo(() => new Set(selectedTimes), [selectedTimes]);
+  const hasShift = timeValueToMinutes(shiftEnd) > timeValueToMinutes(shiftStart);
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(34,43,51,0.48)] px-3 py-6"
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:px-3 md:py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="max-h-full w-full max-w-[980px] overflow-hidden rounded-[32px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)]">
+      <div className="max-h-[92vh] w-full overflow-hidden rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-full md:max-w-[980px] md:rounded-[32px]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5 sm:px-6">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
               Слоты онлайн-записи
             </p>
@@ -404,6 +529,8 @@ function OnlineSlotsModal({
         <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-5 py-5 sm:px-6">
           <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
             <div className="space-y-4">
+              <DateField label="День" value={date} onChange={onDateChange} />
+
               <div className="rounded-[28px] border border-[#e1e6ee] bg-white p-4">
                 <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
                   Рабочее время
@@ -429,6 +556,17 @@ function OnlineSlotsModal({
             </div>
 
             <div className="space-y-4">
+              {!hasShift ? (
+                <section className="rounded-[28px] border border-dashed border-[#dce2ea] bg-white p-6">
+                  <p className="text-[20px] font-extrabold tracking-[-0.03em] text-[#28313b]">
+                    На этот день нет графика
+                  </p>
+                  <p className="mt-3 text-[14px] leading-6 text-[#66707d]">
+                    Выбери другой день сверху. Когда у сотрудника есть смена, здесь появятся доступные интервалы и слоты.
+                  </p>
+                </section>
+              ) : null}
+
               {slotGroups.map((group) => {
                 const availableTimes = group.times.filter((time) =>
                   isTimeInsideRange(time, bookingStart, bookingEnd),
@@ -502,7 +640,7 @@ function OnlineSlotsModal({
           <button
             type="button"
             onClick={onSave}
-            disabled={loading}
+            disabled={loading || !hasShift}
             className="inline-flex h-12 items-center rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#2c3540] shadow-[0_14px_30px_rgba(244,201,0,0.28)] disabled:opacity-60"
           >
             {loading ? 'Сохранение...' : 'Сохранить'}
@@ -577,7 +715,7 @@ export function ScheduleScreen({
   return (
     <>
       <div className="hidden pb-8 pt-5 md:block">
-        <div className={clsx('grid gap-6', editorStaff ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : 'grid-cols-1')}>
+        <div className="grid gap-6">
           <div className="space-y-5">
             <section className="rounded-[36px] border border-[#e0e5ed] bg-[#fbfcfe] px-6 py-6 shadow-[0_20px_48px_rgba(41,49,58,0.08)]">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -740,7 +878,7 @@ export function ScheduleScreen({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => onOpenOnlineSlots(person, selectedDate)}
+                                onClick={() => onOpenOnlineSlots(person, new Date())}
                                 className="inline-flex h-11 items-center rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#2c3540]"
                               >
                                 Слоты онлайн
@@ -795,25 +933,6 @@ export function ScheduleScreen({
             </section>
           </div>
 
-          {editorStaff ? (
-            <DayEditorPanel
-              staff={editorStaff}
-              date={selectedDate}
-              start={editorStart}
-              end={editorEnd}
-              bookingStart={editorBookingStart}
-              bookingEnd={editorBookingEnd}
-              loading={loading}
-              onClose={onCloseDesktopEditor}
-              onStartChange={onEditorStartChange}
-              onEndChange={onEditorEndChange}
-              onBookingStartChange={onEditorBookingStartChange}
-              onBookingEndChange={onEditorBookingEndChange}
-              onPresetSelect={onEditorPresetSelect}
-              onSave={onSaveEditor}
-              onClear={onClearEditor}
-            />
-          ) : null}
         </div>
       </div>
 
@@ -945,7 +1064,7 @@ export function ScheduleScreen({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onOpenOnlineSlots(person, selectedDate)}
+                    onClick={() => onOpenOnlineSlots(person, new Date())}
                     className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-accent text-sm font-extrabold text-[#222b33]"
                   >
                     Слоты онлайн
@@ -961,30 +1080,27 @@ export function ScheduleScreen({
             </div>
           ) : null}
         </div>
-
-        {editorStaff ? (
-          <div className="fixed inset-x-3 bottom-20 z-30 rounded-[34px] bg-white shadow-[0_28px_64px_rgba(41,49,58,0.2)]">
-            <DayEditorPanel
-              staff={editorStaff}
-              date={selectedDate}
-              start={editorStart}
-              end={editorEnd}
-              bookingStart={editorBookingStart}
-              bookingEnd={editorBookingEnd}
-              loading={loading}
-              onClose={onCloseDesktopEditor}
-              onStartChange={onEditorStartChange}
-              onEndChange={onEditorEndChange}
-              onBookingStartChange={onEditorBookingStartChange}
-              onBookingEndChange={onEditorBookingEndChange}
-              onPresetSelect={onEditorPresetSelect}
-              onSave={onSaveEditor}
-              onClear={onClearEditor}
-              mobile
-            />
-          </div>
-        ) : null}
       </div>
+
+      {editorStaff ? (
+        <DayEditorModal
+          staff={editorStaff}
+          date={selectedDate}
+          start={editorStart}
+          end={editorEnd}
+          bookingStart={editorBookingStart}
+          bookingEnd={editorBookingEnd}
+          loading={loading}
+          onClose={onCloseDesktopEditor}
+          onStartChange={onEditorStartChange}
+          onEndChange={onEditorEndChange}
+          onBookingStartChange={onEditorBookingStartChange}
+          onBookingEndChange={onEditorBookingEndChange}
+          onPresetSelect={onEditorPresetSelect}
+          onSave={onSaveEditor}
+          onClear={onClearEditor}
+        />
+      ) : null}
 
       {onlineSlotsStaff && onlineSlotsDate ? (
         <OnlineSlotsModal
@@ -997,6 +1113,7 @@ export function ScheduleScreen({
           selectedTimes={onlineSlotsSelectedTimes}
           loading={loading}
           onClose={onCloseOnlineSlots}
+          onDateChange={(value) => onOpenOnlineSlots(onlineSlotsStaff, value)}
           onBookingStartChange={onOnlineSlotsBookingStartChange}
           onBookingEndChange={onOnlineSlotsBookingEndChange}
           onToggleTime={onToggleOnlineSlotTime}
