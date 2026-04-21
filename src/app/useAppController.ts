@@ -82,6 +82,7 @@ import type {
   ScheduleInterval,
   ScheduleEditorOpenOptions,
   ServiceCategoryItem,
+  ServiceSectionItem,
   ServiceItem,
   StaffItem,
   StaffSession,
@@ -374,6 +375,8 @@ export function useAppController(): AppController {
     setServicesItemsSearch,
     localServiceCategories,
     setLocalServiceCategories,
+    localServiceSections,
+    setLocalServiceSections,
     selectedServiceCategoryId,
     setSelectedServiceCategoryId,
     selectedServiceCategoryName,
@@ -384,12 +387,26 @@ export function useAppController(): AppController {
     setServiceCategoryEditorName,
     serviceCategoryEditorImagePreviewUrl,
     setServiceCategoryEditorImagePreviewUrl,
+    serviceCategoryEditorSectionId,
+    setServiceCategoryEditorSectionId,
     serviceCategoryEditorImageAssetId,
     setServiceCategoryEditorImageAssetId,
     serviceCategoryEditorImageBlob,
     setServiceCategoryEditorImageBlob,
     serviceCategoryEditorImageOriginalName,
     setServiceCategoryEditorImageOriginalName,
+    serviceSectionEditorId,
+    setServiceSectionEditorId,
+    serviceSectionEditorName,
+    setServiceSectionEditorName,
+    serviceSectionEditorImagePreviewUrl,
+    setServiceSectionEditorImagePreviewUrl,
+    serviceSectionEditorImageAssetId,
+    setServiceSectionEditorImageAssetId,
+    serviceSectionEditorImageBlob,
+    setServiceSectionEditorImageBlob,
+    serviceSectionEditorImageOriginalName,
+    setServiceSectionEditorImageOriginalName,
     serviceDraft,
     setServiceDraft,
     serviceEditorReturnPage,
@@ -444,6 +461,7 @@ export function useAppController(): AppController {
     staffAvatarBlobUrlRef,
     ownerAvatarBlobUrlRef,
     serviceCategoryEditorImageBlobUrlRef,
+    serviceSectionEditorImageBlobUrlRef,
     serviceImageBlobUrlRef,
     loading,
     setLoading,
@@ -736,6 +754,8 @@ export function useAppController(): AppController {
           count: 1,
           imageAssetId: null,
           imageUrl: item.imageUrl || null,
+          sectionId: null,
+          sectionName: null,
         });
         return;
       }
@@ -747,6 +767,35 @@ export function useAppController(): AppController {
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }, [localServiceCategories, services]);
+
+  const serviceSections = useMemo<ServiceSectionItem[]>(() => {
+    const servicesCountByCategoryId = new Map<string, number>();
+    services.forEach((item) => {
+      servicesCountByCategoryId.set(
+        item.categoryId,
+        (servicesCountByCategoryId.get(item.categoryId) ?? 0) + 1,
+      );
+    });
+
+    return localServiceSections
+      .map((section) => {
+        const categoriesInSection = serviceCategories.filter((item) => item.sectionId === section.id);
+        return {
+          ...section,
+          categoriesCount: categoriesInSection.length,
+          servicesCount: categoriesInSection.reduce(
+            (sum, category) => sum + (servicesCountByCategoryId.get(category.id) ?? category.count),
+            0,
+          ),
+        };
+      })
+      .sort((left, right) => {
+        if (left.orderIndex !== right.orderIndex) {
+          return left.orderIndex - right.orderIndex;
+        }
+        return left.name.localeCompare(right.name, 'ru');
+      });
+  }, [localServiceSections, serviceCategories, services]);
 
   const filteredServiceCategories = useMemo(() => {
     const query = servicesCategorySearch.trim().toLowerCase();
@@ -853,6 +902,21 @@ export function useAppController(): AppController {
     setServiceCategoryEditorImagePreviewUrl,
   ]);
 
+  const resetServiceSectionImageState = useCallback(() => {
+    clearBlobPreview(serviceSectionEditorImageBlobUrlRef);
+    setServiceSectionEditorImageBlob(null);
+    setServiceSectionEditorImageOriginalName('section');
+    setServiceSectionEditorImagePreviewUrl('');
+    setServiceSectionEditorImageAssetId(null);
+  }, [
+    clearBlobPreview,
+    serviceSectionEditorImageBlobUrlRef,
+    setServiceSectionEditorImageAssetId,
+    setServiceSectionEditorImageBlob,
+    setServiceSectionEditorImageOriginalName,
+    setServiceSectionEditorImagePreviewUrl,
+  ]);
+
   const resetServiceImageState = useCallback(() => {
     clearBlobPreview(serviceImageBlobUrlRef);
     setServiceImageWebpBlob(null);
@@ -898,6 +962,9 @@ export function useAppController(): AppController {
       if (serviceCategoryEditorImageBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(serviceCategoryEditorImageBlobUrlRef.current);
       }
+      if (serviceSectionEditorImageBlobUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(serviceSectionEditorImageBlobUrlRef.current);
+      }
       if (serviceImageBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(serviceImageBlobUrlRef.current);
       }
@@ -905,6 +972,7 @@ export function useAppController(): AppController {
   }, [
     ownerAvatarBlobUrlRef,
     serviceCategoryEditorImageBlobUrlRef,
+    serviceSectionEditorImageBlobUrlRef,
     serviceImageBlobUrlRef,
     staffAvatarBlobUrlRef,
   ]);
@@ -942,6 +1010,7 @@ export function useAppController(): AppController {
     setStaff,
     setServices,
     setLocalServiceCategories,
+    setLocalServiceSections,
     setStaffServiceCounts,
     setEditorServiceCount,
     setEditorServiceNames,
@@ -2930,6 +2999,23 @@ export function useAppController(): AppController {
     }
   };
 
+  const handleSelectServiceSectionImageFile = async (file: File) => {
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const converted = await convertImageFileToWebp(file);
+      clearBlobPreview(serviceSectionEditorImageBlobUrlRef);
+      serviceSectionEditorImageBlobUrlRef.current = converted.previewUrl;
+      setServiceSectionEditorImagePreviewUrl(converted.previewUrl);
+      setServiceSectionEditorImageBlob(converted.blob);
+      setServiceSectionEditorImageOriginalName(file.name || 'section');
+      setToast('Изображение раздела подготовлено');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const handleSelectServiceImageFile = async (file: File) => {
     setLoadingKey(setLoading, 'action', true);
     try {
@@ -2969,10 +3055,10 @@ export function useAppController(): AppController {
       try {
         const name = serviceCategoryEditorName.trim();
         const result = await runServiceMutations([
-          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
-          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
-          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
-          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: null }),
+          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { name, imageAssetId: null, sectionId: serviceCategoryEditorSectionId }),
+          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: null, sectionId: serviceCategoryEditorSectionId }),
+          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { name, imageAssetId: null, sectionId: serviceCategoryEditorSectionId }),
+          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: null, sectionId: serviceCategoryEditorSectionId }),
         ]);
 
         if (result.ok) {
@@ -2995,6 +3081,34 @@ export function useAppController(): AppController {
           setToast('Изображение категории удалено локально (API read-only)');
         }
         resetServiceCategoryImageState();
+      } catch (error) {
+        setToast(toErrorMessage(error));
+      } finally {
+        setLoadingKey(setLoading, 'action', false);
+      }
+    })();
+  };
+
+  const handleClearServiceSectionImage = () => {
+    if (!serviceSectionEditorImagePreviewUrl && !serviceSectionEditorImageAssetId) {
+      resetServiceSectionImageState();
+      return;
+    }
+
+    if (!serviceSectionEditorId || !serviceSectionEditorImageAssetId) {
+      resetServiceSectionImageState();
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    void (async () => {
+      try {
+        const name = serviceSectionEditorName.trim();
+        await api.patch(`/services/sections/${serviceSectionEditorId}`, { name, imageAssetId: null });
+        await deleteMediaAssetById(serviceSectionEditorImageAssetId);
+        await loadServices();
+        resetServiceSectionImageState();
+        setToast('Изображение раздела удалено');
       } catch (error) {
         setToast(toErrorMessage(error));
       } finally {
@@ -3032,7 +3146,7 @@ export function useAppController(): AppController {
 
   const applyServiceCategoryLocally = (
     categoryId: string,
-    patch: Partial<Pick<ServiceCategoryItem, 'name' | 'imageAssetId' | 'imageUrl'>>,
+    patch: Partial<Pick<ServiceCategoryItem, 'name' | 'imageAssetId' | 'imageUrl' | 'sectionId' | 'sectionName'>>,
   ) => {
     setLocalServiceCategories((prev) =>
       prev.map((item) => (item.id === categoryId ? { ...item, ...patch } : item)),
@@ -3163,6 +3277,50 @@ export function useAppController(): AppController {
         return {
           assetId: serviceCategoryEditorImageAssetId,
           url: serviceCategoryEditorImagePreviewUrl || null,
+          warning:
+            'Серверный upload endpoint не найден. Проверьте API путь: /client-front/staff/media/upload',
+        };
+      }
+      throw error;
+    }
+  };
+
+  const uploadServiceSectionImageIfNeeded = async (sectionId: string) => {
+    if (!serviceSectionEditorImageBlob) {
+      return {
+        assetId: serviceSectionEditorImageAssetId,
+        url: serviceSectionEditorImagePreviewUrl || null,
+        warning: '',
+      };
+    }
+    try {
+      const uploaded = await uploadWebpImage({
+        scope: 'service-image',
+        entityId: sectionId,
+        webpBlob: serviceSectionEditorImageBlob,
+        originalName: serviceSectionEditorImageOriginalName,
+      });
+      return {
+        assetId: uploaded.assetId ?? null,
+        url: uploaded.url,
+        warning: uploaded.assetId ? '' : 'Не удалось получить ID загруженного файла',
+      };
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.code === 'FORBIDDEN')
+      ) {
+        return {
+          assetId: serviceSectionEditorImageAssetId,
+          url: serviceSectionEditorImagePreviewUrl || null,
+          warning: 'Недостаточно прав для загрузки изображений раздела',
+        };
+      }
+      const message = toErrorMessage(error);
+      if (message.startsWith('UPLOAD_ENDPOINT_NOT_FOUND')) {
+        return {
+          assetId: serviceSectionEditorImageAssetId,
+          url: serviceSectionEditorImagePreviewUrl || null,
           warning:
             'Серверный upload endpoint не найден. Проверьте API путь: /client-front/staff/media/upload',
         };
@@ -3331,6 +3489,7 @@ export function useAppController(): AppController {
     if (!categoryId) {
       setServiceCategoryEditorId(null);
       setServiceCategoryEditorName('');
+      setServiceCategoryEditorSectionId(null);
       resetServiceCategoryImageState();
       setPage('serviceCategoryEditor');
       return;
@@ -3342,6 +3501,7 @@ export function useAppController(): AppController {
     }
     setServiceCategoryEditorId(found.id);
     setServiceCategoryEditorName(found.name);
+    setServiceCategoryEditorSectionId(found.sectionId || null);
     resetServiceCategoryImageState();
     setServiceCategoryEditorImagePreviewUrl(found.imageUrl || '');
     setServiceCategoryEditorImageAssetId(found.imageAssetId || null);
@@ -3351,15 +3511,54 @@ export function useAppController(): AppController {
   const closeServiceCategoryEditor = () => {
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
+    setServiceCategoryEditorSectionId(null);
     resetServiceCategoryImageState();
     setPage('servicesCategories');
   };
 
-  const createLocalCategory = (name: string, imageAssetId: string | null, imageUrl: string | null) => {
+  const openServiceSectionEditor = (sectionId: string | null) => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
+    if (!sectionId) {
+      setServiceSectionEditorId(null);
+      setServiceSectionEditorName('');
+      resetServiceSectionImageState();
+      setPage('serviceSectionEditor');
+      return;
+    }
+    const found = serviceSections.find((item) => item.id === sectionId);
+    if (!found) {
+      setToast('Раздел не найден');
+      return;
+    }
+    setServiceSectionEditorId(found.id);
+    setServiceSectionEditorName(found.name);
+    resetServiceSectionImageState();
+    setServiceSectionEditorImagePreviewUrl(found.imageUrl || '');
+    setServiceSectionEditorImageAssetId(found.imageAssetId || null);
+    setPage('serviceSectionEditor');
+  };
+
+  const closeServiceSectionEditor = () => {
+    setServiceSectionEditorId(null);
+    setServiceSectionEditorName('');
+    resetServiceSectionImageState();
+    setPage('servicesCategories');
+  };
+
+  const createLocalCategory = (
+    name: string,
+    imageAssetId: string | null,
+    imageUrl: string | null,
+    sectionId: string | null,
+    sectionName: string | null,
+  ) => {
     const nextId = `local-cat-${Date.now()}`;
     setLocalServiceCategories((prev) => [
       ...prev,
-      { id: nextId, name, count: 0, imageAssetId, imageUrl },
+      { id: nextId, name, count: 0, imageAssetId, imageUrl, sectionId, sectionName },
     ]);
   };
 
@@ -3373,16 +3572,22 @@ export function useAppController(): AppController {
       setToast('Название категории обязательно');
       return;
     }
+    const selectedSection = serviceSections.find((item) => item.id === serviceCategoryEditorSectionId) ?? null;
+    const payload = {
+      name,
+      imageAssetId: serviceCategoryEditorImageAssetId,
+      sectionId: serviceCategoryEditorSectionId,
+    };
     setLoadingKey(setLoading, 'action', true);
     try {
       let nextToast = '';
       if (serviceCategoryEditorId) {
         const uploadedCategoryImage = await uploadServiceCategoryImageIfNeeded(serviceCategoryEditorId);
         const result = await runServiceMutations([
-          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
-          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
-          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
-          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.patch(`/services/categories/${serviceCategoryEditorId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.patch(`/service-categories/${serviceCategoryEditorId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.patch(`/services/category/${serviceCategoryEditorId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+          () => api.put(`/service-categories/${serviceCategoryEditorId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
         ]);
         if (result.ok) {
           await loadServices();
@@ -3404,6 +3609,8 @@ export function useAppController(): AppController {
             name,
             imageAssetId: uploadedCategoryImage.assetId ?? null,
             imageUrl: uploadedCategoryImage.url || null,
+            sectionId: serviceCategoryEditorSectionId,
+            sectionName: selectedSection?.name ?? null,
           });
           if (selectedServiceCategoryId === serviceCategoryEditorId) {
             setSelectedServiceCategoryName(name);
@@ -3412,9 +3619,9 @@ export function useAppController(): AppController {
         }
       } else {
         const result = await runServiceMutations([
-          () => api.post('/services/categories', { name, imageAssetId: null }),
-          () => api.post('/service-categories', { name, imageAssetId: null }),
-          () => api.post('/services/category', { name, imageAssetId: null }),
+          () => api.post('/services/categories', { ...payload, imageAssetId: null }),
+          () => api.post('/service-categories', { ...payload, imageAssetId: null }),
+          () => api.post('/services/category', { ...payload, imageAssetId: null }),
         ]);
         if (result.ok) {
           const createdRecord = toRecord(result.payload);
@@ -3424,10 +3631,10 @@ export function useAppController(): AppController {
             const uploadedCategoryImage = await uploadServiceCategoryImageIfNeeded(createdCategoryId);
             if (uploadedCategoryImage.assetId || serviceCategoryEditorImageAssetId === null) {
               await runServiceMutations([
-                () => api.patch(`/services/categories/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
-                () => api.patch(`/service-categories/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
-                () => api.patch(`/services/category/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
-                () => api.put(`/service-categories/${createdCategoryId}`, { name, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.patch(`/services/categories/${createdCategoryId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.patch(`/service-categories/${createdCategoryId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.patch(`/services/category/${createdCategoryId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
+                () => api.put(`/service-categories/${createdCategoryId}`, { ...payload, imageAssetId: uploadedCategoryImage.assetId ?? null }),
               ]);
             }
             if (uploadedCategoryImage.warning) {
@@ -3439,11 +3646,71 @@ export function useAppController(): AppController {
             nextToast = 'Категория создана';
           }
         } else {
-          createLocalCategory(name, null, serviceCategoryEditorImagePreviewUrl || null);
+          createLocalCategory(
+            name,
+            null,
+            serviceCategoryEditorImagePreviewUrl || null,
+            serviceCategoryEditorSectionId,
+            selectedSection?.name ?? null,
+          );
           nextToast = 'Категория создана локально (API read-only)';
         }
       }
       closeServiceCategoryEditor();
+      setToast(nextToast);
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const saveServiceSectionEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
+    const name = serviceSectionEditorName.trim();
+    if (!name) {
+      setToast('Название раздела обязательно');
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      let nextToast = '';
+      if (serviceSectionEditorId) {
+        const uploadedSectionImage = await uploadServiceSectionImageIfNeeded(serviceSectionEditorId);
+        await api.patch(`/services/sections/${serviceSectionEditorId}`, {
+          name,
+          imageAssetId: uploadedSectionImage.assetId ?? null,
+        });
+        await loadServices();
+        nextToast = uploadedSectionImage.warning || 'Раздел обновлен';
+      } else {
+        const created = await api.post<unknown>('/services/sections', {
+          name,
+          imageAssetId: null,
+        });
+        const createdRecord = toRecord(created);
+        const createdItem = toRecord(createdRecord?.item) ?? createdRecord;
+        const createdSectionId = toString(createdItem?.id);
+
+        if (createdSectionId) {
+          const uploadedSectionImage = await uploadServiceSectionImageIfNeeded(createdSectionId);
+          if (uploadedSectionImage.assetId || serviceSectionEditorImageAssetId === null) {
+            await api.patch(`/services/sections/${createdSectionId}`, {
+              name,
+              imageAssetId: uploadedSectionImage.assetId ?? null,
+            });
+          }
+          nextToast = uploadedSectionImage.warning || 'Раздел создан';
+        } else {
+          nextToast = 'Раздел создан, но не удалось определить ID для загрузки изображения';
+        }
+        await loadServices();
+      }
+      closeServiceSectionEditor();
       setToast(nextToast);
     } catch (error) {
       setToast(toErrorMessage(error));
@@ -3492,6 +3759,32 @@ export function useAppController(): AppController {
         setSelectedServiceCategoryName('');
       }
       closeServiceCategoryEditor();
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const deleteServiceSectionEditor = async () => {
+    if (!canEdit(EDIT_PERMISSION.services)) {
+      setToast('Нет прав на редактирование услуг');
+      return;
+    }
+    if (!serviceSectionEditorId) {
+      return;
+    }
+    const confirmed = window.confirm('Удалить раздел? Категории останутся без раздела.');
+    if (!confirmed) {
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.delete(`/services/sections/${serviceSectionEditorId}`);
+      await loadServices();
+      closeServiceSectionEditor();
+      setToast('Раздел удален');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -4943,6 +5236,9 @@ export function useAppController(): AppController {
     setJournalDatePickerOpen(false);
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
+    setServiceCategoryEditorSectionId(null);
+    setServiceSectionEditorId(null);
+    setServiceSectionEditorName('');
     setServiceDraft(EMPTY_SERVICE_DRAFT);
     setServiceProviders([]);
     setServiceAssignableStaff([]);
@@ -5051,6 +5347,7 @@ export function useAppController(): AppController {
       clientsQuery,
       services,
       serviceCategories,
+      serviceSections,
       filteredServiceCategories,
       selectedServiceCategoryId,
       selectedServiceCategoryName,
@@ -5061,6 +5358,10 @@ export function useAppController(): AppController {
       serviceCategoryEditorId,
       serviceCategoryEditorName,
       serviceCategoryEditorImagePreviewUrl,
+      serviceCategoryEditorSectionId,
+      serviceSectionEditorId,
+      serviceSectionEditorName,
+      serviceSectionEditorImagePreviewUrl,
       serviceDraft,
       serviceProviders,
       serviceAssignableStaff,
@@ -5280,11 +5581,19 @@ export function useAppController(): AppController {
       closeServiceCategory,
       openServiceCategoryEditor,
       closeServiceCategoryEditor,
+      openServiceSectionEditor,
+      closeServiceSectionEditor,
       setServiceCategoryEditorName,
+      setServiceCategoryEditorSectionId,
       handleSelectServiceCategoryImageFile,
       handleClearServiceCategoryImage,
       saveServiceCategoryEditor,
       deleteServiceCategoryEditor,
+      setServiceSectionEditorName,
+      handleSelectServiceSectionImageFile,
+      handleClearServiceSectionImage,
+      saveServiceSectionEditor,
+      deleteServiceSectionEditor,
       openServiceEditor,
       openServiceProvidersEditor,
       openServiceCreateForCategory,

@@ -17,6 +17,7 @@ import {
   parseClient,
   parseScheduleCalendar,
   parseServiceCategory,
+  parseServiceSection,
   parseService,
   parseStaff,
 } from '../parsers';
@@ -27,6 +28,7 @@ import type {
   ScheduleInterval,
   SettingsNotificationSection,
   ServiceCategoryItem,
+  ServiceSectionItem,
   ServiceItem,
   StaffItem,
   StaffRole,
@@ -53,6 +55,7 @@ type UseDataLoadersParams = {
   setStaff: (value: StaffItem[]) => void;
   setServices: (value: ServiceItem[]) => void;
   setLocalServiceCategories: (value: ServiceCategoryItem[]) => void;
+  setLocalServiceSections: (value: ServiceSectionItem[]) => void;
   setStaffServiceCounts: (value: Record<string, number>) => void;
   setEditorServiceCount: (value: number) => void;
   setEditorServiceNames: (value: string[]) => void;
@@ -95,6 +98,7 @@ export function useDataLoaders({
   setStaff,
   setServices,
   setLocalServiceCategories,
+  setLocalServiceSections,
   setStaffServiceCounts,
   setEditorServiceCount,
   setEditorServiceNames,
@@ -159,20 +163,26 @@ export function useDataLoaders({
     if (!isAuthorized || !canViewServices) {
       setServices([]);
       setLocalServiceCategories([]);
+      setLocalServiceSections([]);
       return [];
     }
     setLoadingKey(setLoading, 'services', true);
     try {
-      const [servicesData, categoriesData] = await Promise.all([
+      const [servicesData, categoriesData, sectionsData] = await Promise.all([
         api.get<unknown>('/services'),
         api.get<unknown>('/services/categories'),
+        api.get<unknown>('/services/sections'),
       ]);
       const parsed = extractItems(servicesData).map(parseService).filter(Boolean) as ServiceItem[];
       const parsedCategories = extractItems(categoriesData)
         .map(parseServiceCategory)
         .filter(Boolean) as ServiceCategoryItem[];
+      const parsedSections = extractItems(sectionsData)
+        .map(parseServiceSection)
+        .filter(Boolean) as ServiceSectionItem[];
       setServices(parsed);
       setLocalServiceCategories(parsedCategories);
+      setLocalServiceSections(parsedSections);
       return parsed;
     } catch (error) {
       setAppError(toErrorMessage(error));
@@ -180,7 +190,7 @@ export function useDataLoaders({
     } finally {
       setLoadingKey(setLoading, 'services', false);
     }
-  }, [canViewServices, isAuthorized, setAppError, setLoading, setLocalServiceCategories, setServices]);
+  }, [canViewServices, isAuthorized, setAppError, setLoading, setLocalServiceCategories, setLocalServiceSections, setServices]);
 
   const loadStaffServiceMeta = useCallback(
     async (rows: StaffItem[]) => {

@@ -41,6 +41,7 @@ import { TimetableScreen } from './screens/TimetableScreen';
 import { ServiceCategoryEditorScreen } from './screens/ServiceCategoryEditorScreen';
 import { ServiceEditorScreen } from './screens/ServiceEditorScreen';
 import { ServiceProvidersEditorScreen } from './screens/ServiceProvidersEditorScreen';
+import { ServiceSectionEditorScreen } from './screens/ServiceSectionEditorScreen';
 import { ServicesCategoriesScreen } from './screens/ServicesCategoriesScreen';
 import { ServicesCategoryScreen } from './screens/ServicesCategoryScreen';
 import { StaffEditorScreen } from './screens/StaffEditorScreen';
@@ -1079,17 +1080,20 @@ export function AppView({ controller }: AppViewProps) {
         {state.page === 'servicesCategories' || (state.page === 'tabs' && state.tab === 'services') ? (
           <ServicesCategoriesScreen
             categories={state.serviceCategories}
+            sections={state.serviceSections}
             services={state.services}
             search={state.servicesCategorySearch}
             loading={state.loading.services}
             onSearchChange={actions.setServicesCategorySearch}
             onBack={actions.closeServicesPage}
             onCreateCategory={() => actions.openServiceCategoryEditor(null)}
+            onCreateSection={() => actions.openServiceSectionEditor(null)}
             onCreateServiceInCategory={actions.openServiceCreateForCategory}
             onOpenCategory={actions.openServiceCategory}
             onOpenService={actions.openServiceEditor}
             onConfigureService={actions.openServiceProvidersEditor}
             onEditCategory={actions.openServiceCategoryEditor}
+            onEditSection={actions.openServiceSectionEditor}
             onToggleServiceActive={(serviceId, enabled) =>
               actions.toggleServiceActiveInline(serviceId, enabled)
             }
@@ -1114,10 +1118,13 @@ export function AppView({ controller }: AppViewProps) {
             title={state.serviceCategoryEditorName || 'Новая категория'}
             name={state.serviceCategoryEditorName}
             imagePreviewUrl={state.serviceCategoryEditorImagePreviewUrl}
+            sections={state.serviceSections}
+            sectionId={state.serviceCategoryEditorSectionId}
             loading={state.loading.action}
             canDelete={Boolean(state.serviceCategoryEditorId)}
             onBack={actions.closeServiceCategoryEditor}
             onNameChange={actions.setServiceCategoryEditorName}
+            onSectionChange={actions.setServiceCategoryEditorSectionId}
             onImageFilePick={actions.handleSelectServiceCategoryImageFile}
             onImageClear={actions.handleClearServiceCategoryImage}
             onSave={() => {
@@ -1125,6 +1132,25 @@ export function AppView({ controller }: AppViewProps) {
             }}
             onDelete={() => {
               void actions.deleteServiceCategoryEditor();
+            }}
+          />
+        ) : null}
+        {state.page === 'serviceSectionEditor' ? (
+          <ServiceSectionEditorScreen
+            title={state.serviceSectionEditorName || 'Новый раздел'}
+            name={state.serviceSectionEditorName}
+            imagePreviewUrl={state.serviceSectionEditorImagePreviewUrl}
+            loading={state.loading.action}
+            canDelete={Boolean(state.serviceSectionEditorId)}
+            onBack={actions.closeServiceSectionEditor}
+            onNameChange={actions.setServiceSectionEditorName}
+            onImageFilePick={actions.handleSelectServiceSectionImageFile}
+            onImageClear={actions.handleClearServiceSectionImage}
+            onSave={() => {
+              void actions.saveServiceSectionEditor();
+            }}
+            onDelete={() => {
+              void actions.deleteServiceSectionEditor();
             }}
           />
         ) : null}

@@ -37,6 +37,7 @@ const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs' | 'forbidden'>, string> = {
   serviceEditor: '/services/editor',
   serviceProvidersEditor: '/services/providers',
   serviceCategoryEditor: '/services/category/editor',
+  serviceSectionEditor: '/services/section/editor',
 };
 
 export const PUBLIC_UNAUTHORIZED_ROUTES = new Set([
@@ -120,6 +121,8 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'serviceProvidersEditor', tab: 'services' };
     case '/services/category/editor':
       return { page: 'serviceCategoryEditor', tab: 'services' };
+    case '/services/section/editor':
+      return { page: 'serviceSectionEditor', tab: 'services' };
     default:
       return null;
   }

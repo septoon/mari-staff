@@ -3,6 +3,7 @@ import type {
   ClientItem,
   ScheduleInterval,
   ServiceCategoryItem,
+  ServiceSectionItem,
   ServiceItem,
   StaffItem,
 } from './types';
@@ -133,6 +134,7 @@ export function parseServiceCategory(value: unknown): ServiceCategoryItem | null
   }
   const id = toString(record.id);
   const name = toString(record.name);
+  const sectionRecord = toRecord(record.section);
   if (!id || !name) {
     return null;
   }
@@ -145,6 +147,37 @@ export function parseServiceCategory(value: unknown): ServiceCategoryItem | null
       toNullableString(record.imageUrl) ||
       toNullableString(record.photoUrl) ||
       toNullableString(record.pictureUrl),
+    sectionId:
+      toNullableString(record.sectionId) ||
+      toNullableString(sectionRecord?.id),
+    sectionName:
+      toNullableString(sectionRecord?.name) ||
+      null,
+  };
+}
+
+export function parseServiceSection(value: unknown): ServiceSectionItem | null {
+  const record = toRecord(value);
+  if (!record) {
+    return null;
+  }
+  const id = toString(record.id);
+  const name = toString(record.name);
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    imageAssetId: toNullableString(record.imageAssetId),
+    imageUrl:
+      toNullableString(record.imageUrl) ||
+      toNullableString(record.photoUrl) ||
+      toNullableString(record.pictureUrl),
+    orderIndex: toNumber(record.orderIndex) ?? 0,
+    categoriesCount: toNumber(record.categoriesCount) ?? 0,
+    servicesCount: toNumber(record.servicesCount) ?? 0,
   };
 }
 

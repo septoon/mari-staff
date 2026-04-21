@@ -1,45 +1,38 @@
 import { useRef, type ChangeEvent } from 'react';
 import { ArrowLeft, ImagePlus, Trash2, X } from 'lucide-react';
-import type { ServiceSectionItem } from '../types';
 
 const DESKTOP_PANEL_CLASS =
   'rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-6 shadow-[0_18px_40px_rgba(42,49,56,0.08)]';
 const DESKTOP_INPUT_CLASS =
   'h-16 w-full rounded-[24px] border border-[#dce2ea] bg-white px-5 text-[20px] font-semibold text-ink outline-none transition placeholder:text-[#9aa2af] focus:border-[#b7c0cd]';
 
-type ServiceCategoryEditorScreenProps = {
+type ServiceSectionEditorScreenProps = {
   title: string;
   name: string;
   imagePreviewUrl: string;
-  sections: ServiceSectionItem[];
-  sectionId: string | null;
   loading: boolean;
   canDelete: boolean;
   onBack: () => void;
   onNameChange: (value: string) => void;
-  onSectionChange: (value: string | null) => void;
   onImageFilePick: (file: File) => void;
   onImageClear: () => void;
   onSave: () => void;
   onDelete: () => void;
 };
 
-export function ServiceCategoryEditorScreen({
+export function ServiceSectionEditorScreen({
   title,
   name,
   imagePreviewUrl,
-  sections,
-  sectionId,
   loading,
   canDelete,
   onBack,
   onNameChange,
-  onSectionChange,
   onImageFilePick,
   onImageClear,
   onSave,
   onDelete,
-}: ServiceCategoryEditorScreenProps) {
+}: ServiceSectionEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -78,28 +71,12 @@ export function ServiceCategoryEditorScreen({
         </div>
 
         <label className="block rounded-3xl border-[2px] border-line bg-screen px-4 py-3">
-          <span className="mb-1 block text-[14px] font-semibold text-muted">Название категории услуг</span>
+          <span className="mb-1 block text-[14px] font-semibold text-muted">Название раздела услуг</span>
           <input
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             className="w-full bg-transparent text-[22px] font-medium text-ink outline-none"
           />
-        </label>
-
-        <label className="mt-4 block rounded-3xl border-[2px] border-line bg-screen px-4 py-3">
-          <span className="mb-1 block text-[14px] font-semibold text-muted">Раздел</span>
-          <select
-            value={sectionId || ''}
-            onChange={(event) => onSectionChange(event.target.value || null)}
-            className="w-full bg-transparent text-[18px] font-medium text-ink outline-none"
-          >
-            <option value="">Без раздела</option>
-            {sections.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
         </label>
 
         <div className="mt-4">
@@ -109,11 +86,11 @@ export function ServiceCategoryEditorScreen({
             className="flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border-[2px] border-line bg-[#eceff5] text-[#7b8290]"
           >
             {imagePreviewUrl ? (
-              <img src={imagePreviewUrl} alt="Изображение категории" className="h-full w-full object-cover" />
+              <img src={imagePreviewUrl} alt="Изображение раздела" className="h-full w-full object-cover" />
             ) : (
               <div className="text-center">
                 <ImagePlus className="mx-auto h-10 w-10" />
-                <div className="mt-1 text-[16px] font-semibold">Загрузить изображение категории</div>
+                <div className="mt-1 text-[16px] font-semibold">Загрузить изображение раздела</div>
               </div>
             )}
           </button>
@@ -151,12 +128,12 @@ export function ServiceCategoryEditorScreen({
         <section className={DESKTOP_PANEL_CLASS}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Категории услуг</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Разделы услуг</p>
               <h1 className="mt-3 text-[44px] font-extrabold leading-[0.94] tracking-[-0.04em] text-ink">
                 {title}
               </h1>
               <p className="mt-4 max-w-[760px] text-[15px] font-semibold leading-6 text-[#7c8491]">
-                Здесь задается название группы услуг. Это имя помогает быстро находить услуги и держать каталог в порядке.
+                Раздел объединяет несколько категорий на странице `/services` и в staff-навигации.
               </p>
             </div>
 
@@ -196,37 +173,19 @@ export function ServiceCategoryEditorScreen({
           <section className={DESKTOP_PANEL_CLASS}>
             <label className="block">
               <span className="mb-3 block text-sm font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
-                Название категории
+                Название раздела
               </span>
               <input
                 value={name}
                 onChange={(event) => onNameChange(event.target.value)}
                 className={DESKTOP_INPUT_CLASS}
-                placeholder="Например: Маникюр"
+                placeholder="Например: Косметология"
               />
-            </label>
-
-            <label className="mt-5 block">
-              <span className="mb-3 block text-sm font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
-                Раздел
-              </span>
-              <select
-                value={sectionId || ''}
-                onChange={(event) => onSectionChange(event.target.value || null)}
-                className={DESKTOP_INPUT_CLASS}
-              >
-                <option value="">Без раздела</option>
-                {sections.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
             </label>
 
             <div className="mt-5">
               <p className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-[#8d95a1]">
-                Изображение категории
+                Изображение раздела
               </p>
               <button
                 type="button"
@@ -234,11 +193,11 @@ export function ServiceCategoryEditorScreen({
                 className="flex h-64 w-full items-center justify-center overflow-hidden rounded-[28px] border border-[#dce2ea] bg-[#f6f8fb] text-[#7b8290]"
               >
                 {imagePreviewUrl ? (
-                  <img src={imagePreviewUrl} alt="Изображение категории" className="h-full w-full object-cover" />
+                  <img src={imagePreviewUrl} alt="Изображение раздела" className="h-full w-full object-cover" />
                 ) : (
                   <div className="text-center">
                     <ImagePlus className="mx-auto h-10 w-10" />
-                    <div className="mt-3 text-base font-semibold">Загрузить изображение категории</div>
+                    <div className="mt-3 text-base font-semibold">Загрузить изображение раздела</div>
                   </div>
                 )}
               </button>
@@ -261,10 +220,6 @@ export function ServiceCategoryEditorScreen({
                 {imagePreviewUrl ? 'Заменить изображение' : 'Загрузить изображение'}
               </button>
             </div>
-
-            <div className="mt-5 rounded-[24px] bg-[#f6f8fb] px-5 py-4 text-[15px] font-semibold leading-relaxed text-[#5f6773]">
-              Используйте понятное название, по которому администратор сразу поймет, какие услуги лежат внутри категории.
-            </div>
           </section>
 
           <section className={DESKTOP_PANEL_CLASS}>
@@ -277,7 +232,7 @@ export function ServiceCategoryEditorScreen({
                 </p>
               </div>
               <div className="rounded-[24px] bg-[#fffaf0] px-5 py-4 text-[15px] font-semibold leading-relaxed text-[#6f5a23]">
-                Если категория уже используется, новое название сразу отобразится в списке услуг.
+                После сохранения раздел появится в staff и на клиентской странице `/services`.
               </div>
             </div>
           </section>

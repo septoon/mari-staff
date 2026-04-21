@@ -15,21 +15,24 @@ import {
 import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import { PageSheet } from '../components/shared/PageSheet';
 import { formatGroupedRub } from '../helpers';
-import type { ServiceCategoryItem, ServiceItem } from '../types';
+import type { ServiceCategoryItem, ServiceItem, ServiceSectionItem } from '../types';
 
 type ServicesCategoriesScreenProps = {
   categories: ServiceCategoryItem[];
+  sections: ServiceSectionItem[];
   services: ServiceItem[];
   search: string;
   loading: boolean;
   onSearchChange: (value: string) => void;
   onBack: () => void;
   onCreateCategory: () => void;
+  onCreateSection: () => void;
   onCreateServiceInCategory: (categoryId: string) => void;
   onOpenCategory: (categoryId: string) => void;
   onOpenService: (serviceId: string) => void;
   onConfigureService: (serviceId: string) => void;
   onEditCategory: (categoryId: string) => void;
+  onEditSection: (sectionId: string) => void;
   onToggleServiceActive: (serviceId: string, enabled: boolean) => Promise<void>;
 };
 
@@ -79,17 +82,20 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 
 export function ServicesCategoriesScreen({
   categories,
+  sections,
   services,
   search,
   loading,
   onSearchChange,
   onBack,
   onCreateCategory,
+  onCreateSection,
   onCreateServiceInCategory,
   onOpenCategory,
   onOpenService,
   onConfigureService,
   onEditCategory,
+  onEditSection,
   onToggleServiceActive,
 }: ServicesCategoriesScreenProps) {
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
@@ -188,6 +194,23 @@ export function ServicesCategoriesScreen({
     () => categories.reduce((sum: number, item) => sum + item.count, 0),
     [categories],
   );
+  const categoriesBySection = useMemo(() => {
+    const map = new Map<string, ServiceCategoryItem[]>();
+    categories.forEach((item) => {
+      if (!item.sectionId) {
+        return;
+      }
+      const bucket = map.get(item.sectionId) ?? [];
+      bucket.push(item);
+      map.set(item.sectionId, bucket);
+    });
+    map.forEach((items) => items.sort((left, right) => left.name.localeCompare(right.name, 'ru')));
+    return map;
+  }, [categories]);
+  const categoriesWithoutSection = useMemo(
+    () => categories.filter((item) => !item.sectionId),
+    [categories],
+  );
 
   const toggleExpanded = (categoryId: string) => {
     setExpandedCategoryIds((prev) =>
@@ -277,6 +300,23 @@ export function ServicesCategoriesScreen({
         </div>
 
         <ul>
+          {sections.map((section) => (
+            <li key={`section:${section.id}`} className="border-b border-line py-4">
+              <button
+                type="button"
+                onClick={() => onEditSection(section.id)}
+                className="flex w-full items-center justify-between gap-3 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[18px] font-extrabold text-ink">{section.name}</p>
+                  <p className="mt-1 text-[14px] font-medium text-[#6f7682]">
+                    Категорий: {section.categoriesCount} • Услуг: {section.servicesCount}
+                  </p>
+                </div>
+                <Pencil className="h-5 w-5 shrink-0 text-[#7a828f]" />
+              </button>
+            </li>
+          ))}
           {serviceGroups.map((group) => (
             <li key={group.category.id} className="border-b border-line py-4">
               <div className="flex items-center justify-between gap-3">
@@ -285,7 +325,12 @@ export function ServicesCategoriesScreen({
                   onClick={() => onOpenCategory(group.category.id)}
                   className="flex min-w-0 flex-1 items-center justify-between text-left"
                 >
-                  <span className="truncate text-[20px] font-medium text-ink">{group.category.name}</span>
+                  <div className="min-w-0">
+                    <span className="truncate text-[20px] font-medium text-ink">{group.category.name}</span>
+                    {group.category.sectionName ? (
+                      <p className="mt-1 text-[13px] font-semibold text-[#8a94a3]">{group.category.sectionName}</p>
+                    ) : null}
+                  </div>
                   <div className="ml-3 flex items-center gap-2">
                     <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-[#e6e9ef] px-2 text-[16px] font-medium text-[#7a828f]">
                       {group.totalCount}
@@ -341,10 +386,22 @@ export function ServicesCategoriesScreen({
               <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{totalServices}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Разделов</p>
+              <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{sections.length}</p>
+            </div>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#fcfcfd] px-5 py-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Онлайн</p>
               <p className="mt-3 text-[24px] font-extrabold leading-none text-ink">{onlineServicesCount}</p>
             </div>
 
+            <button
+              type="button"
+              onClick={onCreateSection}
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-[24px] border border-line bg-[#fcfcfd] px-4 text-[14px] font-extrabold text-ink"
+            >
+              <Plus className="h-4 w-4" />
+              Создать раздел
+            </button>
             <button
               type="button"
               onClick={exportServicesCsv}
@@ -411,7 +468,7 @@ export function ServicesCategoriesScreen({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
             <label className="flex items-center gap-3 rounded-2xl border border-[#dce2ea] bg-white px-4 py-3 text-muted">
               <Search className="h-5 w-5 text-[#97a0ad]" />
               <input
@@ -428,14 +485,26 @@ export function ServicesCategoriesScreen({
               className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] shadow-[0_12px_26px_rgba(244,201,0,0.28)]"
             >
               <Plus className="h-4 w-4" />
-              Создать
+              Категория
+            </button>
+            <button
+              type="button"
+              onClick={onCreateSection}
+              className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-white px-5 text-sm font-extrabold text-ink"
+            >
+              <Plus className="h-4 w-4" />
+              Раздел
             </button>
           </div>
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-4">
+          <div className="mt-6 grid gap-4 xl:grid-cols-5">
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Категорий</p>
               <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{categories.length}</p>
+            </div>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Разделов</p>
+              <p className="mt-3 text-[34px] font-extrabold leading-none text-ink">{sections.length}</p>
             </div>
             <div className="rounded-[24px] border border-[#e5e9f0] bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Услуг</p>
@@ -452,6 +521,66 @@ export function ServicesCategoriesScreen({
           </div>
         </section>
 
+        {!loading && sections.length > 0 ? (
+          <section className="mt-5 grid gap-4 xl:grid-cols-2">
+            {sections.map((section) => {
+              const linkedCategories = categoriesBySection.get(section.id) ?? [];
+              return (
+                <div
+                  key={section.id}
+                  className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_18px_40px_rgba(42,49,56,0.08)]"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[22px] bg-[#eef2f7]">
+                      {section.imageUrl ? (
+                        <img src={section.imageUrl} alt={section.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[12px] font-bold text-[#8a94a3]">
+                          Нет фото
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[24px] font-extrabold leading-none text-ink">{section.name}</p>
+                          <p className="mt-2 text-sm font-semibold text-[#7d8693]">
+                            Категорий: {section.categoriesCount} • Услуг: {section.servicesCount}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onEditSection(section.id)}
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white text-[#6e7784]"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {linkedCategories.length > 0 ? (
+                          linkedCategories.map((category) => (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => onOpenCategory(category.id)}
+                              className="rounded-full border border-[#dde3eb] bg-white px-3 py-2 text-[13px] font-semibold text-ink"
+                            >
+                              {category.name}
+                            </button>
+                          ))
+                        ) : (
+                          <span className="text-[13px] font-semibold text-[#8a94a3]">Категории еще не привязаны</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        ) : null}
+
         {loading ? (
           <div className="mt-5 animate-pulse space-y-4">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -465,6 +594,23 @@ export function ServicesCategoriesScreen({
 
         {!loading ? (
           <div className="mt-5 space-y-4">
+            {categoriesWithoutSection.length > 0 ? (
+              <section className="rounded-[32px] border border-dashed border-[#d7dde6] bg-[#f8fafc] px-5 py-5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Без раздела</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {categoriesWithoutSection.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => onEditCategory(category.id)}
+                      className="rounded-full border border-[#dde3eb] bg-white px-4 py-2 text-sm font-semibold text-ink"
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             {serviceGroups.map((group) => {
               const expanded = expandedCategoryIds.includes(group.category.id);
               return (
@@ -485,6 +631,7 @@ export function ServicesCategoriesScreen({
                         <p className="truncate text-[28px] font-extrabold leading-none text-ink">{group.category.name}</p>
                         <p className="mt-2 text-sm font-semibold text-[#7d8693]">
                           Содержит услуг: {group.totalCount}
+                          {group.category.sectionName ? ` • ${group.category.sectionName}` : ''}
                         </p>
                       </div>
                     </button>

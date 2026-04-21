@@ -18,6 +18,7 @@ import type {
   JournalSettings,
   ServiceCategoryItem,
   ServiceDraft,
+  ServiceSectionItem,
   ServiceItem,
   StaffCreateRole,
   StaffDraft,
@@ -204,14 +205,22 @@ export function useAppState() {
   const [servicesCategorySearch, setServicesCategorySearch] = useState('');
   const [servicesItemsSearch, setServicesItemsSearch] = useState('');
   const [localServiceCategories, setLocalServiceCategories] = useState<ServiceCategoryItem[]>([]);
+  const [localServiceSections, setLocalServiceSections] = useState<ServiceSectionItem[]>([]);
   const [selectedServiceCategoryId, setSelectedServiceCategoryId] = useState<string | null>(null);
   const [selectedServiceCategoryName, setSelectedServiceCategoryName] = useState('');
   const [serviceCategoryEditorId, setServiceCategoryEditorId] = useState<string | null>(null);
   const [serviceCategoryEditorName, setServiceCategoryEditorName] = useState('');
   const [serviceCategoryEditorImagePreviewUrl, setServiceCategoryEditorImagePreviewUrl] = useState('');
+  const [serviceCategoryEditorSectionId, setServiceCategoryEditorSectionId] = useState<string | null>(null);
   const [serviceCategoryEditorImageAssetId, setServiceCategoryEditorImageAssetId] = useState<string | null>(null);
   const [serviceCategoryEditorImageBlob, setServiceCategoryEditorImageBlob] = useState<Blob | null>(null);
   const [serviceCategoryEditorImageOriginalName, setServiceCategoryEditorImageOriginalName] = useState('category');
+  const [serviceSectionEditorId, setServiceSectionEditorId] = useState<string | null>(null);
+  const [serviceSectionEditorName, setServiceSectionEditorName] = useState('');
+  const [serviceSectionEditorImagePreviewUrl, setServiceSectionEditorImagePreviewUrl] = useState('');
+  const [serviceSectionEditorImageAssetId, setServiceSectionEditorImageAssetId] = useState<string | null>(null);
+  const [serviceSectionEditorImageBlob, setServiceSectionEditorImageBlob] = useState<Blob | null>(null);
+  const [serviceSectionEditorImageOriginalName, setServiceSectionEditorImageOriginalName] = useState('section');
   const [serviceDraft, setServiceDraft] = useState<ServiceDraft>(EMPTY_SERVICE_DRAFT);
   const [serviceEditorReturnPage, setServiceEditorReturnPage] = useState<
     'servicesCategories' | 'servicesCategory'
@@ -245,6 +254,7 @@ export function useAppState() {
   const staffAvatarBlobUrlRef = useRef('');
   const ownerAvatarBlobUrlRef = useRef('');
   const serviceCategoryEditorImageBlobUrlRef = useRef('');
+  const serviceSectionEditorImageBlobUrlRef = useRef('');
   const serviceImageBlobUrlRef = useRef('');
   const [loading, setLoading] = useState<LoadingState>({
     boot: true,
@@ -405,6 +415,8 @@ export function useAppState() {
     setServicesItemsSearch,
     localServiceCategories,
     setLocalServiceCategories,
+    localServiceSections,
+    setLocalServiceSections,
     selectedServiceCategoryId,
     setSelectedServiceCategoryId,
     selectedServiceCategoryName,
@@ -415,12 +427,26 @@ export function useAppState() {
     setServiceCategoryEditorName,
     serviceCategoryEditorImagePreviewUrl,
     setServiceCategoryEditorImagePreviewUrl,
+    serviceCategoryEditorSectionId,
+    setServiceCategoryEditorSectionId,
     serviceCategoryEditorImageAssetId,
     setServiceCategoryEditorImageAssetId,
     serviceCategoryEditorImageBlob,
     setServiceCategoryEditorImageBlob,
     serviceCategoryEditorImageOriginalName,
     setServiceCategoryEditorImageOriginalName,
+    serviceSectionEditorId,
+    setServiceSectionEditorId,
+    serviceSectionEditorName,
+    setServiceSectionEditorName,
+    serviceSectionEditorImagePreviewUrl,
+    setServiceSectionEditorImagePreviewUrl,
+    serviceSectionEditorImageAssetId,
+    setServiceSectionEditorImageAssetId,
+    serviceSectionEditorImageBlob,
+    setServiceSectionEditorImageBlob,
+    serviceSectionEditorImageOriginalName,
+    setServiceSectionEditorImageOriginalName,
     serviceDraft,
     setServiceDraft,
     serviceEditorReturnPage,
@@ -475,6 +501,7 @@ export function useAppState() {
     staffAvatarBlobUrlRef,
     ownerAvatarBlobUrlRef,
     serviceCategoryEditorImageBlobUrlRef,
+    serviceSectionEditorImageBlobUrlRef,
     serviceImageBlobUrlRef,
     loading,
     setLoading,

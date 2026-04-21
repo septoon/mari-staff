@@ -29,7 +29,8 @@ export type AppPage =
   | 'servicesCategory'
   | 'serviceEditor'
   | 'serviceProvidersEditor'
-  | 'serviceCategoryEditor';
+  | 'serviceCategoryEditor'
+  | 'serviceSectionEditor';
 
 export type TabItem = {
   key: TabKey;
@@ -115,6 +116,18 @@ export type ServiceCategoryItem = {
   count: number;
   imageAssetId: string | null;
   imageUrl: string | null;
+  sectionId: string | null;
+  sectionName: string | null;
+};
+
+export type ServiceSectionItem = {
+  id: string;
+  name: string;
+  imageAssetId: string | null;
+  imageUrl: string | null;
+  orderIndex: number;
+  categoriesCount: number;
+  servicesCount: number;
 };
 
 export type ServiceDraft = {
@@ -278,6 +291,7 @@ export type ControllerState = {
   clientsQuery: string;
   services: ServiceItem[];
   serviceCategories: ServiceCategoryItem[];
+  serviceSections: ServiceSectionItem[];
   filteredServiceCategories: ServiceCategoryItem[];
   selectedServiceCategoryId: string | null;
   selectedServiceCategoryName: string;
@@ -288,6 +302,10 @@ export type ControllerState = {
   serviceCategoryEditorId: string | null;
   serviceCategoryEditorName: string;
   serviceCategoryEditorImagePreviewUrl: string;
+  serviceCategoryEditorSectionId: string | null;
+  serviceSectionEditorId: string | null;
+  serviceSectionEditorName: string;
+  serviceSectionEditorImagePreviewUrl: string;
   serviceDraft: ServiceDraft;
   serviceProviders: StaffItem[];
   serviceAssignableStaff: StaffItem[];
@@ -511,12 +529,20 @@ export type ControllerActions = {
   closeServiceCategory: () => void;
   openServiceCategoryEditor: (categoryId: string | null) => void;
   closeServiceCategoryEditor: () => void;
+  openServiceSectionEditor: (sectionId: string | null) => void;
+  closeServiceSectionEditor: () => void;
   openServiceProvidersEditor: (serviceId: string) => void;
   setServiceCategoryEditorName: (value: string) => void;
+  setServiceCategoryEditorSectionId: (value: string | null) => void;
   handleSelectServiceCategoryImageFile: (file: File) => Promise<void>;
   handleClearServiceCategoryImage: () => void;
   saveServiceCategoryEditor: () => Promise<void>;
   deleteServiceCategoryEditor: () => Promise<void>;
+  setServiceSectionEditorName: (value: string) => void;
+  handleSelectServiceSectionImageFile: (file: File) => Promise<void>;
+  handleClearServiceSectionImage: () => void;
+  saveServiceSectionEditor: () => Promise<void>;
+  deleteServiceSectionEditor: () => Promise<void>;
   openServiceEditor: (serviceId: string | null) => void;
   openServiceCreateForCategory: (categoryId: string) => void;
   closeServiceEditor: () => void;
