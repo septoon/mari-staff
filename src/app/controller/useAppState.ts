@@ -183,6 +183,8 @@ export function useAppState() {
   const [scheduleOnlineSlotsBookingStart, setScheduleOnlineSlotsBookingStart] = useState('10:00');
   const [scheduleOnlineSlotsBookingEnd, setScheduleOnlineSlotsBookingEnd] = useState('18:00');
   const [scheduleOnlineSlotsSelectedTimes, setScheduleOnlineSlotsSelectedTimes] = useState<string[]>([]);
+  const [scheduleOnlineSlotsInitialShiftStart, setScheduleOnlineSlotsInitialShiftStart] = useState('10:00');
+  const [scheduleOnlineSlotsInitialShiftEnd, setScheduleOnlineSlotsInitialShiftEnd] = useState('18:00');
   const [scheduleOnlineSlotsInitialBookingStart, setScheduleOnlineSlotsInitialBookingStart] = useState('10:00');
   const [scheduleOnlineSlotsInitialBookingEnd, setScheduleOnlineSlotsInitialBookingEnd] = useState('18:00');
   const [scheduleOnlineSlotsInitialSelectedTimes, setScheduleOnlineSlotsInitialSelectedTimes] = useState<string[]>([]);
@@ -369,6 +371,10 @@ export function useAppState() {
     setScheduleOnlineSlotsBookingEnd,
     scheduleOnlineSlotsSelectedTimes,
     setScheduleOnlineSlotsSelectedTimes,
+    scheduleOnlineSlotsInitialShiftStart,
+    setScheduleOnlineSlotsInitialShiftStart,
+    scheduleOnlineSlotsInitialShiftEnd,
+    setScheduleOnlineSlotsInitialShiftEnd,
     scheduleOnlineSlotsInitialBookingStart,
     setScheduleOnlineSlotsInitialBookingStart,
     scheduleOnlineSlotsInitialBookingEnd,

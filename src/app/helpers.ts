@@ -346,6 +346,10 @@ export function getStaffEmploymentStatus(
   return 'current';
 }
 
+export function isDeletedStaff(staff: Pick<StaffItem, 'deletedAt'>): boolean {
+  return Boolean(staff.deletedAt);
+}
+
 export function staffEmploymentStatusLabel(status: StaffEmploymentStatus): string {
   switch (status) {
     case 'deleted':

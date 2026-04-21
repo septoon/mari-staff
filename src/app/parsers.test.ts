@@ -76,6 +76,7 @@ test('parseScheduleCalendar groups slots by explicit date', () => {
         end: '18:00',
         bookingStart: '10:00',
         bookingEnd: '18:00',
+        bookingSlots: null,
       },
     ],
     '2026-04-04': [
@@ -84,6 +85,7 @@ test('parseScheduleCalendar groups slots by explicit date', () => {
         end: '17:00',
         bookingStart: '11:00',
         bookingEnd: '17:00',
+        bookingSlots: null,
       },
     ],
   });

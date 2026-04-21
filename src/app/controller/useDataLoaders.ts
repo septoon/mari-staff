@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { api } from '../../api';
 import {
+  isDeletedStaff,
   monthRange,
   setLoadingKey,
   toErrorMessage,
@@ -134,7 +135,9 @@ export function useDataLoaders({
       for (const path of candidates) {
         try {
           const data = await api.get<unknown>(path);
-          parsed = extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[];
+          parsed = extractItems(data)
+            .map(parseStaff)
+            .filter((item): item is StaffItem => item !== null && !isDeletedStaff(item));
           if (parsed.length > 0) {
             break;
           }
@@ -550,11 +553,15 @@ export function useDataLoaders({
         setWorkingHoursByStaff({});
         return;
       }
-      let scheduleStaff = staffRows.filter((item) => item.role === 'MASTER' && item.isActive);
+      let scheduleStaff = staffRows.filter(
+        (item) => item.role === 'MASTER' && item.isActive && !isDeletedStaff(item),
+      );
       if (scheduleStaff.length === 0) {
         try {
           const data = await api.get<unknown>('/staff?page=1&limit=200&role=MASTER&isActive=true');
-          const parsed = extractItems(data).map(parseStaff).filter(Boolean) as StaffItem[];
+          const parsed = extractItems(data)
+            .map(parseStaff)
+            .filter((item): item is StaffItem => item !== null && !isDeletedStaff(item));
           if (parsed.length > 0) {
             scheduleStaff = parsed;
           }

@@ -23,6 +23,7 @@ import {
   appointmentMatchesClient,
   formatTime,
   getStaffEmploymentStatus,
+  isDeletedStaff,
   getWeekDates,
   normalizePhoneForLink,
   normalizePhoneForWhatsApp,
@@ -339,6 +340,10 @@ export function useAppController(): AppController {
     setScheduleOnlineSlotsBookingEnd,
     scheduleOnlineSlotsSelectedTimes,
     setScheduleOnlineSlotsSelectedTimes,
+    scheduleOnlineSlotsInitialShiftStart,
+    setScheduleOnlineSlotsInitialShiftStart,
+    scheduleOnlineSlotsInitialShiftEnd,
+    setScheduleOnlineSlotsInitialShiftEnd,
     scheduleOnlineSlotsInitialBookingStart,
     setScheduleOnlineSlotsInitialBookingStart,
     scheduleOnlineSlotsInitialBookingEnd,
@@ -567,6 +572,9 @@ export function useAppController(): AppController {
       if (nextPage === 'journalSettings') {
         return !isMaster || canEdit(EDIT_PERMISSION.journal);
       }
+      if (nextPage === 'timetable') {
+        return canViewSchedule || canViewJournal;
+      }
       if (
         nextPage === 'journalDayEdit' ||
         nextPage === 'journalDayRemove' ||
@@ -617,7 +625,7 @@ export function useAppController(): AppController {
   const staffWithServices = useMemo(() => {
     const hasServiceMeta = Object.keys(staffServiceCounts).length > 0;
     return staff.filter((item) => {
-      if (!item.isActive || item.role === 'OWNER') {
+      if (!item.isActive || item.role === 'OWNER' || isDeletedStaff(item)) {
         return false;
       }
       if (!hasServiceMeta) {
@@ -634,44 +642,8 @@ export function useAppController(): AppController {
     return staffWithServices;
   }, [staffWithServices]);
   const journalStaff = useMemo(() => {
-    if (appointments.length === 0) {
-      return visibleStaff;
-    }
-    const merged = [...visibleStaff];
-    const seenIds = new Set(visibleStaff.map((item) => item.id));
-    const seenNames = new Set(
-      visibleStaff.map((item) => item.name.trim().toLowerCase()).filter(Boolean),
-    );
-
-    appointments.forEach((item) => {
-      const staffName = item.staffName.trim() || 'Специалист';
-      const normalizedName = staffName.toLowerCase();
-      const rawStaffId = item.staffId.trim();
-      const staffId = rawStaffId || `appointment-staff:${normalizedName}`;
-      if (seenIds.has(staffId) || seenNames.has(normalizedName)) {
-        return;
-      }
-      merged.push({
-        id: staffId,
-        name: staffName,
-        role: 'MASTER',
-        phoneE164: '',
-        email: null,
-        receivesAllAppointmentNotifications: false,
-        avatarUrl: null,
-        avatarAssetId: null,
-        isActive: true,
-        hiredAt: null,
-        firedAt: null,
-        deletedAt: null,
-        positionName: null,
-      });
-      seenIds.add(staffId);
-      seenNames.add(normalizedName);
-    });
-
-    return merged;
-  }, [appointments, visibleStaff]);
+    return visibleStaff;
+  }, [visibleStaff]);
   const journalVisibleStaffIdsKey = useMemo(
     () => journalStaff.map((item) => item.id).join('|'),
     [journalStaff],
@@ -714,7 +686,7 @@ export function useAppController(): AppController {
   }, [appointments]);
 
   const filteredStaff = useMemo(() => {
-    const withoutOwner = staff.filter((item) => item.role !== 'OWNER');
+    const withoutOwner = staff.filter((item) => item.role !== 'OWNER' && !isDeletedStaff(item));
     const filteredByFlags = withoutOwner.filter((item) => {
       if (
         staffFilter.employmentStatus !== 'all' &&
@@ -4374,6 +4346,8 @@ export function useAppController(): AppController {
       setScheduleOnlineSlotsSelectedTimes(normalizedSelectedTimes);
 
       if (options?.persistInitial) {
+        setScheduleOnlineSlotsInitialShiftStart(input.shiftStart);
+        setScheduleOnlineSlotsInitialShiftEnd(input.shiftEnd);
         setScheduleOnlineSlotsInitialBookingStart(input.bookingStart);
         setScheduleOnlineSlotsInitialBookingEnd(input.bookingEnd);
         setScheduleOnlineSlotsInitialSelectedTimes(normalizedSelectedTimes);
@@ -4384,6 +4358,8 @@ export function useAppController(): AppController {
       setScheduleOnlineSlotsBookingEnd,
       setScheduleOnlineSlotsBookingStart,
       setScheduleOnlineSlotsDate,
+      setScheduleOnlineSlotsInitialShiftEnd,
+      setScheduleOnlineSlotsInitialShiftStart,
       setScheduleOnlineSlotsInitialBookingEnd,
       setScheduleOnlineSlotsInitialBookingStart,
       setScheduleOnlineSlotsInitialSelectedTimes,
@@ -4527,17 +4503,18 @@ export function useAppController(): AppController {
 
     setLoadingKey(setLoading, 'action', true);
     try {
-      const intervals = await fetchStaffDailySchedule(item.id, date);
-      if (intervals.length === 0) {
-        setToast('На выбранный день нет графика');
-        return;
-      }
+      const dailyIntervals = await fetchStaffDailySchedule(item.id, date);
+      const fallbackIntervals = workingHoursByStaff[item.id]?.[toISODate(date)] ?? [];
+      const intervals = dailyIntervals.length > 0 ? dailyIntervals : fallbackIntervals;
+
       if (intervals.length > 1) {
         setToast('Для дня с несколькими интервалами используйте редактирование дня');
         return;
       }
+      const interval = intervals[0] ?? createScheduleInterval();
+      const selectedTimes =
+        interval.bookingSlots ?? buildBookingSlotTimes(interval.bookingStart, interval.bookingEnd);
 
-      const interval = intervals[0]!;
       applyScheduleOnlineSlotsDraft(
         {
           staff: item,
@@ -4546,8 +4523,7 @@ export function useAppController(): AppController {
           shiftEnd: interval.end,
           bookingStart: interval.bookingStart,
           bookingEnd: interval.bookingEnd,
-          selectedTimes:
-            interval.bookingSlots ?? buildBookingSlotTimes(interval.bookingStart, interval.bookingEnd),
+          selectedTimes,
         },
         { persistInitial: true },
       );
@@ -4560,6 +4536,14 @@ export function useAppController(): AppController {
 
   const closeScheduleOnlineSlots = () => {
     resetScheduleOnlineSlotsState();
+  };
+
+  const handleScheduleOnlineSlotsShiftStartChange = (value: string) => {
+    setScheduleOnlineSlotsShiftStart(value);
+  };
+
+  const handleScheduleOnlineSlotsShiftEndChange = (value: string) => {
+    setScheduleOnlineSlotsShiftEnd(value);
   };
 
   const handleScheduleOnlineSlotsBookingStartChange = (value: string) => {
@@ -4627,8 +4611,8 @@ export function useAppController(): AppController {
       {
         staff: scheduleOnlineSlotsStaff,
         date: scheduleOnlineSlotsDate,
-        shiftStart: scheduleOnlineSlotsShiftStart,
-        shiftEnd: scheduleOnlineSlotsShiftEnd,
+        shiftStart: scheduleOnlineSlotsInitialShiftStart,
+        shiftEnd: scheduleOnlineSlotsInitialShiftEnd,
         bookingStart: scheduleOnlineSlotsInitialBookingStart,
         bookingEnd: scheduleOnlineSlotsInitialBookingEnd,
         selectedTimes: scheduleOnlineSlotsInitialSelectedTimes,
@@ -4647,6 +4631,8 @@ export function useAppController(): AppController {
       return;
     }
     if (
+      !isValidTime(scheduleOnlineSlotsShiftStart) ||
+      !isValidTime(scheduleOnlineSlotsShiftEnd) ||
       !isValidTime(scheduleOnlineSlotsBookingStart) ||
       !isValidTime(scheduleOnlineSlotsBookingEnd)
     ) {
@@ -4677,7 +4663,7 @@ export function useAppController(): AppController {
     );
 
     if (!isScheduleIntervalValid(interval)) {
-      setToast('Некорректные слоты онлайн-записи');
+      setToast('Некорректное время онлайн-записи');
       return;
     }
 
@@ -4685,7 +4671,7 @@ export function useAppController(): AppController {
     try {
       await putStaffDailySchedule(scheduleOnlineSlotsStaff.id, scheduleOnlineSlotsDate, [interval]);
       await loadWorkingHours(staff);
-      setToast('Слоты онлайн-записи сохранены');
+      setToast('Время онлайн-записи сохранено');
       closeScheduleOnlineSlots();
     } catch (error) {
       setToast(toErrorMessage(error));
@@ -4793,6 +4779,31 @@ export function useAppController(): AppController {
       await loadWorkingHours(staff);
       setScheduleEditorDays([]);
       setToast(page === 'tabs' ? 'График на день очищен' : 'График очищен');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const clearScheduleDayForStaff = async (item: StaffItem) => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
+    if (!item.id) {
+      return;
+    }
+    const confirmed = window.confirm(`Убрать ${item.name} из графика на ${toISODate(selectedDate)}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await putStaffDailySchedule(item.id, selectedDate, []);
+      await loadWorkingHours(staff);
+      setToast('Рабочий день отменен');
     } catch (error) {
       setToast(toErrorMessage(error));
     } finally {
@@ -4965,6 +4976,16 @@ export function useAppController(): AppController {
       loadJournalListAppointments(),
       loadJournalMarkedDates(selectedDate),
     ]);
+  };
+
+  const openTimetableForDate = (value: Date) => {
+    if (!canViewSchedule && !canViewJournal) {
+      setToast('Нет доступа к расписанию');
+      return;
+    }
+    setSelectedDate(value);
+    setPage('timetable');
+    setTab(canViewSchedule ? 'schedule' : 'journal');
   };
 
   const loadClientsByDebouncedQuery = async () => {
@@ -5153,6 +5174,7 @@ export function useAppController(): AppController {
       refreshAll,
       refreshSchedule,
       loadAppointmentsForSelectedDate,
+      openTimetableForDate,
       loadClientsByDebouncedQuery,
       resetAndLoadClients,
       openStaffCreate,
@@ -5216,8 +5238,11 @@ export function useAppController(): AppController {
       applyScheduleEditorPreset,
       saveScheduleEditor,
       clearScheduleEditor,
+      clearScheduleDayForStaff,
       openScheduleOnlineSlotsForStaff,
       closeScheduleOnlineSlots,
+      setScheduleOnlineSlotsShiftStart: handleScheduleOnlineSlotsShiftStartChange,
+      setScheduleOnlineSlotsShiftEnd: handleScheduleOnlineSlotsShiftEndChange,
       setScheduleOnlineSlotsBookingStart: handleScheduleOnlineSlotsBookingStartChange,
       setScheduleOnlineSlotsBookingEnd: handleScheduleOnlineSlotsBookingEndChange,
       toggleScheduleOnlineSlotTime,

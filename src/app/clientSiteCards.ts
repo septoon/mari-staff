@@ -180,7 +180,7 @@ const DEFAULT_LOCATIONS: SiteLocationRecord[] = [
     imageAssetId: '',
     serviceSlugs: ['silk-recovery', 'architect-manicure', 'spa-pedicure', 'brow-sculpt', 'laser-comfort', 'wax-ritual'],
     masterSlugs: ['sofia-levina', 'alisa-gromova', 'vera-soboleva', 'ira-melnik'],
-    features: ['easy access parking', 'домашняя камерная атмосфера', 'быстрые утренние слоты'],
+    features: ['easy access parking', 'домашняя камерная атмосфера', 'быстрое утреннее время'],
     interiorMoments: [
       { title: 'Garden-light интерьер', description: 'Тёплая палитра, мягкие ткани и много воздуха.' },
       { title: 'Быстрый сервис без спешки', description: 'Филиал собран для тех, кто хочет качество в удобном ежедневном ритме.' }

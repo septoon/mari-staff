@@ -459,7 +459,7 @@ export function JournalScreen({
                       <div>
                         <p className="text-[18px] font-bold leading-tight text-ink">{card.staffName}</p>
                         <p className="mt-2 text-sm font-semibold text-[#838b97]">
-                          {card.topTone === 'green' ? 'Свободный слот' : 'Плотная загрузка'}
+                          {card.topTone === 'green' ? 'Свободное время' : 'Плотная загрузка'}
                         </p>
                       </div>
 

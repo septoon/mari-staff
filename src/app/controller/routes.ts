@@ -15,6 +15,7 @@ const TAB_ROUTE_MAP: Record<TabKey, string> = {
 };
 
 const PAGE_ROUTE_MAP: Record<Exclude<AppPage, 'tabs' | 'forbidden'>, string> = {
+  timetable: '/timetable',
   scheduleEditor: '/schedule/editor',
   staff: '/staff',
   owner: '/profile',
@@ -68,6 +69,8 @@ export function routeToState(pathname: string): RouteState | null {
       return { page: 'tabs', tab: 'journal' };
     case '/schedule':
       return { page: 'tabs', tab: 'schedule' };
+    case '/timetable':
+      return { page: 'timetable', tab: 'schedule' };
     case '/schedule/editor':
       return { page: 'scheduleEditor', tab: 'schedule' };
     case '/clients':

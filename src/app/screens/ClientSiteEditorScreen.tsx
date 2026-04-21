@@ -4580,7 +4580,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <InlineImageField
                   label="Фото визуала"
                   previewUrl={assetUrlMap[homePageDraft.hero.visualImageAssetId] ?? ''}
-                  placeholder="Этот слот отображается в правом hero-блоке главной страницы."
+                  placeholder="Этот блок отображается в правом hero-блоке главной страницы."
                   busy={busyKey === 'home-hero-image'}
                   onSelect={(file) => {
                     void uploadHomeHeroVisualImage(file);
@@ -6123,7 +6123,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             <article className="rounded-[24px] border border-line bg-white px-4 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-[20px] font-extrabold text-ink">Дата, мастер и слоты</h3>
+                  <h3 className="text-[20px] font-extrabold text-ink">Дата, мастер и время</h3>
                   <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
                     Подписи и подсказки для блока выбора даты, мастера и свободного времени.
                   </p>
@@ -6145,7 +6145,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <TextField label="Лейбл поля мастера" value={bookingPageDraft.schedule.masterLabel} onChange={(value) => updateBookingPageField('schedule', 'masterLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.masterLabel} />
                 <TextField label="Опция любого мастера" value={bookingPageDraft.schedule.anyMasterLabel} onChange={(value) => updateBookingPageField('schedule', 'anyMasterLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.anyMasterLabel} />
                 <TextField label="Лейбл ручной даты" value={bookingPageDraft.schedule.manualDateLabel} onChange={(value) => updateBookingPageField('schedule', 'manualDateLabel', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.manualDateLabel} />
-                <TextField label="Подсказка первого слота" value={bookingPageDraft.schedule.dateHintFirstSlotTemplate} onChange={(value) => updateBookingPageField('schedule', 'dateHintFirstSlotTemplate', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.dateHintFirstSlotTemplate} />
+                <TextField label="Подсказка первого времени" value={bookingPageDraft.schedule.dateHintFirstSlotTemplate} onChange={(value) => updateBookingPageField('schedule', 'dateHintFirstSlotTemplate', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.dateHintFirstSlotTemplate} />
                 <TextField label="Подсказка количества окон" value={bookingPageDraft.schedule.dateHintSlotsTemplate} onChange={(value) => updateBookingPageField('schedule', 'dateHintSlotsTemplate', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.dateHintSlotsTemplate} />
                 <TextField label="Сообщение, когда окон нет" value={bookingPageDraft.schedule.slotsEmptyResults} onChange={(value) => updateBookingPageField('schedule', 'slotsEmptyResults', value)} placeholder={SITE_BOOKING_PAGE_DEFAULTS.schedule.slotsEmptyResults} />
               </div>
@@ -6284,7 +6284,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                         <InlineImageField
                           label="Фото шапки"
                           previewUrl={assetUrlMap[draft.imageAssetId] ?? ''}
-                          placeholder="Этот слот отображается справа в PageHero на клиентском сайте."
+                          placeholder="Этот блок отображается справа в PageHero на клиентском сайте."
                           busy={busyKey === `page-hero-image:${definition.key}`}
                           onSelect={(file) => {
                             void uploadPageHeroImage(definition.key, file);

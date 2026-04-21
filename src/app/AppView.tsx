@@ -37,6 +37,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { SettingsNotificationsScreen } from './screens/SettingsNotificationsScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { ScheduleEditorScreen } from './screens/ScheduleEditorScreen';
+import { TimetableScreen } from './screens/TimetableScreen';
 import { ServiceCategoryEditorScreen } from './screens/ServiceCategoryEditorScreen';
 import { ServiceEditorScreen } from './screens/ServiceEditorScreen';
 import { ServiceProvidersEditorScreen } from './screens/ServiceProvidersEditorScreen';
@@ -538,7 +539,7 @@ export function AppView({ controller }: AppViewProps) {
               <JournalMiniCalendar
                 selectedDate={state.selectedDate}
                 markedDates={desktopRailMarkedDates}
-                onSelectDate={actions.setSelectedDate}
+                onSelectDate={actions.openTimetableForDate}
               />
             </div>
           </div>
@@ -902,6 +903,8 @@ export function AppView({ controller }: AppViewProps) {
               void actions.openScheduleOnlineSlotsForStaff(item, date);
             }}
             onCloseOnlineSlots={actions.closeScheduleOnlineSlots}
+            onOnlineSlotsShiftStartChange={actions.setScheduleOnlineSlotsShiftStart}
+            onOnlineSlotsShiftEndChange={actions.setScheduleOnlineSlotsShiftEnd}
             onOnlineSlotsBookingStartChange={actions.setScheduleOnlineSlotsBookingStart}
             onOnlineSlotsBookingEndChange={actions.setScheduleOnlineSlotsBookingEnd}
             onToggleOnlineSlotTime={actions.toggleScheduleOnlineSlotTime}
@@ -913,6 +916,43 @@ export function AppView({ controller }: AppViewProps) {
               void actions.saveScheduleOnlineSlots();
             }}
             onSelectDate={actions.setSelectedDate}
+            onOpenTimetable={actions.openTimetableForDate}
+          />
+        ) : null}
+        {state.page === 'timetable' ? (
+          <TimetableScreen
+            selectedDate={state.selectedDate}
+            staff={state.journalStaff}
+            visibleStaff={state.visibleStaff}
+            appointments={state.appointments}
+            hoursByStaff={state.workingHoursByStaff}
+            loading={state.loading.appointments || state.loading.schedule || state.loading.action}
+            backLabel={state.visibleTabs.some((item) => item.key === 'schedule') ? 'К графику' : 'К журналу'}
+            onSelectDate={actions.openTimetableForDate}
+            onReload={() => {
+              void actions.loadAppointmentsForSelectedDate();
+            }}
+            onBack={() => {
+              actions.handleTabChange(
+                state.visibleTabs.some((item) => item.key === 'schedule') ? 'schedule' : 'journal',
+              );
+            }}
+            onOpenAppointment={actions.handleOpenJournalAppointment}
+            onOpenDayEditor={(item: StaffItem) => {
+              void actions.openScheduleEditorForStaff(item, {
+                presentation: 'panel',
+                focusDate: state.selectedDate,
+              });
+            }}
+            onOpenTemplateEditor={(item: StaffItem) => {
+              void actions.openScheduleEditorForStaff(item);
+            }}
+            onRemoveDay={(item: StaffItem) => {
+              void actions.clearScheduleDayForStaff(item);
+            }}
+            onOpenOnlineSlots={(item: StaffItem) => {
+              void actions.openScheduleOnlineSlotsForStaff(item, state.selectedDate);
+            }}
           />
         ) : null}
         {state.page === 'scheduleEditor' ? (

@@ -8,6 +8,7 @@ export type TabKey = 'journal' | 'schedule' | 'clients' | 'analytics' | 'service
 export type AppPage =
   | 'tabs'
   | 'forbidden'
+  | 'timetable'
   | 'scheduleEditor'
   | 'staff'
   | 'owner'
@@ -446,6 +447,7 @@ export type ControllerActions = {
     contacts: Array<{ name: string; phone: string }>,
   ) => Promise<{ imported: number; skipped: number }>;
   handleSetDate: () => void;
+  openTimetableForDate: (value: Date) => void;
   handleCreateAppointment: () => Promise<void>;
   closeJournalCreatePage: () => void;
   saveJournalCreateAppointment: () => Promise<void>;
@@ -465,8 +467,11 @@ export type ControllerActions = {
   applyScheduleEditorPreset: (value: string) => void;
   saveScheduleEditor: () => Promise<void>;
   clearScheduleEditor: () => Promise<void>;
+  clearScheduleDayForStaff: (item: StaffItem) => Promise<void>;
   openScheduleOnlineSlotsForStaff: (item: StaffItem, date: Date) => Promise<void>;
   closeScheduleOnlineSlots: () => void;
+  setScheduleOnlineSlotsShiftStart: (value: string) => void;
+  setScheduleOnlineSlotsShiftEnd: (value: string) => void;
   setScheduleOnlineSlotsBookingStart: (value: string) => void;
   setScheduleOnlineSlotsBookingEnd: (value: string) => void;
   toggleScheduleOnlineSlotTime: (value: string) => void;

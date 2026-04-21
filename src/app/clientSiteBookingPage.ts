@@ -92,7 +92,7 @@ export const SITE_BOOKING_PAGE_DEFAULTS: SiteBookingPageDraft = {
     availabilityBadge: 'Свободное время онлайн',
     title: 'Соберите визит без хаоса.',
     description:
-      'Добавьте услуги, выберите мастера и слот, затем подтвердите запись. Вся форма теперь работает как единый поток и не разваливается на мобильных и широких экранах.',
+      'Добавьте услуги, выберите мастера и время, затем подтвердите запись. Вся форма теперь работает как единый поток и не разваливается на мобильных и широких экранах.',
     cartEyebrow: 'Корзина услуг',
     cartDescription:
       'Выбирайте услуги в каталоге ниже. Корзина, длительность и итоговая стоимость обновляются сразу.',
@@ -120,10 +120,10 @@ export const SITE_BOOKING_PAGE_DEFAULTS: SiteBookingPageDraft = {
     dateHintLoading: 'Проверяем доступность',
     dateHintFirstSlotTemplate: 'Первое окно с {time}',
     dateHintSlotsTemplate: 'Окон: {count}',
-    dateHintNoSlots: 'Свободных окон на этот день нет',
+    dateHintNoSlots: 'Свободного времени на этот день нет',
     slotsTitle: 'Свободное время',
     slotsDescription:
-      'Показываем только слоты, подходящие под состав услуг и выбранную дату.',
+      'Показываем только время, подходящее под состав услуг и выбранную дату.',
     slotsEmptyServices: 'Сначала добавьте услуги в корзину.',
     slotsEmptyResults: 'На выбранную дату свободных окон пока нет.',
     noWindowsLabel: 'Нет окон'
@@ -149,7 +149,7 @@ export const SITE_BOOKING_PAGE_DEFAULTS: SiteBookingPageDraft = {
     summaryTimeLabel: 'Время',
     summaryPriceLabel: 'К оплате',
     summaryServicesEmpty: 'Услуги пока не выбраны',
-    summarySlotEmpty: 'Слот пока не выбран',
+    summarySlotEmpty: 'Время пока не выбрано',
     discountSummaryTemplate: 'Постоянная скидка: -{discount}%',
     basePriceTemplate: 'Без скидки: {price}',
     promoPriorityNotice: 'Если промокод сработает, он заменит постоянную скидку.',
