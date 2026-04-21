@@ -28,6 +28,7 @@ type ServicesCategoriesScreenProps = {
   onCreateCategory: () => void;
   onCreateSection: () => void;
   onCreateServiceInCategory: (categoryId: string) => void;
+  onOpenSection: (sectionId: string) => void;
   onOpenCategory: (categoryId: string) => void;
   onOpenService: (serviceId: string) => void;
   onConfigureService: (serviceId: string) => void;
@@ -91,6 +92,7 @@ export function ServicesCategoriesScreen({
   onCreateCategory,
   onCreateSection,
   onCreateServiceInCategory,
+  onOpenSection,
   onOpenCategory,
   onOpenService,
   onConfigureService,
@@ -117,9 +119,26 @@ export function ServicesCategoriesScreen({
     });
     return map;
   }, [services]);
+  const categoriesBySection = useMemo(() => {
+    const map = new Map<string, ServiceCategoryItem[]>();
+    categories.forEach((item) => {
+      if (!item.sectionId) {
+        return;
+      }
+      const bucket = map.get(item.sectionId) ?? [];
+      bucket.push(item);
+      map.set(item.sectionId, bucket);
+    });
+    map.forEach((items) => items.sort((left, right) => left.name.localeCompare(right.name, 'ru')));
+    return map;
+  }, [categories]);
+  const categoriesWithoutSection = useMemo(
+    () => categories.filter((item) => !item.sectionId),
+    [categories],
+  );
 
   const serviceGroups = useMemo<ServiceGroup[]>(() => {
-    return categories
+    return categoriesWithoutSection
       .map((category) => {
         const categoryServices = servicesByCategory.get(category.id) ?? [];
         const categoryMatches =
@@ -152,7 +171,7 @@ export function ServicesCategoriesScreen({
           group.category.name.toLowerCase().includes(normalizedQuery) ||
           group.services.length > 0,
       );
-  }, [categories, normalizedQuery, servicesByCategory]);
+  }, [categoriesWithoutSection, normalizedQuery, servicesByCategory]);
 
   useEffect(() => {
     if (serviceGroups.length === 0) {
@@ -192,23 +211,6 @@ export function ServicesCategoriesScreen({
       : 0;
   const totalCount = useMemo<number>(
     () => categories.reduce((sum: number, item) => sum + item.count, 0),
-    [categories],
-  );
-  const categoriesBySection = useMemo(() => {
-    const map = new Map<string, ServiceCategoryItem[]>();
-    categories.forEach((item) => {
-      if (!item.sectionId) {
-        return;
-      }
-      const bucket = map.get(item.sectionId) ?? [];
-      bucket.push(item);
-      map.set(item.sectionId, bucket);
-    });
-    map.forEach((items) => items.sort((left, right) => left.name.localeCompare(right.name, 'ru')));
-    return map;
-  }, [categories]);
-  const categoriesWithoutSection = useMemo(
-    () => categories.filter((item) => !item.sectionId),
     [categories],
   );
 
@@ -304,7 +306,7 @@ export function ServicesCategoriesScreen({
             <li key={`section:${section.id}`} className="border-b border-line py-4">
               <button
                 type="button"
-                onClick={() => onEditSection(section.id)}
+                onClick={() => onOpenSection(section.id)}
                 className="flex w-full items-center justify-between gap-3 text-left"
               >
                 <div className="min-w-0 flex-1">
@@ -428,11 +430,11 @@ export function ServicesCategoriesScreen({
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d95a1]">Настройки</p>
               <h1 className="mt-3 text-[44px] font-extrabold leading-[0.94] tracking-[-0.04em] text-ink">
-                Категории услуг
+                Разделы и категории услуг
               </h1>
               <p className="mt-4 max-w-[700px] text-[15px] font-semibold leading-6 text-[#7c8491]">
-                Управление категориями и услугами в одном месте: поиск, раскрытие категорий,
-                inline-переключение онлайн-записи и быстрый переход в редактор.
+                На первом экране показываем разделы и только те категории, которые не входят ни в
+                один раздел. Дальше навигация идет по цепочке: раздел, категория, услуга.
               </p>
             </div>
 
@@ -573,6 +575,14 @@ export function ServicesCategoriesScreen({
                           <span className="text-[13px] font-semibold text-[#8a94a3]">Категории еще не привязаны</span>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => onOpenSection(section.id)}
+                        className="mt-4 inline-flex items-center gap-2 text-sm font-extrabold text-ink"
+                      >
+                        Открыть раздел
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 </div>

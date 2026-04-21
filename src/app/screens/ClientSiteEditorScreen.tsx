@@ -2229,6 +2229,21 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }));
   };
 
+  const updateHomePageCategoriesItemsLimit = (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    const nextValue = Number.isFinite(parsed)
+      ? Math.min(12, Math.max(1, Math.trunc(parsed)))
+      : SITE_HOME_PAGE_DEFAULTS.categories.itemsLimit;
+
+    setHomePageDraft((prev) => ({
+      ...prev,
+      categories: {
+        ...prev.categories,
+        itemsLimit: nextValue,
+      },
+    }));
+  };
+
   const resetHomePageSection = (section: HomePageObjectSectionKey) => {
     setHomePageDraft((prev) => ({
       ...prev,
@@ -4616,7 +4631,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <div>
                   <h3 className="text-[20px] font-extrabold text-ink">Популярные направления</h3>
                   <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                    Заголовки секции с карточками категорий. Сами категории подтягиваются из каталога услуг.
+                    Блок с карточками самых популярных услуг. Количество карточек можно настроить.
                   </p>
                 </div>
                 <button
@@ -4643,6 +4658,12 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <TextField label="Кнопка" value={homePageDraft.categories.actionLabel} onChange={(value) => updateHomePageField('categories', 'actionLabel', value)} />
                 <TextField label="Заголовок" value={homePageDraft.categories.title} onChange={(value) => updateHomePageField('categories', 'title', value)} />
                 <TextAreaField label="Описание" value={homePageDraft.categories.description} onChange={(value) => updateHomePageField('categories', 'description', value)} rows={4} />
+                <TextField
+                  label="Количество услуг"
+                  value={String(homePageDraft.categories.itemsLimit)}
+                  onChange={updateHomePageCategoriesItemsLimit}
+                  type="number"
+                />
               </div>
             </article>
 

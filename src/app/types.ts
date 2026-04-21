@@ -26,6 +26,7 @@ export type AppPage =
   | 'journalDayRemove'
   | 'clientSiteEditor'
   | 'servicesCategories'
+  | 'servicesSection'
   | 'servicesCategory'
   | 'serviceEditor'
   | 'serviceProvidersEditor'
@@ -295,6 +296,9 @@ export type ControllerState = {
   filteredServiceCategories: ServiceCategoryItem[];
   selectedServiceCategoryId: string | null;
   selectedServiceCategoryName: string;
+  selectedServiceSectionId: string | null;
+  selectedServiceSectionName: string;
+  filteredSelectedSectionCategories: ServiceCategoryItem[];
   selectedCategoryServices: ServiceItem[];
   filteredSelectedCategoryServices: ServiceItem[];
   servicesCategorySearch: string;
@@ -527,6 +531,8 @@ export type ControllerActions = {
   closeClientSiteEditor: () => void;
   openServiceCategory: (categoryId: string) => void;
   closeServiceCategory: () => void;
+  openServiceSection: (sectionId: string) => void;
+  closeServiceSection: () => void;
   openServiceCategoryEditor: (categoryId: string | null) => void;
   closeServiceCategoryEditor: () => void;
   openServiceSectionEditor: (sectionId: string | null) => void;

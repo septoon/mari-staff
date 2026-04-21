@@ -377,6 +377,10 @@ export function useAppController(): AppController {
     setLocalServiceCategories,
     localServiceSections,
     setLocalServiceSections,
+    selectedServiceSectionId,
+    setSelectedServiceSectionId,
+    selectedServiceSectionName,
+    setSelectedServiceSectionName,
     selectedServiceCategoryId,
     setSelectedServiceCategoryId,
     selectedServiceCategoryName,
@@ -805,6 +809,20 @@ export function useAppController(): AppController {
     return serviceCategories.filter((item) => item.name.toLowerCase().includes(query));
   }, [serviceCategories, servicesCategorySearch]);
 
+  const filteredSelectedSectionCategories = useMemo(() => {
+    if (!selectedServiceSectionId) {
+      return [] as ServiceCategoryItem[];
+    }
+    const query = servicesItemsSearch.trim().toLowerCase();
+    const selected = serviceCategories
+      .filter((item) => item.sectionId === selectedServiceSectionId)
+      .sort((left, right) => left.name.localeCompare(right.name, 'ru'));
+    if (!query) {
+      return selected;
+    }
+    return selected.filter((item) => item.name.toLowerCase().includes(query));
+  }, [selectedServiceSectionId, serviceCategories, servicesItemsSearch]);
+
   const selectedCategoryServices = useMemo(() => {
     if (!selectedServiceCategoryId) {
       return [] as ServiceItem[];
@@ -928,6 +946,27 @@ export function useAppController(): AppController {
     setServiceImageOriginalName,
     setServiceImagePreviewUrl,
     setServiceImageWebpBlob,
+  ]);
+
+  useEffect(() => {
+    if (!selectedServiceSectionId) {
+      return;
+    }
+    const found = serviceSections.find((item) => item.id === selectedServiceSectionId);
+    if (!found) {
+      setSelectedServiceSectionId(null);
+      setSelectedServiceSectionName('');
+      return;
+    }
+    if (found.name !== selectedServiceSectionName) {
+      setSelectedServiceSectionName(found.name);
+    }
+  }, [
+    selectedServiceSectionId,
+    selectedServiceSectionName,
+    serviceSections,
+    setSelectedServiceSectionId,
+    setSelectedServiceSectionName,
   ]);
 
   useEffect(() => {
@@ -3444,6 +3483,8 @@ export function useAppController(): AppController {
   const openServicesPage = async () => {
     setServicesCategorySearch('');
     setServicesItemsSearch('');
+    setSelectedServiceSectionId(null);
+    setSelectedServiceSectionName('');
     setSelectedServiceCategoryId(null);
     setSelectedServiceCategoryName('');
     setTab('services');
@@ -3461,8 +3502,26 @@ export function useAppController(): AppController {
     setTab('more');
     setServicesCategorySearch('');
     setServicesItemsSearch('');
+    setSelectedServiceSectionId(null);
+    setSelectedServiceSectionName('');
     setSelectedServiceCategoryId(null);
     setSelectedServiceCategoryName('');
+  };
+
+  const openServiceSection = (sectionId: string) => {
+    const section = serviceSections.find((item) => item.id === sectionId);
+    if (!section) {
+      return;
+    }
+    setSelectedServiceSectionId(section.id);
+    setSelectedServiceSectionName(section.name);
+    setServicesItemsSearch('');
+    setPage('servicesSection');
+  };
+
+  const closeServiceSection = () => {
+    setPage('servicesCategories');
+    setServicesItemsSearch('');
   };
 
   const openServiceCategory = (categoryId: string) => {
@@ -3477,7 +3536,7 @@ export function useAppController(): AppController {
   };
 
   const closeServiceCategory = () => {
-    setPage('servicesCategories');
+    setPage(selectedServiceSectionId ? 'servicesSection' : 'servicesCategories');
     setServicesItemsSearch('');
   };
 
@@ -5234,6 +5293,8 @@ export function useAppController(): AppController {
     resetScheduleEditorDraft();
     resetScheduleOnlineSlotsState();
     setJournalDatePickerOpen(false);
+    setSelectedServiceSectionId(null);
+    setSelectedServiceSectionName('');
     setServiceCategoryEditorId(null);
     setServiceCategoryEditorName('');
     setServiceCategoryEditorSectionId(null);
@@ -5349,6 +5410,9 @@ export function useAppController(): AppController {
       serviceCategories,
       serviceSections,
       filteredServiceCategories,
+      selectedServiceSectionId,
+      selectedServiceSectionName,
+      filteredSelectedSectionCategories,
       selectedServiceCategoryId,
       selectedServiceCategoryName,
       selectedCategoryServices,
@@ -5577,6 +5641,8 @@ export function useAppController(): AppController {
       openServicesPage,
       closeClientSiteEditor,
       closeServicesPage,
+      openServiceSection,
+      closeServiceSection,
       openServiceCategory,
       closeServiceCategory,
       openServiceCategoryEditor,

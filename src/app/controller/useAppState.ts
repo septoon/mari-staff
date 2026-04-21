@@ -206,6 +206,8 @@ export function useAppState() {
   const [servicesItemsSearch, setServicesItemsSearch] = useState('');
   const [localServiceCategories, setLocalServiceCategories] = useState<ServiceCategoryItem[]>([]);
   const [localServiceSections, setLocalServiceSections] = useState<ServiceSectionItem[]>([]);
+  const [selectedServiceSectionId, setSelectedServiceSectionId] = useState<string | null>(null);
+  const [selectedServiceSectionName, setSelectedServiceSectionName] = useState('');
   const [selectedServiceCategoryId, setSelectedServiceCategoryId] = useState<string | null>(null);
   const [selectedServiceCategoryName, setSelectedServiceCategoryName] = useState('');
   const [serviceCategoryEditorId, setServiceCategoryEditorId] = useState<string | null>(null);
@@ -417,6 +419,10 @@ export function useAppState() {
     setLocalServiceCategories,
     localServiceSections,
     setLocalServiceSections,
+    selectedServiceSectionId,
+    setSelectedServiceSectionId,
+    selectedServiceSectionName,
+    setSelectedServiceSectionName,
     selectedServiceCategoryId,
     setSelectedServiceCategoryId,
     selectedServiceCategoryName,

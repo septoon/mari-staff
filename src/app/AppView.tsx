@@ -44,6 +44,7 @@ import { ServiceProvidersEditorScreen } from './screens/ServiceProvidersEditorSc
 import { ServiceSectionEditorScreen } from './screens/ServiceSectionEditorScreen';
 import { ServicesCategoriesScreen } from './screens/ServicesCategoriesScreen';
 import { ServicesCategoryScreen } from './screens/ServicesCategoryScreen';
+import { ServicesSectionScreen } from './screens/ServicesSectionScreen';
 import { StaffEditorScreen } from './screens/StaffEditorScreen';
 import { StaffManagementScreen } from './screens/StaffManagementScreen';
 import { StaffServicesEditorScreen } from './screens/StaffServicesEditorScreen';
@@ -1089,6 +1090,7 @@ export function AppView({ controller }: AppViewProps) {
             onCreateCategory={() => actions.openServiceCategoryEditor(null)}
             onCreateSection={() => actions.openServiceSectionEditor(null)}
             onCreateServiceInCategory={actions.openServiceCreateForCategory}
+            onOpenSection={actions.openServiceSection}
             onOpenCategory={actions.openServiceCategory}
             onOpenService={actions.openServiceEditor}
             onConfigureService={actions.openServiceProvidersEditor}
@@ -1096,6 +1098,19 @@ export function AppView({ controller }: AppViewProps) {
             onEditSection={actions.openServiceSectionEditor}
             onToggleServiceActive={(serviceId, enabled) =>
               actions.toggleServiceActiveInline(serviceId, enabled)
+            }
+          />
+        ) : null}
+        {state.page === 'servicesSection' ? (
+          <ServicesSectionScreen
+            sectionName={state.selectedServiceSectionName || 'Раздел'}
+            categories={state.filteredSelectedSectionCategories}
+            search={state.servicesItemsSearch}
+            onSearchChange={actions.setServicesItemsSearch}
+            onBack={actions.closeServiceSection}
+            onOpenCategory={actions.openServiceCategory}
+            onEditSection={() =>
+              actions.openServiceSectionEditor(state.selectedServiceSectionId)
             }
           />
         ) : null}
