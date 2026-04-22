@@ -73,6 +73,7 @@ import {
 } from './controller/schedule';
 import { useDataLoaders } from './controller/useDataLoaders';
 import { useAppState } from './controller/useAppState';
+import { filterAppointmentsByJournalScope, filterStaffByJournalScope } from './journalScope';
 import type {
   AppController,
   AppointmentItem,
@@ -520,6 +521,14 @@ export function useAppController(): AppController {
     (permissionCode: string) => hasPermissionAccess(permissionCode),
     [hasPermissionAccess],
   );
+  const journalAccessScope = useMemo(
+    () => ({
+      currentStaffId: session?.staff.id ?? null,
+      currentStaffName: session?.staff.name ?? null,
+      hasFullAccess: Boolean(session && (session.staff.role === 'OWNER' || canViewFullJournal)),
+    }),
+    [canViewFullJournal, session],
+  );
   const canSelectPastJournalDates =
     !isMaster || canViewFullJournal || canEdit(EDIT_PERMISSION.journal);
   const canEditOwnProfile = useMemo(() => Boolean(session), [session]);
@@ -664,8 +673,35 @@ export function useAppController(): AppController {
     return staffWithServices;
   }, [staffWithServices]);
   const journalStaff = useMemo(() => {
-    return visibleStaff;
-  }, [visibleStaff]);
+    const scoped = filterStaffByJournalScope(visibleStaff, journalAccessScope);
+    if (scoped.length > 0) {
+      return scoped;
+    }
+    return filterStaffByJournalScope(staff, journalAccessScope);
+  }, [journalAccessScope, staff, visibleStaff]);
+  const journalCreateBaseStaff = useMemo(
+    () =>
+      journalStaff.filter(
+        (item) =>
+          item.isActive &&
+          item.role === 'MASTER' &&
+          getStaffEmploymentStatus(item) === 'current',
+      ),
+    [journalStaff],
+  );
+  const journalCreateStaff = useMemo(
+    () =>
+      journalCreateBaseStaff.filter(
+        (item) => (journalCreateServiceIdsByStaff[item.id]?.length ?? 0) > 0,
+      ),
+    [journalCreateBaseStaff, journalCreateServiceIdsByStaff],
+  );
+  const getStaffServiceIds = useCallback(async (staffId: string) => {
+    const data = await api.get<unknown>(`/staff/${staffId}/services`);
+    return extractItems(data)
+      .map((row) => toString(toRecord(row)?.id))
+      .filter(Boolean);
+  }, []);
   const journalVisibleStaffIdsKey = useMemo(
     () => journalStaff.map((item) => item.id).join('|'),
     [journalStaff],
@@ -1032,8 +1068,7 @@ export function useAppController(): AppController {
   } = useDataLoaders({
     isAuthorized,
     sessionRole: session?.staff.role ?? null,
-    sessionStaffId: session?.staff.id ?? null,
-    sessionStaffName: session?.staff.name ?? null,
+    journalAccessScope,
     useFullJournalEndpoint: !isMaster || canViewFullJournal,
     canViewStaff,
     canViewServices,
@@ -1277,7 +1312,72 @@ export function useAppController(): AppController {
     if (page !== 'journalCreate') {
       return;
     }
-    if (journalStaff.length === 0 || services.length === 0) {
+    const missingStaff = journalCreateBaseStaff.filter(
+      (item) => journalCreateServiceIdsByStaff[item.id] === undefined,
+    );
+    if (missingStaff.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      setJournalCreateServicesLoading(true);
+      try {
+        const loaded = await Promise.all(
+          missingStaff.map(async (item) => {
+            try {
+              return {
+                staffId: item.id,
+                ids: await getStaffServiceIds(item.id),
+              };
+            } catch {
+              return {
+                staffId: item.id,
+                ids: [] as string[],
+              };
+            }
+          }),
+        );
+        if (cancelled) {
+          return;
+        }
+        setJournalCreateServiceIdsByStaff((prev) => {
+          const next = { ...prev };
+          loaded.forEach(({ staffId, ids }) => {
+            next[staffId] = ids;
+          });
+          return next;
+        });
+      } finally {
+        if (!cancelled) {
+          setJournalCreateServicesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    getStaffServiceIds,
+    journalCreateBaseStaff,
+    journalCreateServiceIdsByStaff,
+    page,
+    setJournalCreateServiceIdsByStaff,
+    setJournalCreateServicesLoading,
+  ]);
+
+  useEffect(() => {
+    if (page !== 'journalCreate') {
+      return;
+    }
+    const hasPendingStaffServices = journalCreateBaseStaff.some(
+      (item) => journalCreateServiceIdsByStaff[item.id] === undefined,
+    );
+    if (hasPendingStaffServices) {
+      return;
+    }
+    if (journalCreateStaff.length === 0 || services.length === 0) {
       setPage('tabs');
       setTab('journal');
       return;
@@ -1285,12 +1385,25 @@ export function useAppController(): AppController {
     setJournalCreateDraft((current) => ({
       ...current,
       dateValue: current.dateValue || formatJournalCreateDateValue(selectedDate),
-      staffId: current.staffId || journalStaff[0]?.id || '',
+      staffId:
+        journalCreateStaff.some((item) => item.id === current.staffId)
+          ? current.staffId
+          : journalCreateStaff[0]?.id || '',
       serviceId: current.serviceId || services[0]?.id || '',
       durationMin:
         current.durationMin > 0 ? current.durationMin : Math.max(15, Math.round(services[0].durationSec / 60)),
     }));
-  }, [journalStaff, page, selectedDate, services, setJournalCreateDraft, setPage, setTab]);
+  }, [
+    journalCreateBaseStaff,
+    journalCreateServiceIdsByStaff,
+    journalCreateStaff,
+    page,
+    selectedDate,
+    services,
+    setJournalCreateDraft,
+    setPage,
+    setTab,
+  ]);
 
   useEffect(() => {
     if (page !== 'journalCreate') {
@@ -1336,6 +1449,7 @@ export function useAppController(): AppController {
       cancelled = true;
     };
   }, [
+    getStaffServiceIds,
     journalCreateDraft.staffId,
     journalCreateServiceIdsByStaff,
     page,
@@ -1657,6 +1771,7 @@ export function useAppController(): AppController {
       setJournalClientSaving(false);
       setServices([]);
       setAppointments([]);
+      setJournalListAppointments([]);
       setWorkingHoursByStaff({});
       setPanel(null);
       setPage('tabs');
@@ -2260,7 +2375,9 @@ export function useAppController(): AppController {
     const matchHistory = (items: AppointmentItem[]) =>
       items.filter((item) => appointmentMatchesClient(item, client));
 
-    const localHistory = sortHistory(matchHistory(journalListAppointments));
+    const localHistory = sortHistory(
+      matchHistory(filterAppointmentsByJournalScope(journalListAppointments, journalAccessScope)),
+    );
     if (localHistory.length > 0) {
       return localHistory;
     }
@@ -2283,7 +2400,7 @@ export function useAppController(): AppController {
       });
       const data = await api.get<unknown>(`${historyEndpoint}?${params.toString()}`);
       const parsed = extractItems(data).map(parseAppointment).filter(Boolean) as AppointmentItem[];
-      merged.push(...parsed);
+      merged.push(...filterAppointmentsByJournalScope(parsed, journalAccessScope));
 
       const root = toRecord(data);
       const meta = toRecord(root?.meta);
@@ -2840,11 +2957,11 @@ export function useAppController(): AppController {
       setToast('Нет прав на создание записи');
       return;
     }
-    if (staff.length === 0 || services.length === 0) {
+    if (journalCreateBaseStaff.length === 0 || services.length === 0) {
       setToast('Нет данных staff/services для создания записи');
       return;
     }
-    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalStaff, services));
+    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalCreateBaseStaff, services));
     setPage('journalCreate');
     setTab('journal');
   };
@@ -2873,11 +2990,11 @@ export function useAppController(): AppController {
       setToast('Укажите дату записи');
       return;
     }
-    const selectedStaffId = journalCreateDraft.staffId || staff[0]?.id || '';
+    const selectedStaffId = journalCreateDraft.staffId || journalCreateStaff[0]?.id || '';
     const selectedServiceId = journalCreateDraft.serviceId || services[0]?.id || '';
     const selectedStaff =
-      journalStaff.find((item) => item.id === selectedStaffId) ||
-      staff.find((item) => item.id === selectedStaffId) ||
+      journalCreateStaff.find((item) => item.id === selectedStaffId) ||
+      journalCreateBaseStaff.find((item) => item.id === selectedStaffId) ||
       null;
     const selectedService = services.find((item) => item.id === selectedServiceId) || null;
     if (!selectedStaffId || !selectedServiceId) {
@@ -3849,13 +3966,6 @@ export function useAppController(): AppController {
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
-  };
-
-  const getStaffServiceIds = async (staffId: string) => {
-    const data = await api.get<unknown>(`/staff/${staffId}/services`);
-    return extractItems(data)
-      .map((row) => toString(toRecord(row)?.id))
-      .filter(Boolean);
   };
 
   const loadServiceProvidersForEditor = async (serviceId: string) => {
@@ -5400,6 +5510,7 @@ export function useAppController(): AppController {
       staff,
       visibleStaff,
       journalStaff,
+      journalCreateStaff,
       filteredStaff,
       staffSearch,
       staffFilter,
@@ -5509,6 +5620,7 @@ export function useAppController(): AppController {
       canCreateJournalAppointments,
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEdit(EDIT_PERMISSION.journal),
+      canViewSchedule,
       canSelectPastJournalDates,
       canEditPrivacyPolicy,
       canEditSettings,

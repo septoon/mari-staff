@@ -762,7 +762,7 @@ export function AppView({ controller }: AppViewProps) {
             draft={state.journalCreateDraft}
             selectedDate={state.selectedDate}
             clients={state.clients}
-            staff={state.journalStaff}
+            staff={state.journalCreateStaff}
             services={journalCreateServices}
             loading={state.loading.action}
             servicesLoading={state.journalCreateServicesLoading}
@@ -925,7 +925,7 @@ export function AppView({ controller }: AppViewProps) {
           <TimetableScreen
             selectedDate={state.selectedDate}
             staff={state.journalStaff}
-            visibleStaff={state.visibleStaff}
+            visibleStaff={state.canViewSchedule ? state.visibleStaff : state.journalStaff}
             appointments={state.appointments}
             hoursByStaff={state.workingHoursByStaff}
             loading={state.loading.appointments || state.loading.schedule || state.loading.action}

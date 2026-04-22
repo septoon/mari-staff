@@ -284,6 +284,7 @@ export type ControllerState = {
   staff: StaffItem[];
   visibleStaff: StaffItem[];
   journalStaff: StaffItem[];
+  journalCreateStaff: StaffItem[];
   filteredStaff: StaffItem[];
   staffSearch: string;
   staffFilter: StaffFilter;
@@ -392,6 +393,7 @@ export type ControllerState = {
   canCreateJournalAppointments: boolean;
   canEditClients: boolean;
   canEditJournal: boolean;
+  canViewSchedule: boolean;
   canSelectPastJournalDates: boolean;
   canEditPrivacyPolicy: boolean;
   canEditSettings: boolean;

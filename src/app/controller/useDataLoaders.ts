@@ -21,6 +21,7 @@ import {
   parseService,
   parseStaff,
 } from '../parsers';
+import { filterAppointmentsByJournalScope, type JournalAccessScope } from '../journalScope';
 import type {
   AppointmentItem,
   ClientItem,
@@ -38,8 +39,7 @@ import type {
 type UseDataLoadersParams = {
   isAuthorized: boolean;
   sessionRole: StaffRole | null;
-  sessionStaffId: string | null;
-  sessionStaffName: string | null;
+  journalAccessScope: JournalAccessScope;
   useFullJournalEndpoint: boolean;
   canViewStaff: boolean;
   canViewServices: boolean;
@@ -81,8 +81,7 @@ type SettingsPayload = {
 export function useDataLoaders({
   isAuthorized,
   sessionRole,
-  sessionStaffId,
-  sessionStaffName,
+  journalAccessScope,
   useFullJournalEndpoint,
   canViewStaff,
   canViewServices,
@@ -305,16 +304,16 @@ export function useDataLoaders({
           if (item.staffId) {
             return item;
           }
-          if (sessionRole === 'MASTER' && sessionStaffId) {
+          if (sessionRole === 'MASTER' && journalAccessScope.currentStaffId) {
             return {
               ...item,
-              staffId: sessionStaffId,
-              staffName: sessionStaffName || item.staffName,
+              staffId: journalAccessScope.currentStaffId,
+              staffName: journalAccessScope.currentStaffName || item.staffName,
             };
           }
           return item;
         });
-        merged.push(...normalized);
+        merged.push(...filterAppointmentsByJournalScope(normalized, journalAccessScope));
 
         const root = toRecord(data);
         const meta = toRecord(root?.meta);
@@ -332,7 +331,7 @@ export function useDataLoaders({
 
       return merged;
     },
-    [appointmentsBasePath, sessionRole, sessionStaffId, sessionStaffName],
+    [appointmentsBasePath, journalAccessScope, sessionRole],
   );
 
   const loadAppointments = useCallback(
