@@ -14,6 +14,23 @@ import { PageSheet } from '../components/shared/PageSheet';
 import { getStaffEmploymentStatus, roleLabel, staffEmploymentStatusLabel } from '../helpers';
 import type { StaffEmploymentFilter, StaffFilter, StaffItem } from '../types';
 
+const SORT_OPTIONS: Array<{
+  key: StaffFilter['sortBy'];
+  label: string;
+}> = [
+  { key: 'role', label: 'По должности' },
+  { key: 'name', label: 'По имени' },
+  { key: 'rating', label: 'По рейтингу' },
+  { key: 'appointments', label: 'По записям' },
+];
+
+const formatRatingLabel = (item: StaffItem) => {
+  if (item.ratingAverage === null) {
+    return 'Нет оценок';
+  }
+  return `${item.ratingAverage.toFixed(1)} · ${item.ratingsCount}`;
+};
+
 type StaffManagementScreenProps = {
   allStaff: StaffItem[];
   staff: StaffItem[];
@@ -64,7 +81,7 @@ export function StaffManagementScreen({
 
   return (
     <>
-      <div className="pb-4 pt-[calc(env(safe-area-inset-top)+244px)] md:hidden">
+      <div className="pb-4 pt-[calc(env(safe-area-inset-top)+316px)] md:hidden">
         <div className="fixed left-1/2 top-0 z-30 w-full -translate-x-1/2 bg-screen px-4 pt-[calc(env(safe-area-inset-top)+16px)]">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
             <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
@@ -98,6 +115,30 @@ export function StaffManagementScreen({
               placeholder="Поиск"
               className="w-full bg-transparent text-[16px] font-semibold text-ink outline-none placeholder:text-[#97a0ad]"
             />
+          </label>
+          <label className="mt-3 block">
+            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[#98a1ae]">
+              Сортировка
+            </span>
+            <div className="relative">
+              <select
+                value={filters.sortBy}
+                onChange={(event) =>
+                  onFilterChange((prev) => ({
+                    ...prev,
+                    sortBy: event.target.value as StaffFilter['sortBy'],
+                  }))
+                }
+                className="w-full appearance-none rounded-2xl border border-[#dde3eb] bg-white px-4 py-3 text-[15px] font-semibold text-ink outline-none"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronRight className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 rotate-90 text-[#9ca5b2]" />
+            </div>
           </label>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hidden">
             {statusOptions.map((option) => {
@@ -167,6 +208,12 @@ export function StaffManagementScreen({
                           Оказывает услуги
                         </span>
                       ) : null}
+                      <span className="rounded-full bg-[#f4f6f9] px-4 py-1 text-[14px] font-medium text-ink">
+                        {formatRatingLabel(item)}
+                      </span>
+                      <span className="rounded-full bg-[#eef2f7] px-4 py-1 text-[14px] font-medium text-ink">
+                        {item.appointmentsCount} записей
+                      </span>
                       <span className="rounded-full bg-[#dde2ea] px-4 py-1 text-[14px] font-medium text-ink">
                         {servicesCount} услуг
                       </span>
@@ -313,6 +360,25 @@ export function StaffManagementScreen({
               >
                 Оказывает услуги
               </button>
+              <div className="relative min-w-[220px]">
+                <select
+                  value={filters.sortBy}
+                  onChange={(event) =>
+                    onFilterChange((prev) => ({
+                      ...prev,
+                      sortBy: event.target.value as StaffFilter['sortBy'],
+                    }))
+                  }
+                  className="h-12 w-full appearance-none rounded-2xl border border-[#dde3eb] bg-white px-4 pr-11 text-sm font-bold text-ink outline-none"
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronRight className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-[#9ca5b2]" />
+              </div>
             </div>
           </div>
 
@@ -345,9 +411,11 @@ export function StaffManagementScreen({
 
         {!loading ? (
           <section className="mt-5 overflow-hidden rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
-            <div className="grid items-center gap-4 border-b border-[#edf1f5] px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae] xl:grid-cols-[minmax(0,1.2fr)_220px_140px_140px_56px]">
+            <div className="grid items-center gap-4 border-b border-[#edf1f5] px-6 py-4 text-xs font-bold uppercase tracking-[0.16em] text-[#98a1ae] xl:grid-cols-[minmax(0,1.1fr)_200px_120px_120px_120px_140px_56px]">
               <div>Сотрудник</div>
               <div>Роль</div>
+              <div>Рейтинг</div>
+              <div>Записи</div>
               <div>Услуги</div>
               <div>Статус</div>
               <div />
@@ -363,7 +431,7 @@ export function StaffManagementScreen({
                     type="button"
                     onClick={() => void onEdit(item)}
                     className={clsx(
-                      'grid w-full items-center gap-4 px-6 py-5 text-left transition hover:bg-[#f7f9fc] xl:grid-cols-[minmax(0,1.2fr)_220px_140px_140px_56px]',
+                      'grid w-full items-center gap-4 px-6 py-5 text-left transition hover:bg-[#f7f9fc] xl:grid-cols-[minmax(0,1.1fr)_200px_120px_120px_120px_140px_56px]',
                       index > 0 ? 'border-t border-[#edf1f5]' : undefined,
                     )}
                   >
@@ -384,6 +452,10 @@ export function StaffManagementScreen({
                     </div>
 
                     <div className="text-sm font-bold text-[#5d6775]">{roleLabel(item.role)}</div>
+
+                    <div className="text-sm font-bold text-[#5d6775]">{formatRatingLabel(item)}</div>
+
+                    <div className="text-sm font-bold text-[#5d6775]">{item.appointmentsCount}</div>
 
                     <div>
                       <span className="inline-flex rounded-full bg-[#f4f6f9] px-3 py-2 text-sm font-bold text-ink">

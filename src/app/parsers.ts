@@ -49,6 +49,9 @@ export function parseStaff(value: unknown): StaffItem | null {
     firedAt: toDate(record.firedAt),
     deletedAt: toDate(record.deletedAt),
     positionName: toNullableString(positionRecord?.name),
+    ratingAverage: toNumber(record.ratingAverage),
+    ratingsCount: toNumber(record.ratingsCount) ?? 0,
+    appointmentsCount: toNumber(record.appointmentsCount) ?? 0,
   };
 }
 

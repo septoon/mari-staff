@@ -110,6 +110,7 @@ export const EMPTY_STAFF_DRAFT: StaffDraft = {
 export const EMPTY_STAFF_FILTER: StaffFilter = {
   withServices: false,
   employmentStatus: 'current',
+  sortBy: 'role',
 };
 
 export const EMPTY_OWNER_DRAFT: OwnerDraft = {

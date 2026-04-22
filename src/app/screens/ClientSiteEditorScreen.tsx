@@ -1352,32 +1352,37 @@ function CategorySummaryCard({
     <button
       type="button"
       onClick={onOpen}
-      className="group h-full w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:p-6 md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)] xl:min-h-[360px] xl:rounded-[32px] xl:p-7"
+      className="group h-full w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:p-6 md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)] xl:rounded-[32px] xl:p-7"
     >
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-5 xl:gap-6">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4 md:gap-5">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)] md:h-16 md:w-16 xl:h-[72px] xl:w-[72px] xl:rounded-[24px]">
-              <Icon className="h-7 w-7 md:h-8 md:w-8" strokeWidth={2.1} />
+          <div className="flex min-w-0 items-start gap-4 xl:gap-4.5">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-[0_6px_16px_rgba(42,49,56,0.08)] md:h-16 md:w-16 xl:h-16 xl:w-16 xl:rounded-[22px]">
+              <Icon className="h-7 w-7 md:h-8 md:w-8 xl:h-7 xl:w-7" strokeWidth={2.1} />
             </div>
 
             <div className="min-w-0 flex-1">
-              <h2 className="text-[22px] font-extrabold leading-tight text-ink xl:text-[26px]">{item.title}</h2>
-              <p className="mt-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">
+              <h2 className="text-[22px] font-extrabold leading-[1.02] text-ink xl:text-[23px]">
+                {item.title}
+              </h2>
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8d95a1]">
                 Отвечает за
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center pt-1">
+          <div className="flex shrink-0 items-center gap-3 pt-1">
+            <span className="hidden rounded-full border border-[#d7dce5] bg-white px-3 py-1 text-[12px] font-bold text-[#5d6776] xl:inline-flex">
+              {item.stat}
+            </span>
             <ChevronRight className="h-5 w-5 text-[#808a98] transition group-hover:translate-x-0.5" />
           </div>
         </div>
 
-        <p className="mt-4 text-[16px] font-medium leading-relaxed text-[#5f6773] xl:mt-5 xl:text-[17px]">
+        <p className="text-[16px] font-medium leading-relaxed text-[#5f6773] xl:max-w-[34ch] xl:text-[16px]">
           {item.description}
         </p>
 
-        <div className="mt-4 flex flex-wrap gap-2 xl:mt-5 xl:gap-2.5">
+        <div className="flex flex-wrap gap-2 xl:gap-2.5">
           {item.tags.map((tag) => (
             <span
               key={`${item.title}-${tag}`}
@@ -1388,11 +1393,11 @@ function CategorySummaryCard({
           ))}
         </div>
 
-        <div className="mt-auto space-y-2 pt-4 xl:space-y-3 xl:pt-6">
+        <div className="grid gap-2 border-t border-[#e4e9f0] pt-4 md:grid-cols-2 xl:gap-3 xl:pt-5">
           {item.details.slice(0, 2).map((line) => (
             <div
               key={`${item.title}-${line}`}
-              className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold leading-relaxed text-[#56606e] xl:px-5 xl:py-3.5"
+              className="rounded-2xl bg-white px-4 py-3 text-[14px] font-semibold leading-relaxed text-[#56606e] xl:min-h-[88px] xl:px-5 xl:py-4"
             >
               {line}
             </div>
@@ -1400,7 +1405,7 @@ function CategorySummaryCard({
         </div>
 
         {item.warning ? (
-          <div className="mt-3 rounded-2xl border border-[#efd6b5] bg-[#fff6ea] px-4 py-3 text-[14px] font-semibold text-[#8a5f1d] xl:mt-4 xl:px-5 xl:py-3.5">
+          <div className="rounded-2xl border border-[#efd6b5] bg-[#fff6ea] px-4 py-3 text-[14px] font-semibold text-[#8a5f1d] xl:px-5 xl:py-3.5">
             {item.warning}
           </div>
         ) : null}
@@ -4460,7 +4465,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
       </section>
 
-      <section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-[repeat(auto-fit,minmax(280px,1fr))] xl:gap-6">
+      <section className="mt-6 grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:gap-6 2xl:grid-cols-3">
         {categorySnapshots.map((item) => (
           <CategorySummaryCard key={item.key} item={item} onOpen={() => openCategoryPage(item.key)} />
         ))}

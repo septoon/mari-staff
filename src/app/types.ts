@@ -53,6 +53,9 @@ export type StaffItem = {
   firedAt: Date | null;
   deletedAt: Date | null;
   positionName: string | null;
+  ratingAverage: number | null;
+  ratingsCount: number;
+  appointmentsCount: number;
 };
 
 export type StaffEmploymentStatus = 'current' | 'fired' | 'deleted';
@@ -71,6 +74,7 @@ export type StaffDraft = {
 export type StaffFilter = {
   withServices: boolean;
   employmentStatus: StaffEmploymentFilter;
+  sortBy: 'role' | 'name' | 'rating' | 'appointments';
 };
 
 export type ScheduleEditorOpenOptions = {
@@ -360,6 +364,9 @@ export type ControllerState = {
   editingStaffHiredAt: Date | null;
   editingStaffFiredAt: Date | null;
   editingStaffDeletedAt: Date | null;
+  editingStaffRatingAverage: number | null;
+  editingStaffRatingsCount: number;
+  editingStaffAppointmentsCount: number;
   editorAccessEnabled: boolean;
   editorServiceCount: number;
   editorServiceNames: string[];

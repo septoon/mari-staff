@@ -758,16 +758,55 @@ export function useAppController(): AppController {
       return true;
     });
     const query = staffSearch.trim().toLowerCase();
-    if (!query) {
-      return filteredByFlags;
-    }
-    return filteredByFlags.filter((item) => {
-      const haystack = `${item.name} ${item.phoneE164} ${item.role} ${
-        item.positionName || ''
-      } ${roleLabel(item.role)}`.toLowerCase();
-      return haystack.includes(query);
+    const searchable = !query
+      ? filteredByFlags
+      : filteredByFlags.filter((item) => {
+          const haystack = `${item.name} ${item.phoneE164} ${item.role} ${
+            item.positionName || ''
+          } ${roleLabel(item.role)}`.toLowerCase();
+          return haystack.includes(query);
+        });
+
+    return [...searchable].sort((left, right) => {
+      switch (staffFilter.sortBy) {
+        case 'name':
+          return left.name.localeCompare(right.name, 'ru');
+        case 'rating': {
+          const leftRating = left.ratingAverage ?? -1;
+          const rightRating = right.ratingAverage ?? -1;
+          if (rightRating !== leftRating) {
+            return rightRating - leftRating;
+          }
+          if (right.ratingsCount !== left.ratingsCount) {
+            return right.ratingsCount - left.ratingsCount;
+          }
+          return left.name.localeCompare(right.name, 'ru');
+        }
+        case 'appointments':
+          if (right.appointmentsCount !== left.appointmentsCount) {
+            return right.appointmentsCount - left.appointmentsCount;
+          }
+          return left.name.localeCompare(right.name, 'ru');
+        case 'role':
+        default: {
+          const leftRole = left.positionName || roleLabel(left.role);
+          const rightRole = right.positionName || roleLabel(right.role);
+          const byRole = leftRole.localeCompare(rightRole, 'ru');
+          if (byRole !== 0) {
+            return byRole;
+          }
+          return left.name.localeCompare(right.name, 'ru');
+        }
+      }
     });
-  }, [staff, staffFilter.employmentStatus, staffFilter.withServices, staffSearch, staffServiceCounts]);
+  }, [
+    staff,
+    staffFilter.employmentStatus,
+    staffFilter.sortBy,
+    staffFilter.withServices,
+    staffSearch,
+    staffServiceCounts,
+  ]);
 
   const editingStaff = useMemo(
     () => (editingStaffId ? staff.find((item) => item.id === editingStaffId) ?? null : null),
@@ -777,6 +816,9 @@ export function useAppController(): AppController {
     () => (editingStaff ? getStaffEmploymentStatus(editingStaff) : 'current'),
     [editingStaff],
   );
+  const editingStaffRatingAverage = editingStaff?.ratingAverage ?? null;
+  const editingStaffRatingsCount = editingStaff?.ratingsCount ?? 0;
+  const editingStaffAppointmentsCount = editingStaff?.appointmentsCount ?? 0;
 
   const serviceCategories = useMemo<ServiceCategoryItem[]>(() => {
     const map = new Map<string, ServiceCategoryItem>();
@@ -5586,6 +5628,9 @@ export function useAppController(): AppController {
       editingStaffHiredAt: editingStaff?.hiredAt ?? null,
       editingStaffFiredAt: editingStaff?.firedAt ?? null,
       editingStaffDeletedAt: editingStaff?.deletedAt ?? null,
+      editingStaffRatingAverage,
+      editingStaffRatingsCount,
+      editingStaffAppointmentsCount,
       editorAccessEnabled,
       editorServiceCount,
       editorServiceNames,

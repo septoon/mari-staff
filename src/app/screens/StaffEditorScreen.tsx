@@ -27,6 +27,22 @@ const PERMISSION_GROUP_TITLE: Record<StaffPermissionCatalogItem['group'], string
   content: 'Контент и медиа',
 };
 
+const formatRatingValue = (value: number | null) => {
+  return value === null ? 'Нет оценок' : `${value.toFixed(1)} / 5`;
+};
+
+const ratingCountLabel = (count: number) => {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${count} оценка`;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} оценки`;
+  }
+  return `${count} оценок`;
+};
+
 type StaffEditorScreenProps = {
   mode: 'create' | 'edit';
   draft: StaffDraft;
@@ -35,6 +51,9 @@ type StaffEditorScreenProps = {
   hiredAt: Date | null;
   firedAt: Date | null;
   deletedAt: Date | null;
+  ratingAverage: number | null;
+  ratingsCount: number;
+  appointmentsCount: number;
   permissionSummary: string;
   permissionCatalog: StaffPermissionCatalogItem[];
   permissionCodes: string[];
@@ -70,6 +89,9 @@ export function StaffEditorScreen({
   hiredAt,
   firedAt,
   deletedAt,
+  ratingAverage,
+  ratingsCount,
+  appointmentsCount,
   permissionSummary,
   permissionCatalog,
   permissionCodes,
@@ -188,6 +210,12 @@ export function StaffEditorScreen({
             <div className="rounded-3xl border-[2px] border-line bg-[#fbfbfd] px-6 py-4">
               <p className="text-[14px] font-semibold text-muted">Статус</p>
               <p className="mt-1 text-[20px] font-semibold text-ink">{staffEmploymentStatusLabel(status)}</p>
+              <p className="mt-2 text-[14px] font-medium text-muted">
+                Рейтинг: {formatRatingValue(ratingAverage)} · {ratingCountLabel(ratingsCount)}
+              </p>
+              <p className="mt-1 text-[14px] font-medium text-muted">
+                Записей: {appointmentsCount}
+              </p>
               {hiredAt ? (
                 <p className="mt-2 text-[14px] font-medium text-muted">
                   Принят: {formatDateTimeLabel(hiredAt)}
@@ -464,6 +492,12 @@ export function StaffEditorScreen({
                   <span className="rounded-full bg-[#f4f6f9] px-3 py-2 text-sm font-bold text-ink">
                     {serviceCount} услуг
                   </span>
+                  <span className="rounded-full bg-[#fff6db] px-3 py-2 text-sm font-bold text-[#7d6511]">
+                    {formatRatingValue(ratingAverage)}
+                  </span>
+                  <span className="rounded-full bg-[#eef2f7] px-3 py-2 text-sm font-bold text-ink">
+                    {ratingCountLabel(ratingsCount)}
+                  </span>
                   <span
                     className={clsx(
                       'rounded-full px-3 py-2 text-sm font-bold',
@@ -509,6 +543,12 @@ export function StaffEditorScreen({
                     {hiredAt ? `Принят: ${formatDateTimeLabel(hiredAt)}.` : 'Дата принятия не зафиксирована.'}
                     {firedAt ? ` Уволен: ${formatDateTimeLabel(firedAt)}.` : ''}
                     {deletedAt ? ` Удален: ${formatDateTimeLabel(deletedAt)}.` : ''}
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-[#7c8491]">
+                    Рейтинг: {formatRatingValue(ratingAverage)} · {ratingCountLabel(ratingsCount)}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-[#7c8491]">
+                    Записей: {appointmentsCount}
                   </p>
                 </div>
                 {mode === 'create' ? (

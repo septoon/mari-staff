@@ -588,6 +588,9 @@ export function AppView({ controller }: AppViewProps) {
             hiredAt={state.editingStaffHiredAt}
             firedAt={state.editingStaffFiredAt}
             deletedAt={state.editingStaffDeletedAt}
+            ratingAverage={state.editingStaffRatingAverage}
+            ratingsCount={state.editingStaffRatingsCount}
+            appointmentsCount={state.editingStaffAppointmentsCount}
             permissionSummary={
               state.editorPermissionCodes.length > 0
                 ? `${state.editorPermissionCodes.length} прав`
