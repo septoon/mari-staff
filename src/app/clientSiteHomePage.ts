@@ -20,6 +20,13 @@ export type SiteHomePageDraft = {
     visualSubtitle: string;
     visualImageAssetId: string;
   };
+  news: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    actionLabel: string;
+    itemsLimit: number;
+  };
   categories: {
     eyebrow: string;
     title: string;
@@ -62,7 +69,7 @@ export type SiteHomePageDraft = {
   };
 };
 
-export const SITE_HOME_PAGE_SECTION_COUNT = 8;
+export const SITE_HOME_PAGE_SECTION_COUNT = 9;
 
 export const SITE_HOME_PAGE_DEFAULTS: SiteHomePageDraft = {
   hero: {
@@ -77,6 +84,14 @@ export const SITE_HOME_PAGE_DEFAULTS: SiteHomePageDraft = {
     visualSubtitle:
       'Путь от первого знакомства до записи был коротким, понятным и приятным.',
     visualImageAssetId: '',
+  },
+  news: {
+    eyebrow: 'Новости',
+    title: 'Свежие обновления MARI.',
+    description:
+      'Коротко о новых пространствах, сезонных уходах и сервисных обновлениях, которые уже доступны для гостей.',
+    actionLabel: 'Все новости',
+    itemsLimit: 3,
   },
   categories: {
     eyebrow: 'Популярные направления',
@@ -216,6 +231,7 @@ export const createSiteHomePageDraft = (extra: Record<string, unknown>): SiteHom
   const siteContent = asObjectRecord(extra.siteContent);
   const source = asObjectRecord(siteContent.homePage);
   const hero = asObjectRecord(source.hero);
+  const news = asObjectRecord(source.news);
   const categories = asObjectRecord(source.categories);
   const valuePillars = asObjectRecord(source.valuePillars);
   const featuredServices = asObjectRecord(source.featuredServices);
@@ -246,6 +262,13 @@ export const createSiteHomePageDraft = (extra: Record<string, unknown>): SiteHom
         hero.visualImageAssetId,
         SITE_HOME_PAGE_DEFAULTS.hero.visualImageAssetId,
       ),
+    },
+    news: {
+      eyebrow: readString(news.eyebrow, SITE_HOME_PAGE_DEFAULTS.news.eyebrow),
+      title: readString(news.title, SITE_HOME_PAGE_DEFAULTS.news.title),
+      description: readString(news.description, SITE_HOME_PAGE_DEFAULTS.news.description),
+      actionLabel: readString(news.actionLabel, SITE_HOME_PAGE_DEFAULTS.news.actionLabel),
+      itemsLimit: readInt(news.itemsLimit, SITE_HOME_PAGE_DEFAULTS.news.itemsLimit, 1, 12),
     },
     categories: {
       eyebrow: readString(categories.eyebrow, SITE_HOME_PAGE_DEFAULTS.categories.eyebrow),
@@ -357,6 +380,7 @@ export const mergeSiteHomePageIntoExtra = (
     ...nextSiteContent,
     homePage: {
       hero: draft.hero,
+      news: draft.news,
       categories: draft.categories,
       valuePillars: draft.valuePillars,
       featuredServices: draft.featuredServices,
@@ -376,6 +400,7 @@ export const countConfiguredSiteHomePageSections = (extra: Record<string, unknow
 
   return [
     source.hero,
+    source.news,
     source.categories,
     source.valuePillars,
     source.featuredServices,

@@ -7,6 +7,7 @@ export const SITE_BLOCK_KEYS = {
   pageHero: (key: SitePageHeroKey) => `pageHero:${key}`,
   homePage: {
     hero: 'homePage:hero',
+    news: 'homePage:news',
     categories: 'homePage:categories',
     valuePillars: 'homePage:valuePillars',
     featuredServices: 'homePage:featuredServices',

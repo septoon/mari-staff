@@ -88,6 +88,7 @@ type ClientSiteEditorScreenProps = {
 
 type CategoryKey =
   | 'home'
+  | 'news'
   | 'services'
   | 'specialists'
   | 'contacts'
@@ -335,6 +336,7 @@ const CLIENT_SITE_EDITOR_BASE_ROUTE = '/online-booking';
 
 const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
   home: 'glavnaya',
+  news: 'novosti',
   services: 'uslugi',
   specialists: 'specialisty',
   contacts: 'kontakty',
@@ -361,6 +363,7 @@ type AdvancedDraft = {
 
 type HomePageObjectSectionKey =
   | 'hero'
+  | 'news'
   | 'categories'
   | 'featuredServices'
   | 'featuredSpecialists'
@@ -563,6 +566,14 @@ const categories: CategoryMeta[] = [
     note: 'Здесь редактируется именно главная страница сайта. Каталоги услуг и специалистов остаются в профильных разделах ниже.',
     tags: ['hero', 'секции /', 'карточки доверия', 'cta'],
     icon: House,
+  },
+  {
+    key: 'news',
+    title: 'Новости',
+    description: 'Материалы страницы `/news` и блок новостей на главной странице сайта.',
+    note: 'Здесь собраны сами новости и настройки их секции на главной. Новости выводятся на `/` сразу после hero.',
+    tags: ['страница /news', 'главная /', 'карточки статей', 'публикации'],
+    icon: FileText,
   },
   {
     key: 'services',
@@ -2015,13 +2026,23 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   ? 'В конфигурации остались старые generic-блоки. Они вынесены ниже как legacy-слой и не являются основной моделью сайта mari.'
                 : undefined,
           };
+        case 'news':
+          return {
+            ...category,
+            stat: screenData.blocks.error ? screenData.blocks.error : `${siteCardsDraft.news.length}`,
+            details: [
+              `Статей: ${siteCardsDraft.news.length}`,
+              `На главной: до ${homePageDraft.news.itemsLimit}`,
+              `Последняя дата: ${siteCardsDraft.news[0]?.publishedAt || 'нет статей'}`,
+            ],
+            warning: screenData.blocks.error || undefined,
+          };
         case 'promo':
           return {
             ...category,
-            stat: screenData.blocks.error ? screenData.blocks.error : `${siteCardsDraft.offers.length + siteCardsDraft.news.length}`,
+            stat: screenData.blocks.error ? screenData.blocks.error : `${siteCardsDraft.offers.length}`,
             details: [
               `Карточек предложений: ${siteCardsDraft.offers.length}`,
-              `Карточек статей: ${siteCardsDraft.news.length}`,
               `Маркетинговых блоков: ${promoBlocks.length}`,
             ],
             warning: screenData.blocks.error || undefined,
@@ -2069,7 +2090,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, homePageDraft.highlights.length, homePageDraft.valuePillars.items.length, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
+  }, [blocks, config, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -2229,16 +2250,16 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }));
   };
 
-  const updateHomePageCategoriesItemsLimit = (value: string) => {
+  const updateHomePageItemsLimit = (section: 'categories' | 'news', value: string) => {
     const parsed = Number.parseInt(value, 10);
     const nextValue = Number.isFinite(parsed)
       ? Math.min(12, Math.max(1, Math.trunc(parsed)))
-      : SITE_HOME_PAGE_DEFAULTS.categories.itemsLimit;
+      : SITE_HOME_PAGE_DEFAULTS[section].itemsLimit;
 
     setHomePageDraft((prev) => ({
       ...prev,
-      categories: {
-        ...prev.categories,
+      [section]: {
+        ...prev[section],
         itemsLimit: nextValue,
       },
     }));
@@ -4629,6 +4650,47 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             <article className="rounded-[24px] border border-line bg-white px-4 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
+                  <h3 className="text-[20px] font-extrabold text-ink">Блок новостей</h3>
+                  <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+                    Секция со свежими публикациями на главной странице. Показывается сразу после hero.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetHomePageSection('news')}
+                  className="rounded-2xl border border-line px-3 py-2 text-[13px] font-extrabold text-[#5f6773]"
+                >
+                  Сбросить
+                </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.news)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(
+                      mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                      SITE_BLOCK_KEYS.homePage.news,
+                      'Блок новостей на главной',
+                    );
+                  }}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <TextField label="Eyebrow" value={homePageDraft.news.eyebrow} onChange={(value) => updateHomePageField('news', 'eyebrow', value)} />
+                <TextField label="Кнопка" value={homePageDraft.news.actionLabel} onChange={(value) => updateHomePageField('news', 'actionLabel', value)} />
+                <TextField label="Заголовок" value={homePageDraft.news.title} onChange={(value) => updateHomePageField('news', 'title', value)} />
+                <TextAreaField label="Описание" value={homePageDraft.news.description} onChange={(value) => updateHomePageField('news', 'description', value)} rows={4} />
+                <TextField
+                  label="Количество новостей"
+                  value={String(homePageDraft.news.itemsLimit)}
+                  onChange={(value) => updateHomePageItemsLimit('news', value)}
+                  type="number"
+                />
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
                   <h3 className="text-[20px] font-extrabold text-ink">Популярные направления</h3>
                   <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
                     Блок с карточками самых популярных услуг. Количество карточек можно настроить.
@@ -4661,7 +4723,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <TextField
                   label="Количество услуг"
                   value={String(homePageDraft.categories.itemsLimit)}
-                  onChange={updateHomePageCategoriesItemsLimit}
+                  onChange={(value) => updateHomePageItemsLimit('categories', value)}
                   type="number"
                 />
               </div>
@@ -6359,7 +6421,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     <div className="space-y-5">
       <SectionCard
         title="Карточки предложений"
-        subtitle="Редактор OfferCard на странице /offers и в связанных переходах на запись."
+        subtitle="Редактор OfferCard в блоке акций на главной странице и в связанных переходах на запись."
         action={
           <button
             type="button"
@@ -6435,9 +6497,20 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
       </SectionCard>
 
+      {renderBlockManager(
+        blocks.filter((block) => ['PROMO', 'OFFERS'].includes(block.blockType)),
+        ['PROMO', 'OFFERS'],
+        'Акции и предложения',
+        'Редактор маркетинговых блоков и подборок предложений.',
+      )}
+    </div>
+  );
+
+  const renderNewsDetail = () => (
+    <div className="space-y-5">
       <SectionCard
         title="Карточки статей"
-        subtitle="Редактор ArticleCard и самих материалов на странице /news и в детальных новостях."
+        subtitle="Редактор материалов для страницы /news, детальных новостей и блока новостей на главной."
         action={
           <button
             type="button"
@@ -6449,7 +6522,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </button>
         }
       >
-        <div className="space-y-3">
+        <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
+          Этот раздел управляет самими публикациями. Тексты секции на главной странице настраиваются в блоке
+          {' '}
+          <span className="font-semibold text-ink">«Главная страница»</span>
+          .
+        </div>
+
+        <div className="mt-4 space-y-3">
           {siteCardsDraft.news.length === 0 ? (
             <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Статей пока нет.</div>
           ) : (
@@ -6511,13 +6591,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           )}
         </div>
       </SectionCard>
-
-      {renderBlockManager(
-        blocks.filter((block) => ['PROMO', 'OFFERS'].includes(block.blockType)),
-        ['PROMO', 'OFFERS'],
-        'Акции и предложения',
-        'Редактор маркетинговых блоков и подборок предложений.',
-      )}
     </div>
   );
 
@@ -7536,6 +7609,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         </div>
 
         {activeCategory === 'home' ? renderHomeDetail() : null}
+        {activeCategory === 'news' ? renderNewsDetail() : null}
         {activeCategory === 'services' ? renderServicesDetail() : null}
         {activeCategory === 'specialists' ? renderSpecialistsDetail() : null}
         {activeCategory === 'contacts' ? renderContactsDetail() : null}
