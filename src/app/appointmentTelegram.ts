@@ -85,10 +85,10 @@ function formatServiceAmount(service: ServiceItem | null) {
 
 function buildServicesBlock({
   appointmentRecord,
-  fallbackService,
+  fallbackServices,
 }: {
   appointmentRecord: Record<string, unknown> | null;
-  fallbackService: ServiceItem | null;
+  fallbackServices: ServiceItem[];
 }) {
   const appointmentServices = asArray(appointmentRecord?.services)
     .map((item) => toRecord(item))
@@ -122,22 +122,32 @@ function buildServicesBlock({
       .join('\n');
   }
 
-  return `1. ${fallbackService?.name || 'Услуга'}
-   Длительность: ${formatDuration(fallbackService?.durationSec ?? 0)}
-   Стоимость: ${formatServiceAmount(fallbackService)}`;
+  if (fallbackServices.length === 0) {
+    return `1. Услуга
+   Длительность: ${formatDuration(0)}
+   Стоимость: Не указана`;
+  }
+
+  return fallbackServices
+    .map(
+      (service, index) => `${index + 1}. ${service.name || 'Услуга'}
+   Длительность: ${formatDuration(service.durationSec ?? 0)}
+   Стоимость: ${formatServiceAmount(service)}`,
+    )
+    .join('\n');
 }
 
 function buildTelegramAppointmentMessage({
   created,
   draft,
   staff,
-  service,
+  services,
   createdByName,
 }: {
   created: unknown;
   draft: JournalCreateDraft;
   staff: StaffItem | null;
-  service: ServiceItem | null;
+  services: ServiceItem[];
   createdByName?: string | null;
 }) {
   const root = toRecord(created);
@@ -163,13 +173,14 @@ function buildTelegramAppointmentMessage({
     0,
   );
   const durationSec =
-    durationSecFromServices || Math.max(60, Math.round((service?.durationSec ?? draft.durationMin * 60)));
+    durationSecFromServices ||
+    services.reduce((total, service) => total + Math.max(60, Math.round(service.durationSec)), 0) ||
+    Math.max(60, Math.round(draft.durationMin * 60));
 
   const baseTotal =
     toNumber(pricesRecord?.baseTotal) ??
     toNumber(appointmentRecord?.baseAmount) ??
-    service?.priceMax ??
-    service?.priceMin ??
+    services.reduce((total, service) => total + Math.max(service.priceMax || service.priceMin, 0), 0) ??
     0;
   const discountAmount = toNumber(pricesRecord?.discountAmount) ?? 0;
   const finalTotal =
@@ -199,7 +210,7 @@ function buildTelegramAppointmentMessage({
     `- Телефон: ${draft.clientPhone.trim() || 'Не указан'}`,
     '',
     'Услуги:',
-    buildServicesBlock({ appointmentRecord, fallbackService: service }),
+    buildServicesBlock({ appointmentRecord, fallbackServices: services }),
     '',
     'Стоимость:',
     `- Базовая сумма: ${formatRub(baseTotal)}`,
@@ -223,13 +234,13 @@ export async function sendAppointmentToTelegramChannel({
   created,
   draft,
   staff,
-  service,
+  services,
   createdByName,
 }: {
   created: unknown;
   draft: JournalCreateDraft;
   staff: StaffItem | null;
-  service: ServiceItem | null;
+  services: ServiceItem[];
   createdByName?: string | null;
 }) {
   if (!TELEGRAM_BOT_ID || !TELEGRAM_CHANNEL_ID) {
@@ -238,7 +249,7 @@ export async function sendAppointmentToTelegramChannel({
 
   const body = new URLSearchParams({
     chat_id: TELEGRAM_CHANNEL_ID,
-    text: buildTelegramAppointmentMessage({ created, draft, staff, service, createdByName }),
+    text: buildTelegramAppointmentMessage({ created, draft, staff, services, createdByName }),
     disable_web_page_preview: 'true',
   });
 

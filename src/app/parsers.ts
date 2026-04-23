@@ -211,6 +211,10 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
         ? [fallbackService]
         : [];
   const firstService = toRecord(serviceCandidates[0]);
+  const joinedServiceNames = serviceCandidates
+    .map((item) => toString(toRecord(item)?.name))
+    .filter(Boolean)
+    .join(', ');
 
   const startAtRaw =
     toString(record.startAt) ||
@@ -312,6 +316,7 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
       toString(record.phone) ||
       '',
     serviceName:
+      joinedServiceNames ||
       toString(firstService?.name) ||
       toString(record.serviceName) ||
       toString(record.servicesLabel) ||

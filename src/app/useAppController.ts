@@ -224,7 +224,7 @@ function buildJournalCreateDraft(
     startTime: '10:00',
     durationMin,
     staffId: firstStaff?.id || '',
-    serviceId: firstService?.id || '',
+    serviceIds: firstService ? [firstService.id] : [],
   };
 }
 
@@ -1431,7 +1431,12 @@ export function useAppController(): AppController {
         journalCreateStaff.some((item) => item.id === current.staffId)
           ? current.staffId
           : journalCreateStaff[0]?.id || '',
-      serviceId: current.serviceId || services[0]?.id || '',
+      serviceIds:
+        current.serviceIds.length > 0
+          ? current.serviceIds.filter((serviceId) => services.some((item) => item.id === serviceId))
+          : services[0]
+            ? [services[0].id]
+            : [],
       durationMin:
         current.durationMin > 0 ? current.durationMin : Math.max(15, Math.round(services[0].durationSec / 60)),
     }));
@@ -1515,22 +1520,31 @@ export function useAppController(): AppController {
     }
 
     const allowedServices = services.filter((item) => allowedServiceIds.includes(item.id));
-    const fallbackService = allowedServices[0] || null;
-    const selectedAllowed = allowedServices.find((item) => item.id === journalCreateDraft.serviceId) || null;
+    const nextSelectedServiceIds = journalCreateDraft.serviceIds.filter((serviceId) =>
+      allowedServices.some((item) => item.id === serviceId)
+    );
+    const fallbackServiceIds = allowedServices[0] ? [allowedServices[0].id] : [];
+    const resolvedServiceIds = nextSelectedServiceIds.length > 0 ? nextSelectedServiceIds : fallbackServiceIds;
+    const totalDurationMin = resolvedServiceIds.reduce((total, serviceId) => {
+      const service = allowedServices.find((item) => item.id === serviceId) || null;
+      return total + (service ? Math.max(15, Math.round(service.durationSec / 60)) : 0);
+    }, 0);
 
-    if (selectedAllowed) {
+    const sameSelection =
+      resolvedServiceIds.length === journalCreateDraft.serviceIds.length &&
+      resolvedServiceIds.every((serviceId, index) => serviceId === journalCreateDraft.serviceIds[index]);
+
+    if (sameSelection) {
       return;
     }
 
     setJournalCreateDraft((current) => ({
       ...current,
-      serviceId: fallbackService?.id || '',
-      durationMin: fallbackService
-        ? Math.max(15, Math.round(fallbackService.durationSec / 60))
-        : current.durationMin,
+      serviceIds: resolvedServiceIds,
+      durationMin: totalDurationMin > 0 ? totalDurationMin : current.durationMin,
     }));
   }, [
-    journalCreateDraft.serviceId,
+    journalCreateDraft.serviceIds,
     journalCreateServiceIdsByStaff,
     journalCreateDraft.staffId,
     page,
@@ -3033,14 +3047,21 @@ export function useAppController(): AppController {
       return;
     }
     const selectedStaffId = journalCreateDraft.staffId || journalCreateStaff[0]?.id || '';
-    const selectedServiceId = journalCreateDraft.serviceId || services[0]?.id || '';
+    const selectedServiceIds =
+      journalCreateDraft.serviceIds.length > 0
+        ? journalCreateDraft.serviceIds.filter((serviceId) => services.some((item) => item.id === serviceId))
+        : services[0]
+          ? [services[0].id]
+          : [];
     const selectedStaff =
       journalCreateStaff.find((item) => item.id === selectedStaffId) ||
       journalCreateBaseStaff.find((item) => item.id === selectedStaffId) ||
       null;
-    const selectedService = services.find((item) => item.id === selectedServiceId) || null;
-    if (!selectedStaffId || !selectedServiceId) {
-      setToast('Не выбраны сотрудник или услуга');
+    const selectedServices = selectedServiceIds
+      .map((serviceId) => services.find((item) => item.id === serviceId) || null)
+      .filter((item): item is ServiceItem => Boolean(item));
+    if (!selectedStaffId || selectedServiceIds.length === 0) {
+      setToast('Не выбраны сотрудник или услуги');
       return;
     }
 
@@ -3060,7 +3081,7 @@ export function useAppController(): AppController {
     const payload = buildJournalCreateAppointmentPayload({
       startAt: start,
       staffId: selectedStaffId,
-      serviceId: selectedServiceId,
+      serviceIds: selectedServiceIds,
       clientName,
       clientPhone: phone,
     });
@@ -3076,7 +3097,7 @@ export function useAppController(): AppController {
           created,
           draft: journalCreateDraft,
           staff: selectedStaff,
-          service: selectedService,
+          services: selectedServices,
           createdByName: session?.staff.name ?? null,
         });
       } catch {

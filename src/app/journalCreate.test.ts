@@ -9,7 +9,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
     buildJournalCreateAppointmentPayload({
       startAt: new Date('2026-03-20T10:30:00.000Z'),
       staffId: 'staff-1',
-      serviceId: 'service-1',
+      serviceIds: ['service-1', 'service-2'],
       clientName: ' Анна ',
       clientPhone: ' +79780000000 ',
     }),
@@ -17,7 +17,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
     startAt: '2026-03-20T10:30:00.000Z',
     staffId: 'staff-1',
     anyStaff: false,
-    serviceIds: ['service-1'],
+    serviceIds: ['service-1', 'service-2'],
     client: {
       name: 'Анна',
       phone: '+79780000000',

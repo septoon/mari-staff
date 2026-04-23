@@ -140,14 +140,19 @@ function Content({
 }: Omit<JournalCreateScreenProps, 'onBack'>) {
   const [clientSuggestOpen, setClientSuggestOpen] = useState(false);
   const selectedStaff = staff.find((item) => item.id === draft.staffId) || null;
-  const selectedService = services.find((item) => item.id === draft.serviceId) || null;
+  const selectedServices = useMemo(
+    () => services.filter((item) => draft.serviceIds.includes(item.id)),
+    [draft.serviceIds, services],
+  );
   const startAt = combineDateTime(draft.dateValue, draft.startTime);
   const endAt = addMinutes(startAt, draft.durationMin);
-  const createDisabled = loading || servicesLoading || services.length === 0;
+  const createDisabled = loading || servicesLoading || services.length === 0 || draft.serviceIds.length === 0;
   const createDisabledReason = servicesLoading
     ? 'Пока загружаются услуги выбранного сотрудника.'
     : services.length === 0
       ? 'Создание недоступно: у выбранного сотрудника нет назначенных услуг.'
+      : draft.serviceIds.length === 0
+        ? 'Выберите хотя бы одну услугу.'
       : null;
   const durationOptions = useMemo(() => {
     const presetValues = [30, 45, 60, 90, 120, 150, 180];
@@ -161,6 +166,25 @@ function Content({
       label: `${value} мин`,
     }));
   }, [draft.durationMin]);
+  const totalPriceMin = useMemo(
+    () => selectedServices.reduce((sum, item) => sum + Math.max(item.priceMin, 0), 0),
+    [selectedServices],
+  );
+  const totalPriceMax = useMemo(() => {
+    if (selectedServices.length === 0) {
+      return 0;
+    }
+
+    return selectedServices.reduce((sum, item) => sum + Math.max(item.priceMax || item.priceMin, 0), 0);
+  }, [selectedServices]);
+  const totalDurationMin = useMemo(
+    () =>
+      selectedServices.reduce(
+        (sum, item) => sum + Math.max(15, Math.round(item.durationSec / 60)),
+        0,
+      ),
+    [selectedServices],
+  );
   const clientSuggestions = useMemo(() => {
     const query = draft.clientName.trim().toLowerCase();
     if (!query) {
@@ -181,6 +205,20 @@ function Content({
       })
       .slice(0, 6);
   }, [clients, draft.clientName]);
+  const toggleService = (serviceId: string) => {
+    const nextIds = draft.serviceIds.includes(serviceId)
+      ? draft.serviceIds.filter((id) => id !== serviceId)
+      : [...draft.serviceIds, serviceId];
+    const nextServices = services.filter((item) => nextIds.includes(item.id));
+    const nextDurationMin =
+      nextServices.reduce((sum, item) => sum + Math.max(15, Math.round(item.durationSec / 60)), 0) ||
+      draft.durationMin;
+
+    onDraftChange({
+      serviceIds: nextIds,
+      durationMin: nextDurationMin,
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -295,23 +333,57 @@ function Content({
                 </span>
               </div>
             ) : services.length > 0 ? (
-              <SelectField
-                label="Услуга"
-                value={draft.serviceId}
-                options={services.map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                }))}
-                onChange={(value) => {
-                  const nextService = services.find((item) => item.id === value) || null;
-                  onDraftChange({
-                    serviceId: value,
-                    durationMin: nextService
-                      ? Math.max(15, Math.round(nextService.durationSec / 60))
-                      : draft.durationMin,
-                  });
-                }}
-              />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Услуги</p>
+                <div className="mt-3 grid gap-3">
+                  {services.map((item) => {
+                    const active = draft.serviceIds.includes(item.id);
+                    const priceLabel =
+                      item.priceMax && item.priceMax !== item.priceMin
+                        ? `${formatRub(item.priceMin)}-${formatRub(item.priceMax)}`
+                        : formatRub(item.priceMax || item.priceMin);
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleService(item.id)}
+                        className={clsx(
+                          'rounded-[24px] border px-4 py-4 text-left transition',
+                          active
+                            ? 'border-[#222b33] bg-[#222b33] text-white shadow-[0_16px_34px_rgba(34,43,51,0.16)]'
+                            : 'border-[#d9dfe8] bg-white text-ink hover:border-[#c2cad6] hover:bg-[#f7f9fc]',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-extrabold">{item.name}</p>
+                            <p
+                              className={clsx(
+                                'mt-2 text-sm font-semibold',
+                                active ? 'text-white/75' : 'text-[#788292]',
+                              )}
+                            >
+                              {Math.max(15, Math.round(item.durationSec / 60))} мин
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-extrabold">{priceLabel}</p>
+                            <p
+                              className={clsx(
+                                'mt-2 text-xs font-bold uppercase tracking-[0.18em]',
+                                active ? 'text-white/70' : 'text-[#98a1ae]',
+                              )}
+                            >
+                              {active ? 'Выбрано' : 'Добавить'}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
               <div className="rounded-[24px] border border-[#e7ebf0] bg-[#f8fafc] px-4 py-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Услуга</p>
@@ -341,7 +413,11 @@ function Content({
                 <UserRound className="mt-0.5 h-4 w-4 text-[#7d8795]" />
                 <div>
                   <p className="text-sm font-bold text-ink">{selectedStaff?.name || 'Сотрудник не выбран'}</p>
-                  <p className="mt-1 text-sm font-semibold text-[#788292]">{selectedService?.name || 'Услуга не выбрана'}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#788292]">
+                    {selectedServices.length > 0
+                      ? selectedServices.map((item) => item.name).join(', ')
+                      : 'Услуги не выбраны'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -349,8 +425,17 @@ function Content({
                 <div>
                   <p className="text-sm font-bold text-ink">{draft.durationMin} мин</p>
                   <p className="mt-1 text-sm font-semibold text-[#788292]">
-                    {selectedService?.priceMax ? `До ${formatRub(selectedService.priceMax)}` : 'Стоимость можно уточнить позже'}
+                    {selectedServices.length > 0
+                      ? totalPriceMax > totalPriceMin
+                        ? `${formatRub(totalPriceMin)}-${formatRub(totalPriceMax)}`
+                        : formatRub(totalPriceMax || totalPriceMin)
+                      : 'Стоимость можно уточнить позже'}
                   </p>
+                  {selectedServices.length > 1 ? (
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">
+                      {selectedServices.length} услуг · {totalDurationMin} мин
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

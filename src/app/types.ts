@@ -208,7 +208,7 @@ export type JournalCreateDraft = {
   startTime: string;
   durationMin: number;
   staffId: string;
-  serviceId: string;
+  serviceIds: string[];
 };
 
 export type JournalCard = AppointmentItem & {

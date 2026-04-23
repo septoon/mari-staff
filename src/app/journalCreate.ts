@@ -3,7 +3,7 @@ export const JOURNAL_CREATE_STEP_MINUTES = 10;
 type BuildJournalCreateAppointmentPayloadInput = {
   clientName: string;
   clientPhone: string;
-  serviceId: string;
+  serviceIds: string[];
   staffId: string;
   startAt: Date;
 };
@@ -11,7 +11,7 @@ type BuildJournalCreateAppointmentPayloadInput = {
 export function buildJournalCreateAppointmentPayload({
   clientName,
   clientPhone,
-  serviceId,
+  serviceIds,
   staffId,
   startAt,
 }: BuildJournalCreateAppointmentPayloadInput) {
@@ -19,7 +19,7 @@ export function buildJournalCreateAppointmentPayload({
     startAt: startAt.toISOString(),
     staffId,
     anyStaff: false,
-    serviceIds: [serviceId],
+    serviceIds,
     client: {
       name: clientName.trim(),
       phone: clientPhone.trim(),
