@@ -3,6 +3,7 @@ export const JOURNAL_CREATE_STEP_MINUTES = 10;
 type BuildJournalCreateAppointmentPayloadInput = {
   clientName: string;
   clientPhone: string;
+  comment?: string;
   serviceIds: string[];
   staffId: string;
   startAt: Date;
@@ -11,6 +12,7 @@ type BuildJournalCreateAppointmentPayloadInput = {
 export function buildJournalCreateAppointmentPayload({
   clientName,
   clientPhone,
+  comment,
   serviceIds,
   staffId,
   startAt,
@@ -24,6 +26,7 @@ export function buildJournalCreateAppointmentPayload({
       name: clientName.trim(),
       phone: clientPhone.trim(),
     },
+    comment: comment?.trim() || undefined,
   };
 }
 

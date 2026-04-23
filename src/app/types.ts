@@ -164,6 +164,7 @@ export type AppointmentItem = {
   discountPercent: number | null;
   amountAfterDiscount: number | null;
   paidAmount: number | null;
+  comment: string;
   createdAt: Date;
 };
 
@@ -204,6 +205,7 @@ export type JournalSettings = {
 export type JournalCreateDraft = {
   clientName: string;
   clientPhone: string;
+  comment: string;
   dateValue: string;
   startTime: string;
   durationMin: number;

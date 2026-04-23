@@ -494,6 +494,7 @@ export function TimetableScreen({
   );
 
   const staffInShiftCount = dayData.filter((item) => item.intervals.length > 0).length;
+  const hasVisibleStaff = dayData.length > 0;
 
   return (
     <div className="pb-6 pt-4 md:pt-6">
@@ -592,126 +593,138 @@ export function TimetableScreen({
 
         <div className="md:hidden">
           <div className="space-y-4 px-4 py-4">
-            {dayData.map((column) => (
-              <section
-                key={column.staff.id}
-                className="rounded-[28px] border border-[#e2e8f0] bg-white p-4 shadow-[0_12px_32px_rgba(31,39,50,0.06)]"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] bg-[#eef2f6] text-[#65707d]">
-                    {column.staff.avatarUrl ? (
-                      <img src={column.staff.avatarUrl} alt={column.staff.name} className="h-full w-full object-cover" />
+            {hasVisibleStaff ? (
+              dayData.map((column) => (
+                <section
+                  key={column.staff.id}
+                  className="rounded-[28px] border border-[#e2e8f0] bg-white p-4 shadow-[0_12px_32px_rgba(31,39,50,0.06)]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] bg-[#eef2f6] text-[#65707d]">
+                      {column.staff.avatarUrl ? (
+                        <img src={column.staff.avatarUrl} alt={column.staff.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <UserRound className="h-6 w-6" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[22px] font-extrabold tracking-[-0.04em] text-[#232c36]">
+                        {column.staff.name}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-[#728090]">
+                        {column.staff.positionName || 'Сотрудник'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
+                        Смена
+                      </p>
+                      <p className="mt-2 text-base font-extrabold text-[#232c36]">
+                        {getIntervalRangeLabel(column.intervals)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
+                        Онлайн
+                      </p>
+                      <p className="mt-2 text-base font-extrabold text-[#232c36]">
+                        {getBookingRangeLabel(column.intervals)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {column.editable ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onOpenDayEditor(column.staff)}
+                        className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-4 text-sm font-semibold text-[#2f3843]"
+                      >
+                        <CalendarDays className="h-4 w-4" />
+                        Изменить день
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenOnlineSlots(column.staff)}
+                        disabled={column.intervals.length !== 1}
+                        className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-4 text-sm font-semibold text-[#2f3843] disabled:opacity-45"
+                      >
+                        <MonitorSmartphone className="h-4 w-4" />
+                        Онлайн-время
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenTemplateEditor(column.staff)}
+                        className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-4 text-sm font-semibold text-[#2f3843]"
+                      >
+                        <CalendarRange className="h-4 w-4" />
+                        График
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 space-y-3">
+                    {column.appointments.length > 0 ? (
+                      column.appointments.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => onOpenAppointment(item)}
+                          className={clsx(
+                            'block w-full rounded-[22px] border px-4 py-4 text-left shadow-[0_10px_24px_rgba(31,39,50,0.06)]',
+                            getAppointmentTone(item.status),
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-extrabold">
+                              {formatTime(item.startAt)} - {formatTime(item.endAt)}
+                            </span>
+                            <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em]">
+                              {item.status}
+                            </span>
+                          </div>
+                          <p className="mt-3 text-base font-extrabold leading-tight">{item.clientName}</p>
+                          <p className="mt-1 text-sm font-semibold opacity-80">{item.serviceName}</p>
+                          <p className="mt-1 text-sm opacity-80">{item.clientPhone}</p>
+                        </button>
+                      ))
                     ) : (
-                      <UserRound className="h-6 w-6" />
+                      <div className="rounded-[22px] border border-dashed border-[#d8e0ea] bg-[#fbfcfe] px-4 py-5 text-sm font-semibold text-[#7b8694]">
+                        {column.intervals.length > 0
+                          ? 'Записей на этого сотрудника в выбранный день нет.'
+                          : 'Сотрудник не выведен в смену на выбранный день.'}
+                      </div>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[22px] font-extrabold tracking-[-0.04em] text-[#232c36]">
-                      {column.staff.name}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-[#728090]">
-                      {column.staff.positionName || 'Сотрудник'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
-                      Смена
-                    </p>
-                    <p className="mt-2 text-base font-extrabold text-[#232c36]">
-                      {getIntervalRangeLabel(column.intervals)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
-                      Онлайн
-                    </p>
-                    <p className="mt-2 text-base font-extrabold text-[#232c36]">
-                      {getBookingRangeLabel(column.intervals)}
-                    </p>
-                  </div>
-                </div>
-
-                {column.editable ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDayEditor(column.staff)}
-                      className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-4 text-sm font-semibold text-[#2f3843]"
-                    >
-                      <CalendarDays className="h-4 w-4" />
-                      Изменить день
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenOnlineSlots(column.staff)}
-                      disabled={column.intervals.length !== 1}
-                      className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-4 text-sm font-semibold text-[#2f3843] disabled:opacity-45"
-                    >
-                      <MonitorSmartphone className="h-4 w-4" />
-                      Онлайн-время
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenTemplateEditor(column.staff)}
-                      className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-4 text-sm font-semibold text-[#2f3843]"
-                    >
-                      <CalendarRange className="h-4 w-4" />
-                      График
-                    </button>
-                  </div>
-                ) : null}
-
-                <div className="mt-4 space-y-3">
-                  {column.appointments.length > 0 ? (
-                    column.appointments.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => onOpenAppointment(item)}
-                        className={clsx(
-                          'block w-full rounded-[22px] border px-4 py-4 text-left shadow-[0_10px_24px_rgba(31,39,50,0.06)]',
-                          getAppointmentTone(item.status),
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-extrabold">
-                            {formatTime(item.startAt)} - {formatTime(item.endAt)}
-                          </span>
-                          <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em]">
-                            {item.status}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-base font-extrabold leading-tight">{item.clientName}</p>
-                        <p className="mt-1 text-sm font-semibold opacity-80">{item.serviceName}</p>
-                        <p className="mt-1 text-sm opacity-80">{item.clientPhone}</p>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="rounded-[22px] border border-dashed border-[#d8e0ea] bg-[#fbfcfe] px-4 py-5 text-sm font-semibold text-[#7b8694]">
-                      {column.intervals.length > 0
-                        ? 'Записей на этого сотрудника в выбранный день нет.'
-                        : 'Сотрудник не выведен в смену на выбранный день.'}
-                    </div>
-                  )}
-                </div>
-              </section>
-            ))}
+                </section>
+              ))
+            ) : (
+              <div className="rounded-[28px] border border-dashed border-[#d8e0ea] bg-white px-5 py-8 text-center shadow-[0_12px_32px_rgba(31,39,50,0.04)]">
+                <p className="text-[24px] font-extrabold tracking-[-0.04em] text-[#232c36]">
+                  На этот день нет смен
+                </p>
+                <p className="mt-3 text-sm font-semibold leading-6 text-[#728090]">
+                  Выберите другую дату или добавьте сотрудников в график на выбранный день.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="hidden px-4 py-4 md:block">
-          <div ref={menuRootRef} className="overflow-x-auto overflow-y-visible">
-            <div
-              className="grid min-w-full"
-              style={{
-                gridTemplateColumns: `${DESKTOP_AXIS_WIDTH}px repeat(${Math.max(dayData.length, 1)}, ${DESKTOP_COLUMN_WIDTH}px) ${DESKTOP_AXIS_WIDTH}px`,
-                minWidth:
-                  DESKTOP_AXIS_WIDTH * 2 + Math.max(dayData.length, 1) * DESKTOP_COLUMN_WIDTH,
-              }}
-            >
+          {hasVisibleStaff ? (
+            <div ref={menuRootRef} className="overflow-x-auto overflow-y-visible">
+              <div
+                className="grid min-w-full"
+                style={{
+                  gridTemplateColumns: `${DESKTOP_AXIS_WIDTH}px repeat(${Math.max(dayData.length, 1)}, ${DESKTOP_COLUMN_WIDTH}px) ${DESKTOP_AXIS_WIDTH}px`,
+                  minWidth:
+                    DESKTOP_AXIS_WIDTH * 2 + Math.max(dayData.length, 1) * DESKTOP_COLUMN_WIDTH,
+                }}
+              >
               <div className="sticky left-0 top-0 z-20 rounded-tl-[24px] border-b border-r border-[#e5ebf2] bg-white" />
               {dayData.map((column) => {
                 const menuOpen = menuStaffId === column.staff.id;
@@ -846,8 +859,18 @@ export function TimetableScreen({
               ))}
 
               <AxisColumn labels={axisLabels} gridHeight={gridHeight} align="right" />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-[28px] border border-dashed border-[#d8e0ea] bg-white px-8 py-14 text-center shadow-[0_12px_32px_rgba(31,39,50,0.04)]">
+              <p className="text-[32px] font-extrabold tracking-[-0.05em] text-[#232c36]">
+                На этот день никто не в смене
+              </p>
+              <p className="mx-auto mt-4 max-w-[560px] text-base font-semibold leading-7 text-[#728090]">
+                Таймлайн появится автоматически, когда в графике будут назначены сотрудники на выбранную дату.
+              </p>
+            </div>
+          )}
 
           <div className="mt-3 flex items-center gap-5 px-2 text-xs font-semibold text-[#7b8694]">
             <span className="inline-flex items-center gap-2">

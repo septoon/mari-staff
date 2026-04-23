@@ -250,7 +250,7 @@ function buildDesktopDraft(appointment: AppointmentItem): DesktopAppointmentDraf
     endTime: formatTime(appointment.endAt),
     durationMin,
     technicalBreaks: [],
-    comment: '',
+    comment: appointment.comment || '',
   };
 }
 
@@ -645,6 +645,15 @@ export function JournalAppointmentScreen({
             <AppointmentAmount appointment={appointment} className="text-[40px]" />
           </div>
         </div>
+
+        {appointment.comment.trim() ? (
+          <div className="mt-5 rounded-3xl border border-line bg-screen p-4">
+            <p className="text-[16px] font-medium text-muted">Комментарий к записи</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-[18px] font-medium text-ink">
+              {appointment.comment}
+            </p>
+          </div>
+        ) : null}
 
         <div className="mt-5 rounded-3xl border border-line bg-screen p-4">
           <p className="text-[34px] font-bold text-ink">К оплате</p>

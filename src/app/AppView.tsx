@@ -51,6 +51,7 @@ import { StaffServicesEditorScreen } from './screens/StaffServicesEditorScreen';
 import {
   appointmentMatchesClient,
   normalizePhoneForLink,
+  toISODate,
 } from './helpers';
 import { PUBLIC_UNAUTHORIZED_ROUTES } from './controller/routes';
 import type { AppController, ClientItem, StaffItem } from './types';
@@ -264,6 +265,7 @@ export function AppView({ controller }: AppViewProps) {
   const [clientsSmsOpen, setClientsSmsOpen] = useState(false);
   const [clientsToolsLoading, setClientsToolsLoading] = useState(false);
   const [clientsToolsError, setClientsToolsError] = useState('');
+  const selectedDateIso = useMemo(() => toISODate(state.selectedDate), [state.selectedDate]);
   const scheduleMarkedDates = useMemo(() => {
     const datesWithHours = new Set<string>();
     Object.values(state.workingHoursByStaff).forEach((byDay) => {
@@ -306,6 +308,27 @@ export function AppView({ controller }: AppViewProps) {
       : state.journalSettings.showMarkedDates
         ? state.journalMarkedDates
         : [];
+  const journalMobileStaff = useMemo(
+    () =>
+      state.journalStaff.filter((item) => {
+        const intervals = state.workingHoursByStaff[item.id]?.[selectedDateIso] ?? [];
+        return intervals.length > 0;
+      }),
+    [selectedDateIso, state.journalStaff, state.workingHoursByStaff],
+  );
+  const timetableStaff = useMemo(() => {
+    const baseStaff = state.canViewSchedule ? state.visibleStaff : state.journalStaff;
+    return baseStaff.filter((item) => {
+      const intervals = state.workingHoursByStaff[item.id]?.[selectedDateIso] ?? [];
+      return intervals.length > 0;
+    });
+  }, [
+    selectedDateIso,
+    state.canViewSchedule,
+    state.journalStaff,
+    state.visibleStaff,
+    state.workingHoursByStaff,
+  ]);
   const currentStaff = state.session
     ? state.staff.find((item) => item.id === state.session?.staff.id) ?? null
     : null;
@@ -683,6 +706,7 @@ export function AppView({ controller }: AppViewProps) {
           <JournalTabScreen
             selectedDate={state.selectedDate}
             staff={state.journalStaff}
+            mobileStaff={journalMobileStaff}
             journalHours={state.journalHours}
             cards={state.journalCards}
             listAppointments={state.journalListAppointments}
@@ -718,6 +742,7 @@ export function AppView({ controller }: AppViewProps) {
             <JournalTabScreen
               selectedDate={state.selectedDate}
               staff={state.journalStaff}
+              mobileStaff={journalMobileStaff}
               journalHours={state.journalHours}
               cards={state.journalCards}
               listAppointments={state.journalListAppointments}
@@ -927,8 +952,8 @@ export function AppView({ controller }: AppViewProps) {
         {state.page === 'timetable' ? (
           <TimetableScreen
             selectedDate={state.selectedDate}
-            staff={state.journalStaff}
-            visibleStaff={state.canViewSchedule ? state.visibleStaff : state.journalStaff}
+            staff={timetableStaff}
+            visibleStaff={timetableStaff}
             appointments={state.appointments}
             hoursByStaff={state.workingHoursByStaff}
             loading={state.loading.appointments || state.loading.schedule || state.loading.action}

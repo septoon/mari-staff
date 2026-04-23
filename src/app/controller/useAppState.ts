@@ -115,6 +115,7 @@ function buildEmptyJournalCreateDraft(): JournalCreateDraft {
   return {
     clientName: '',
     clientPhone: '',
+    comment: '',
     dateValue: '',
     startTime: '10:00',
     durationMin: 60,

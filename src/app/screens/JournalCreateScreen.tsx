@@ -279,6 +279,15 @@ function Content({
             onChange={(value) => onDraftChange({ clientPhone: value })}
           />
         </div>
+        <label className="mt-4 block min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Комментарий</p>
+          <textarea
+            value={draft.comment}
+            placeholder="Например, клиент просил напомнить о визите или уточнил детали услуги"
+            onChange={(event) => onDraftChange({ comment: event.target.value })}
+            className="mt-3 min-h-[128px] w-full min-w-0 max-w-full resize-y rounded-2xl border border-[#d9dfe8] bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#c2cad6]"
+          />
+        </label>
       </Section>
 
       <Section

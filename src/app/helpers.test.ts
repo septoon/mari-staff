@@ -17,6 +17,7 @@ function makeAppointment(overrides: Partial<AppointmentItem> = {}): AppointmentI
     discountPercent: null,
     amountAfterDiscount: 1500,
     paidAmount: 0,
+    comment: '',
     createdAt: new Date('2026-03-09T10:00:00.000Z'),
     ...overrides,
   };

@@ -31,6 +31,7 @@ import { StaffChip } from '../components/shared/StaffChip';
 type JournalTabScreenProps = {
   selectedDate: Date;
   staff: StaffItem[];
+  mobileStaff: StaffItem[];
   journalHours: string[];
   cards: JournalCard[];
   listAppointments: AppointmentItem[];
@@ -173,6 +174,7 @@ function JournalListSkeletonRow({ showAmount }: { showAmount: boolean }) {
 export function JournalTabScreen({
   selectedDate,
   staff,
+  mobileStaff,
   journalHours,
   cards,
   listAppointments,
@@ -220,18 +222,11 @@ export function JournalTabScreen({
       : 'text-[20px] font-extrabold leading-tight text-ink';
   const secondaryTextClassName = 'mt-2 text-sm font-semibold text-[#838b97]';
 
-  const mobileStaff = useMemo(() => {
-    if (journalSettings.mobileStaffMode !== 'selected') {
-      return staff;
-    }
-    const selectedIds = new Set(journalSettings.mobileSelectedStaffIds);
-    const filtered = staff.filter((item) => selectedIds.has(item.id));
-    return filtered.length > 0 ? filtered : staff;
-  }, [journalSettings.mobileSelectedStaffIds, journalSettings.mobileStaffMode, staff]);
+  const resolvedMobileStaff = useMemo(() => mobileStaff, [mobileStaff]);
   const mobileCards = useMemo(() => {
-    const staffById = new Map(mobileStaff.map((item, index) => [item.id, index]));
+    const staffById = new Map(resolvedMobileStaff.map((item, index) => [item.id, index]));
     const staffByName = new Map(
-      mobileStaff.map((item, index) => [item.name.trim().toLowerCase(), index]),
+      resolvedMobileStaff.map((item, index) => [item.name.trim().toLowerCase(), index]),
     );
     return cards
       .map((item) => {
@@ -251,8 +246,8 @@ export function JournalTabScreen({
         };
       })
       .filter(Boolean) as JournalCard[];
-  }, [cards, mobileStaff]);
-  const mobileColumnsCount = Math.max(1, mobileStaff.length);
+  }, [cards, resolvedMobileStaff]);
+  const mobileColumnsCount = Math.max(1, resolvedMobileStaff.length);
   const mobileGridTemplateColumns = `${JOURNAL_TIME_COLUMN_WIDTH}px repeat(${mobileColumnsCount}, ${JOURNAL_CARD_COLUMN_WIDTH}px)`;
   const mobileMinWidth =
     JOURNAL_TIME_COLUMN_WIDTH +
@@ -398,7 +393,7 @@ export function JournalTabScreen({
                 </button>
               </div>
               {Array.from({ length: mobileColumnsCount }).map((_, index) => {
-                const item = mobileStaff[index];
+                const item = resolvedMobileStaff[index];
                 if (!item) {
                   return <div key={`staff-placeholder-${index}`} />;
                 }

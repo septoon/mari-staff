@@ -12,6 +12,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
       serviceIds: ['service-1', 'service-2'],
       clientName: ' Анна ',
       clientPhone: ' +79780000000 ',
+      comment: '  Комментарий к записи  ',
     }),
   ).toEqual({
     startAt: '2026-03-20T10:30:00.000Z',
@@ -22,6 +23,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
       name: 'Анна',
       phone: '+79780000000',
     },
+    comment: 'Комментарий к записи',
   });
 });
 

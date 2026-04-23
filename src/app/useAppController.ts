@@ -220,6 +220,7 @@ function buildJournalCreateDraft(
   return {
     clientName: '',
     clientPhone: '',
+    comment: '',
     dateValue: formatJournalCreateDateValue(selectedDate),
     startTime: '10:00',
     durationMin,
@@ -1618,7 +1619,9 @@ export function useAppController(): AppController {
   }, [isAuthorized, loadJournalMarkedDates, selectedDate]);
 
   useEffect(() => {
-    if (!isAuthorized || page !== 'tabs' || tab !== 'schedule' || staff.length === 0) {
+    const shouldLoadWorkingHours =
+      (page === 'tabs' && (tab === 'schedule' || tab === 'journal')) || page === 'timetable';
+    if (!isAuthorized || !shouldLoadWorkingHours || staff.length === 0) {
       return;
     }
     void loadWorkingHours(staff);
@@ -3084,6 +3087,7 @@ export function useAppController(): AppController {
       serviceIds: selectedServiceIds,
       clientName,
       clientPhone: phone,
+      comment: journalCreateDraft.comment,
     });
 
     setLoadingKey(setLoading, 'action', true);
@@ -4259,7 +4263,7 @@ export function useAppController(): AppController {
       categoryId: serviceDraft.categoryId,
       imageAssetId: serviceDraft.imageAssetId,
       description: serviceDraft.description.trim() || undefined,
-      durationSec: Math.max(600, Math.round(serviceDraft.durationSec)),
+      durationSec: Math.max(0, Math.round(serviceDraft.durationSec)),
       priceMin: Math.max(0, Math.round(serviceDraft.priceMin)),
       priceMax: Math.max(0, Math.round(serviceDraft.priceMin)),
       isActive: serviceDraft.isActive,
@@ -4419,7 +4423,7 @@ export function useAppController(): AppController {
       nameOnline: found.nameOnline || found.name,
       categoryId: found.categoryId,
       description: found.description || undefined,
-      durationSec: Math.max(600, Math.round(found.durationSec || 0)),
+      durationSec: Math.max(0, Math.round(found.durationSec || 0)),
       priceMin: Math.max(0, Math.round(found.priceMin || 0)),
       priceMax: Math.max(0, Math.round(found.priceMax || found.priceMin || 0)),
       isActive: enabled,
@@ -5501,11 +5505,15 @@ export function useAppController(): AppController {
   };
 
   const loadAppointmentsForSelectedDate = async () => {
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       loadAppointments(selectedDate),
       loadJournalListAppointments(),
       loadJournalMarkedDates(selectedDate),
-    ]);
+    ];
+    if (staff.length > 0) {
+      tasks.push(loadWorkingHours(staff));
+    }
+    await Promise.all(tasks);
   };
 
   const openTimetableForDate = (value: Date) => {

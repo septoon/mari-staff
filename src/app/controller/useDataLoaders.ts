@@ -113,6 +113,7 @@ export function useDataLoaders({
   setPrivacyPolicyText,
 }: UseDataLoadersParams) {
   const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
+  const canLoadWorkingHours = canViewSchedule || canViewJournal;
   const buildScheduleRange = (anchor: Date) => {
     const from = new Date(anchor.getFullYear(), anchor.getMonth() - 4, 1);
     const to = new Date(anchor.getFullYear(), anchor.getMonth() + 6, 0);
@@ -558,7 +559,7 @@ export function useDataLoaders({
 
   const loadWorkingHours = useCallback(
     async (staffRows: StaffItem[]) => {
-      if (!isAuthorized || !canViewSchedule) {
+      if (!isAuthorized || !canLoadWorkingHours) {
         setWorkingHoursByStaff({});
         return;
       }
@@ -610,7 +611,7 @@ export function useDataLoaders({
         setLoadingKey(setLoading, 'schedule', false);
       }
     },
-    [canViewSchedule, isAuthorized, selectedDate, setLoading, setWorkingHoursByStaff],
+    [canLoadWorkingHours, isAuthorized, selectedDate, setLoading, setWorkingHoursByStaff],
   );
 
   const refreshStaffAndMeta = useCallback(async () => {
@@ -632,7 +633,7 @@ export function useDataLoaders({
       canViewJournal ? loadJournalMarkedDates(selectedDate) : Promise.resolve(),
       loadSettings(),
     ]);
-    if (canViewSchedule) {
+    if (canLoadWorkingHours) {
       await loadWorkingHours(rows);
     } else {
       setWorkingHoursByStaff({});
@@ -641,7 +642,7 @@ export function useDataLoaders({
     canUseStaffDirectory,
     canViewClients,
     canViewJournal,
-    canViewSchedule,
+    canLoadWorkingHours,
     canViewServices,
     debouncedClientsQuery,
     isAuthorized,

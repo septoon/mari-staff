@@ -326,6 +326,7 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
     discountPercent,
     amountAfterDiscount,
     paidAmount,
+    comment: toString(record.comment),
     createdAt: Number.isNaN(createdAt.getTime()) ? startAt : createdAt,
   };
 }

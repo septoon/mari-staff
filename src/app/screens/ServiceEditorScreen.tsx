@@ -49,9 +49,10 @@ export function ServiceEditorScreen({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [assignSheetOpen, setAssignSheetOpen] = useState(false);
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
+  const [durationInput, setDurationInput] = useState('');
 
   const durationMin = useMemo(
-    () => Math.max(5, Math.round(draft.durationSec / 60) || 5),
+    () => Math.max(0, Math.round(draft.durationSec / 60) || 0),
     [draft.durationSec],
   );
 
@@ -61,6 +62,15 @@ export function ServiceEditorScreen({
     }
     setSelectedProviderIds(providers.map((item) => item.id));
   }, [assignSheetOpen, providers]);
+
+  useEffect(() => {
+    setDurationInput((current) => {
+      if (current === '' && durationMin === 0) {
+        return current;
+      }
+      return String(durationMin);
+    });
+  }, [durationMin]);
 
   const pickImage = () => {
     fileInputRef.current?.click();
@@ -84,6 +94,25 @@ export function ServiceEditorScreen({
   const applyProviders = () => {
     onAssignProviders(selectedProviderIds);
     setAssignSheetOpen(false);
+  };
+
+  const handleDurationChange = (rawValue: string) => {
+    setDurationInput(rawValue);
+
+    if (rawValue.trim() === '') {
+      onDraftChange((prev) => ({ ...prev, durationSec: 0 }));
+      return;
+    }
+
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+      return;
+    }
+
+    onDraftChange((prev) => ({
+      ...prev,
+      durationSec: Math.max(0, Math.round(parsed * 60)),
+    }));
   };
 
   return (
@@ -188,13 +217,9 @@ export function ServiceEditorScreen({
               <span className="mb-1 block text-[14px] font-semibold text-muted">Длительность (мин)</span>
               <input
                 type="number"
-                value={durationMin}
-                onChange={(event) =>
-                  onDraftChange((prev) => ({
-                    ...prev,
-                    durationSec: Math.max(300, (Number(event.target.value) || 5) * 60),
-                  }))
-                }
+                min={0}
+                value={durationInput}
+                onChange={(event) => handleDurationChange(event.target.value)}
                 className="w-full rounded-2xl border-[2px] border-line bg-screen px-4 py-3 text-[18px] font-medium text-ink outline-none"
               />
             </label>
@@ -422,13 +447,9 @@ export function ServiceEditorScreen({
                 </span>
                 <input
                   type="number"
-                  value={durationMin}
-                  onChange={(event) =>
-                    onDraftChange((prev) => ({
-                      ...prev,
-                      durationSec: Math.max(300, (Number(event.target.value) || 5) * 60),
-                    }))
-                  }
+                  min={0}
+                  value={durationInput}
+                  onChange={(event) => handleDurationChange(event.target.value)}
                   className={DESKTOP_INPUT_CLASS}
                 />
               </label>
