@@ -102,6 +102,13 @@ body {
   scrollbar-width: none;
 }
 
+.momentum-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  will-change: scroll-position;
+}
+
 .striped-slot {
   background: repeating-linear-gradient(
     135deg,

@@ -397,27 +397,34 @@ export function JournalTabScreen({
     }
 
     let activeSource: 'staff' | 'grid' | null = null;
+    let scrollFrame = 0;
 
-    const handleStaffScroll = () => {
-      if (activeSource === 'grid') {
+    const syncScroll = (
+      source: HTMLDivElement,
+      target: HTMLDivElement,
+      sourceName: 'staff' | 'grid',
+      targetName: 'staff' | 'grid',
+    ) => {
+      if (activeSource === targetName) {
         return;
       }
-      activeSource = 'staff';
-      gridScroller.scrollLeft = staffScroller.scrollLeft;
-      window.requestAnimationFrame(() => {
+      activeSource = sourceName;
+      if (scrollFrame) {
+        window.cancelAnimationFrame(scrollFrame);
+      }
+      scrollFrame = window.requestAnimationFrame(() => {
+        target.scrollLeft = source.scrollLeft;
         activeSource = null;
+        scrollFrame = 0;
       });
     };
 
+    const handleStaffScroll = () => {
+      syncScroll(staffScroller, gridScroller, 'staff', 'grid');
+    };
+
     const handleGridScroll = () => {
-      if (activeSource === 'staff') {
-        return;
-      }
-      activeSource = 'grid';
-      staffScroller.scrollLeft = gridScroller.scrollLeft;
-      window.requestAnimationFrame(() => {
-        activeSource = null;
-      });
+      syncScroll(gridScroller, staffScroller, 'grid', 'staff');
     };
 
     staffScroller.addEventListener('scroll', handleStaffScroll, { passive: true });
@@ -425,6 +432,9 @@ export function JournalTabScreen({
     staffScroller.scrollLeft = gridScroller.scrollLeft;
 
     return () => {
+      if (scrollFrame) {
+        window.cancelAnimationFrame(scrollFrame);
+      }
       staffScroller.removeEventListener('scroll', handleStaffScroll);
       gridScroller.removeEventListener('scroll', handleGridScroll);
     };
@@ -468,7 +478,7 @@ export function JournalTabScreen({
         <div className="border-t border-line">
           <div
             ref={mobileStaffScrollRef}
-            className="scrollbar-hidden sticky top-[65px] z-[60] overflow-x-auto bg-screen/95 pb-2 backdrop-blur"
+            className="scrollbar-hidden momentum-scroll sticky top-[65px] z-[60] overflow-x-auto bg-screen/95 pb-2 backdrop-blur"
           >
             <div
               className="grid gap-2"
@@ -504,7 +514,7 @@ export function JournalTabScreen({
             </div>
           </div>
 
-          <div ref={mobileGridScrollRef} className="scrollbar-hidden overflow-x-auto pb-3">
+          <div ref={mobileGridScrollRef} className="scrollbar-hidden momentum-scroll overflow-x-auto pb-3">
             <div className="relative pb-3" style={{ minWidth: mobileMinWidth }}>
               <div className="grid gap-2" style={{ gridTemplateColumns: mobileGridTemplateColumns }}>
                 <div className="sticky left-0 z-20 space-y-0 bg-screen pr-2">

@@ -38,6 +38,7 @@ import {
 } from './helpers';
 import {
   buildJournalCreateAppointmentPayload,
+  formatJournalCreateSaveError,
   isJournalCreateStartAligned,
   JOURNAL_CREATE_STEP_MINUTES,
 } from './journalCreate';
@@ -3021,14 +3022,14 @@ export function useAppController(): AppController {
 
   const saveJournalCreateAppointment = async () => {
     if (!canCreateJournalAppointments) {
-      setToast('Нет прав на создание записи');
+      setToast('У вас нет прав на создание записи. Обратитесь к администратору.');
       return;
     }
 
     const clientName = journalCreateDraft.clientName.trim();
     const phone = journalCreateDraft.clientPhone.trim();
     if (!isValidTime(journalCreateDraft.startTime)) {
-      setToast('Неверное время начала');
+      setToast(`Проверьте время начала. Укажите время в формате ЧЧ:ММ с шагом ${JOURNAL_CREATE_STEP_MINUTES} минут.`);
       return;
     }
     if (!journalCreateDraft.dateValue) {
@@ -3047,8 +3048,12 @@ export function useAppController(): AppController {
     const selectedServices = selectedServiceIds
       .map((serviceId) => services.find((item) => item.id === serviceId) || null)
       .filter((item): item is ServiceItem => Boolean(item));
-    if (!selectedStaffId || selectedServiceIds.length === 0) {
-      setToast('Не выбраны сотрудник или услуги');
+    if (!selectedStaffId) {
+      setToast('Выберите сотрудника для записи.');
+      return;
+    }
+    if (selectedServiceIds.length === 0) {
+      setToast('Выберите хотя бы одну услугу для записи.');
       return;
     }
 
@@ -3057,7 +3062,7 @@ export function useAppController(): AppController {
       journalCreateDraft.startTime,
     );
     if (!start) {
-      setToast('Неверная дата или время записи');
+      setToast('Проверьте дату и время записи. Дата должна быть выбрана, а время указано в формате ЧЧ:ММ.');
       return;
     }
     if (!isJournalCreateStartAligned(start)) {
@@ -3110,7 +3115,7 @@ export function useAppController(): AppController {
         setTab('journal');
       }
     } catch (error) {
-      setToast(toErrorMessage(error));
+      setToast(formatJournalCreateSaveError(error));
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
