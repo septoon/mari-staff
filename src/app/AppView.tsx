@@ -158,19 +158,44 @@ export function AppView({ controller }: AppViewProps) {
   }, [pathname, state.session]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const { documentElement, body } = document;
+    const previousHtmlOverflowY = documentElement.style.overflowY;
+    const previousBodyOverflowY = body.style.overflowY;
+    const previousBodyOverscrollBehaviorY = body.style.overscrollBehaviorY;
+
+    if (state.session) {
+      documentElement.style.overflowY = 'hidden';
+      body.style.overflowY = 'hidden';
+      body.style.overscrollBehaviorY = 'none';
+    } else {
+      documentElement.style.removeProperty('overflow-y');
+      body.style.removeProperty('overflow-y');
+      body.style.removeProperty('overscroll-behavior-y');
+    }
+
+    return () => {
+      documentElement.style.overflowY = previousHtmlOverflowY;
+      body.style.overflowY = previousBodyOverflowY;
+      body.style.overscrollBehaviorY = previousBodyOverscrollBehaviorY;
+    };
+  }, [state.session]);
+
+  useEffect(() => {
     if (typeof window === 'undefined' || !state.session) {
       return;
     }
 
     const scrollContainer = mainScrollRef.current;
+    if (!scrollContainer) {
+      return;
+    }
+
     const isMobileViewport = () => window.innerWidth < 768;
-    const getScrollTop = () =>
-      Math.max(
-        scrollContainer?.scrollTop ?? 0,
-        window.scrollY,
-        document.documentElement.scrollTop,
-        document.body.scrollTop,
-      );
+    const getScrollTop = () => scrollContainer.scrollTop;
     let previousScrollTop = getScrollTop();
     let frameId = 0;
 
@@ -206,14 +231,12 @@ export function AppView({ controller }: AppViewProps) {
       }
     };
 
-    scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize);
     updateVisibility();
 
     return () => {
-      scrollContainer?.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('scroll', handleScroll);
+      scrollContainer.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
       if (frameId !== 0) {
         window.cancelAnimationFrame(frameId);
@@ -1271,15 +1294,15 @@ export function AppView({ controller }: AppViewProps) {
       ) : null}
       <div
         className={clsx(
-          'fixed left-1/2 z-[45] w-full -translate-x-1/2 px-4 transition-[bottom] duration-300 ease-out',
+          'fixed left-1/2 bottom-[calc(env(safe-area-inset-bottom)+20px)] z-[45] w-full px-4 transition-transform duration-300 ease-out',
           Boolean(state.session)
             ? 'md:hidden'
             : undefined,
         )}
         style={{
-          bottom: isMobileBottomNavVisible
-            ? 'calc(env(safe-area-inset-bottom) + 20px)'
-            : 'calc(-1 * (env(safe-area-inset-bottom) + 120px))',
+          transform: isMobileBottomNavVisible
+            ? 'translateX(-50%) translateY(0)'
+            : 'translateX(-50%) translateY(calc(100% + env(safe-area-inset-bottom) + 20px))',
         }}
       >
         <BottomNav active={state.tab} items={mobileVisibleTabs} onChange={actions.handleTabChange} />
