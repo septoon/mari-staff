@@ -9,8 +9,9 @@ import {
   Search,
   Settings2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  HOUR_HEIGHT,
   JOURNAL_CARD_COLUMN_WIDTH,
   JOURNAL_GRID_GAP,
   JOURNAL_TIME_COLUMN_WIDTH,
@@ -23,6 +24,7 @@ import type {
   StaffItem,
   TabItem,
   TabKey,
+  WorkingHoursMap,
 } from '../types';
 import { AppointmentCard } from '../components/shared/AppointmentCard';
 import { JournalDatePickerSheet } from '../components/shared/JournalDatePickerSheet';
@@ -33,6 +35,7 @@ type JournalTabScreenProps = {
   staff: StaffItem[];
   mobileStaff: StaffItem[];
   journalHours: string[];
+  workingHoursByStaff: WorkingHoursMap;
   cards: JournalCard[];
   listAppointments: AppointmentItem[];
   journalSettings: JournalSettings;
@@ -49,6 +52,7 @@ type JournalTabScreenProps = {
   onCloseDatePicker: () => void;
   onSelectDate: (value: Date) => void;
   onCreate: () => void;
+  onCreateAt: (staffId: string, startTime: string) => void;
   onReload: () => void;
   onSettings: () => void;
   onTabChange: (next: TabKey) => void;
@@ -60,6 +64,22 @@ const DESKTOP_FILTER_INPUT_CLASS =
   'h-12 w-full rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#b7c0cd]';
 const JOURNAL_PAGE_SIZE = 25;
 const JOURNAL_LIST_SKELETON_ROWS = 8;
+const JOURNAL_SLOT_MINUTES = 30;
+const JOURNAL_SLOT_HEIGHT = HOUR_HEIGHT / 2;
+
+function timeValueToMinutes(value: string) {
+  const [hours, minutes] = value.split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return 0;
+  }
+  return hours * 60 + minutes;
+}
+
+function minutesToTimeValue(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 
 function resolveDateFilterPreset(selectedDate: Date, preset: JournalSettings['defaultPeriod']) {
   if (preset === 'all') {
@@ -176,6 +196,7 @@ export function JournalTabScreen({
   staff,
   mobileStaff,
   journalHours,
+  workingHoursByStaff,
   cards,
   listAppointments,
   journalSettings,
@@ -192,6 +213,7 @@ export function JournalTabScreen({
   onCloseDatePicker,
   onSelectDate,
   onCreate,
+  onCreateAt,
   onReload,
   onSettings,
   onTabChange,
@@ -208,6 +230,8 @@ export function JournalTabScreen({
   const [dateFromFilter, setDateFromFilter] = useState(initialDatePreset.dateFrom);
   const [dateToFilter, setDateToFilter] = useState(initialDatePreset.dateTo);
   const [currentPage, setCurrentPage] = useState(1);
+  const mobileStaffScrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileGridScrollRef = useRef<HTMLDivElement | null>(null);
   const desktopGridClassName = journalSettings.showAmount
     ? 'xl:grid-cols-[110px_1.15fr_1fr_0.9fr_0.85fr_110px]'
     : 'xl:grid-cols-[110px_1.2fr_1fr_0.95fr_0.9fr]';
@@ -253,6 +277,28 @@ export function JournalTabScreen({
     JOURNAL_TIME_COLUMN_WIDTH +
     mobileColumnsCount * JOURNAL_CARD_COLUMN_WIDTH +
     (mobileColumnsCount + 1) * JOURNAL_GRID_GAP;
+  const mobileTimeSlots = useMemo(() => {
+    if (journalHours.length === 0) {
+      return [];
+    }
+    const startMinutes = timeValueToMinutes(journalHours[0]);
+    const endMinutes = timeValueToMinutes(journalHours[journalHours.length - 1]) + 60;
+    const slots: string[] = [];
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += JOURNAL_SLOT_MINUTES) {
+      slots.push(minutesToTimeValue(minutes));
+    }
+    return slots;
+  }, [journalHours]);
+  const selectedDateIso = toISODate(selectedDate);
+  const isStaffWorkingAt = (staffId: string, time: string) => {
+    const slotStart = timeValueToMinutes(time);
+    const intervals = workingHoursByStaff[staffId]?.[selectedDateIso] ?? [];
+    return intervals.some((interval) => {
+      const intervalStart = timeValueToMinutes(interval.start);
+      const intervalEnd = timeValueToMinutes(interval.end);
+      return slotStart >= intervalStart && slotStart < intervalEnd;
+    });
+  };
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const normalizedServiceQuery = serviceQuery.trim().toLowerCase();
@@ -343,46 +389,92 @@ export function JournalTabScreen({
     setDateToFilter(nextPreset.dateTo);
   }, [journalSettings.defaultPeriod, selectedDate]);
 
+  useEffect(() => {
+    const staffScroller = mobileStaffScrollRef.current;
+    const gridScroller = mobileGridScrollRef.current;
+    if (!staffScroller || !gridScroller) {
+      return;
+    }
+
+    let activeSource: 'staff' | 'grid' | null = null;
+
+    const handleStaffScroll = () => {
+      if (activeSource === 'grid') {
+        return;
+      }
+      activeSource = 'staff';
+      gridScroller.scrollLeft = staffScroller.scrollLeft;
+      window.requestAnimationFrame(() => {
+        activeSource = null;
+      });
+    };
+
+    const handleGridScroll = () => {
+      if (activeSource === 'staff') {
+        return;
+      }
+      activeSource = 'grid';
+      staffScroller.scrollLeft = gridScroller.scrollLeft;
+      window.requestAnimationFrame(() => {
+        activeSource = null;
+      });
+    };
+
+    staffScroller.addEventListener('scroll', handleStaffScroll, { passive: true });
+    gridScroller.addEventListener('scroll', handleGridScroll, { passive: true });
+    staffScroller.scrollLeft = gridScroller.scrollLeft;
+
+    return () => {
+      staffScroller.removeEventListener('scroll', handleStaffScroll);
+      gridScroller.removeEventListener('scroll', handleGridScroll);
+    };
+  }, [mobileMinWidth]);
+
   return (
     <>
-      <div className="pb-5 pt-4 md:hidden">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onSetDate}
-            className="flex items-center gap-2 text-[24px] font-bold text-ink"
-          >
-            {formatDateLabel(selectedDate)}
-            <ChevronDown className="h-6 w-6 text-[#ebaf00]" />
-          </button>
+      <div className="pb-5 md:hidden">
+        <div className="sticky top-0 z-[70] -mx-6 border-b border-line bg-screen/95 px-6 py-3 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onSetDate}
+              className="flex items-center gap-2 text-[24px] font-bold text-ink"
+            >
+              {formatDateLabel(selectedDate)}
+              <ChevronDown className="h-6 w-6 text-[#ebaf00]" />
+            </button>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onReload}
-              className="flex items-center gap-2 rounded-2xl bg-[#e6e9ef] px-3 py-2 text-[14px] font-semibold text-ink"
-            >
-              <RefreshCcw className="h-4 w-4 text-[#8892a2]" />
-              Обновить
-            </button>
-            <button
-              type="button"
-              onClick={onSettings}
-              disabled={!canOpenSettings}
-              className="rounded-xl p-2 text-ink disabled:opacity-40"
-            >
-              <Settings2 className="h-6 w-6 text-ink" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onReload}
+                className="flex items-center gap-2 rounded-2xl bg-[#e6e9ef] px-3 py-2 text-[14px] font-semibold text-ink"
+              >
+                <RefreshCcw className="h-4 w-4 text-[#8892a2]" />
+                Обновить
+              </button>
+              <button
+                type="button"
+                onClick={onSettings}
+                disabled={!canOpenSettings}
+                className="rounded-xl p-2 text-ink disabled:opacity-40"
+              >
+                <Settings2 className="h-6 w-6 text-ink" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 border-t border-line pt-3">
-          <div className="scrollbar-hidden overflow-x-auto pb-3">
+        <div className="border-t border-line">
+          <div
+            ref={mobileStaffScrollRef}
+            className="scrollbar-hidden sticky top-[65px] z-[60] overflow-x-auto bg-screen/95 pb-2 backdrop-blur"
+          >
             <div
-              className="grid gap-2 pb-2"
+              className="grid gap-2"
               style={{ gridTemplateColumns: mobileGridTemplateColumns, minWidth: mobileMinWidth }}
             >
-              <div className="sticky left-0 z-30 bg-screen">
+              <div className="sticky left-0 z-30 bg-screen/95">
                 <button
                   type="button"
                   onClick={onCreate}
@@ -410,21 +502,44 @@ export function JournalTabScreen({
                 );
               })}
             </div>
+          </div>
 
+          <div ref={mobileGridScrollRef} className="scrollbar-hidden overflow-x-auto pb-3">
             <div className="relative pb-3" style={{ minWidth: mobileMinWidth }}>
               <div className="grid gap-2" style={{ gridTemplateColumns: mobileGridTemplateColumns }}>
                 <div className="sticky left-0 z-20 space-y-0 bg-screen pr-2">
-                  {journalHours.map((time) => (
-                    <div key={time} className="h-[76px] pt-1 text-[16px] font-medium text-ink">
+                  {mobileTimeSlots.map((time) => (
+                    <div key={time} className="border-t border-[#dce1e8] pt-1 text-[15px] font-medium text-ink" style={{ height: JOURNAL_SLOT_HEIGHT }}>
                       {time}
                     </div>
                   ))}
                 </div>
                 {Array.from({ length: mobileColumnsCount }).map((_, colIndex) => (
                   <div key={colIndex} className="space-y-0">
-                    {journalHours.map((time) => (
-                      <div key={time} className="h-[76px] border-t border-[#dce1e8]" />
-                    ))}
+                    {mobileTimeSlots.map((time) => {
+                      const item = resolvedMobileStaff[colIndex];
+                      const isWorking = item ? isStaffWorkingAt(item.id, time) : false;
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          onClick={() => {
+                            if (item && canCreate) {
+                              onCreateAt(item.id, time);
+                            }
+                          }}
+                          disabled={!item || !canCreate}
+                          className={clsx(
+                            'block w-full border-t border-[#dce1e8] text-left transition',
+                            isWorking
+                              ? 'bg-[#eef8f2] hover:bg-[#e0f3e8]'
+                              : 'bg-[repeating-linear-gradient(135deg,#f4f6f9_0px,#f4f6f9_7px,#e8edf4_7px,#e8edf4_14px)] opacity-75 hover:opacity-100',
+                          )}
+                          style={{ height: JOURNAL_SLOT_HEIGHT }}
+                          aria-label={`${item?.name || 'Сотрудник'}, ${time}`}
+                        />
+                      );
+                    })}
                   </div>
                 ))}
               </div>

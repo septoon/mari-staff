@@ -44,7 +44,7 @@ export function AppointmentCard({
           <Clock3 className="h-4 w-4" />
         </div>
         <div className="space-y-1 px-2 pb-2 pt-1 text-[13px] font-semibold leading-tight">
-          <span className="inline-block rounded-md bg-[#1658da] px-1.5 py-[1px] text-white">New</span>
+          <span className="inline-block rounded-md bg-[#1658da] px-1.5 py-[1px] text-white">Новый</span>
           <p>{client}</p>
           {showPhone ? <p>{phone || 'нет телефона'}</p> : null}
           <p>{service || 'услуга не указана'}</p>

@@ -25,7 +25,7 @@ import type {
 
 export const SESSION_STORAGE_KEY = 'mari.staff.session.v1';
 export const JOURNAL_SETTINGS_STORAGE_KEY = 'mari.staff.journal-settings.v1';
-export const HOUR_HEIGHT = 76;
+export const HOUR_HEIGHT = 104;
 export const JOURNAL_START_HOUR = 10;
 export const JOURNAL_END_HOUR = 18;
 export const JOURNAL_TIME_COLUMN_WIDTH = 72;

@@ -82,6 +82,11 @@ export type ScheduleEditorOpenOptions = {
   focusDate?: Date;
 };
 
+export type JournalCreateOpenOptions = {
+  staffId?: string;
+  startTime?: string;
+};
+
 export type OwnerDraft = {
   name: string;
   phone: string;
@@ -481,7 +486,7 @@ export type ControllerActions = {
   ) => Promise<{ imported: number; skipped: number }>;
   handleSetDate: () => void;
   openTimetableForDate: (value: Date) => void;
-  handleCreateAppointment: () => Promise<void>;
+  handleCreateAppointment: (options?: JournalCreateOpenOptions) => Promise<void>;
   closeJournalCreatePage: () => void;
   saveJournalCreateAppointment: () => Promise<void>;
   setJournalCreateDraft: Dispatch<SetStateAction<JournalCreateDraft>>;

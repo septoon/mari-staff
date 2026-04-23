@@ -30,6 +30,8 @@ type TimetableScreenProps = {
   onReload: () => void;
   onBack: () => void;
   onOpenAppointment: (item: AppointmentItem) => void;
+  canCreate: boolean;
+  onCreateAt: (staffId: string, startTime: string) => void;
   onOpenDayEditor: (item: StaffItem) => void;
   onOpenTemplateEditor: (item: StaffItem) => void;
   onRemoveDay: (item: StaffItem) => void;
@@ -95,6 +97,23 @@ function getBookingRangeLabel(intervals: ScheduleInterval[]) {
 
 function getMinutesFromDate(date: Date) {
   return date.getHours() * 60 + date.getMinutes();
+}
+
+function getMinutesFromTime(value: string) {
+  const [hours, minutes] = value.split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return 0;
+  }
+  return hours * 60 + minutes;
+}
+
+function isSlotInsideIntervals(intervals: ScheduleInterval[], time: string) {
+  const slotStart = getMinutesFromTime(time);
+  return intervals.some((interval) => {
+    const intervalStart = getMinutesFromTime(interval.start);
+    const intervalEnd = getMinutesFromTime(interval.end);
+    return slotStart >= intervalStart && slotStart < intervalEnd;
+  });
 }
 
 function getAppointmentTone(status: string) {
@@ -389,6 +408,8 @@ export function TimetableScreen({
   onReload,
   onBack,
   onOpenAppointment,
+  canCreate,
+  onCreateAt,
   onOpenDayEditor,
   onOpenTemplateEditor,
   onRemoveDay,
@@ -786,13 +807,29 @@ export function TimetableScreen({
               {dayData.map((column) => (
                 <div key={column.staff.id} className="relative border-r border-[#eef2f6] bg-white">
                   <div className="relative" style={{ height: gridHeight }}>
-                    {axisLabels.slice(0, -1).map((label, index) => (
-                      <div
-                        key={`${column.staff.id}-${label.key}`}
-                        className="absolute inset-x-0 border-t border-[#eef2f6]"
-                        style={{ top: index * HALF_HOUR_HEIGHT }}
-                      />
-                    ))}
+                    {axisLabels.slice(0, -1).map((label, index) => {
+                      const isWorking = isSlotInsideIntervals(column.intervals, label.key);
+                      return (
+                        <button
+                          key={`${column.staff.id}-${label.key}`}
+                          type="button"
+                          onClick={() => {
+                            if (canCreate) {
+                              onCreateAt(column.staff.id, label.key);
+                            }
+                          }}
+                          disabled={!canCreate}
+                          className={clsx(
+                            'absolute inset-x-0 block border-t border-[#dce1e8] text-left transition disabled:cursor-default disabled:opacity-80',
+                            isWorking
+                              ? 'bg-[#eef8f2] hover:bg-[#e0f3e8]'
+                              : 'bg-[repeating-linear-gradient(135deg,#f4f6f9_0px,#f4f6f9_7px,#e8edf4_7px,#e8edf4_14px)] opacity-75 hover:opacity-100',
+                          )}
+                          style={{ top: index * HALF_HOUR_HEIGHT, height: HALF_HOUR_HEIGHT }}
+                          aria-label={`${column.staff.name}, ${label.key}`}
+                        />
+                      );
+                    })}
 
                     {column.intervals.map((interval, index) => {
                       const [startHour, startMinute] = interval.start.split(':').map(Number);
@@ -815,16 +852,16 @@ export function TimetableScreen({
                       return (
                         <div key={`${column.staff.id}-${index}`}>
                           <div
-                            className="absolute left-0 right-0 rounded-none bg-[#eef2f7]"
+                            className="pointer-events-none absolute left-0 right-0 rounded-none border-y border-[#c9ead3]"
                             style={{ top, height: Math.max(height, 28) }}
                           />
                           {index === 0 ? (
-                            <div className="absolute left-2 top-[6px] rounded-md bg-white/80 px-2 py-1 text-[11px] font-semibold text-[#354252]">
+                            <div className="pointer-events-none absolute left-2 top-[6px] rounded-md bg-white/85 px-2 py-1 text-[11px] font-semibold text-[#354252] shadow-[0_4px_12px_rgba(31,39,50,0.08)]">
                               {formatShiftBadge(column.intervals)}
                             </div>
                           ) : null}
                           <div
-                            className="absolute left-0 right-0 border-y border-[#dde3ea] bg-[#f5f7fa]/85"
+                            className="pointer-events-none absolute left-0 right-0 border-y border-[#d7dde6] bg-white/25"
                             style={{ top: bookingTop, height: Math.max(bookingHeight, 18) }}
                           />
                         </div>
@@ -874,16 +911,16 @@ export function TimetableScreen({
 
           <div className="mt-3 flex items-center gap-5 px-2 text-xs font-semibold text-[#7b8694]">
             <span className="inline-flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[#f5f7fa]" />
-              Рабочая смена
+              <span className="h-3 w-3 rounded-full bg-[#eef8f2]" />
+              Рабочее время
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[repeating-linear-gradient(135deg,#f4f6f9_0px,#f4f6f9_4px,#e8edf4_4px,#e8edf4_8px)]" />
+              Нерабочее время
             </span>
             <span className="inline-flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[#bfe8dd]" />
               Запись клиента
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[#eef2f7]" />
-              Фон колонки показывает рабочий интервал
             </span>
           </div>
         </div>

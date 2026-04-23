@@ -79,6 +79,7 @@ import type {
   AppointmentItem,
   ClientItem,
   JournalCreateDraft,
+  JournalCreateOpenOptions,
   JournalCard,
   ScheduleInterval,
   ScheduleEditorOpenOptions,
@@ -210,22 +211,20 @@ function buildJournalCreateDraft(
   selectedDate: Date,
   staff: StaffItem[],
   services: ServiceItem[],
+  options?: JournalCreateOpenOptions,
 ): JournalCreateDraft {
-  const firstStaff = staff[0];
-  const firstService = services[0];
-  const durationMin = firstService
-    ? Math.max(15, Math.round(firstService.durationSec / 60))
-    : 60;
+  const selectedStaff =
+    (options?.staffId ? staff.find((item) => item.id === options.staffId) : null) || staff[0];
 
   return {
     clientName: '',
     clientPhone: '',
     comment: '',
     dateValue: formatJournalCreateDateValue(selectedDate),
-    startTime: '10:00',
-    durationMin,
-    staffId: firstStaff?.id || '',
-    serviceIds: firstService ? [firstService.id] : [],
+    startTime: options?.startTime || '10:00',
+    durationMin: 60,
+    staffId: selectedStaff?.id || '',
+    serviceIds: [],
   };
 }
 
@@ -1435,11 +1434,8 @@ export function useAppController(): AppController {
       serviceIds:
         current.serviceIds.length > 0
           ? current.serviceIds.filter((serviceId) => services.some((item) => item.id === serviceId))
-          : services[0]
-            ? [services[0].id]
-            : [],
-      durationMin:
-        current.durationMin > 0 ? current.durationMin : Math.max(15, Math.round(services[0].durationSec / 60)),
+          : [],
+      durationMin: current.durationMin > 0 ? current.durationMin : 60,
     }));
   }, [
     journalCreateBaseStaff,
@@ -1521,11 +1517,9 @@ export function useAppController(): AppController {
     }
 
     const allowedServices = services.filter((item) => allowedServiceIds.includes(item.id));
-    const nextSelectedServiceIds = journalCreateDraft.serviceIds.filter((serviceId) =>
+    const resolvedServiceIds = journalCreateDraft.serviceIds.filter((serviceId) =>
       allowedServices.some((item) => item.id === serviceId)
     );
-    const fallbackServiceIds = allowedServices[0] ? [allowedServices[0].id] : [];
-    const resolvedServiceIds = nextSelectedServiceIds.length > 0 ? nextSelectedServiceIds : fallbackServiceIds;
     const totalDurationMin = resolvedServiceIds.reduce((total, serviceId) => {
       const service = allowedServices.find((item) => item.id === serviceId) || null;
       return total + (service ? Math.max(15, Math.round(service.durationSec / 60)) : 0);
@@ -3011,7 +3005,7 @@ export function useAppController(): AppController {
     setJournalDatePickerOpen(false);
   };
 
-  const handleCreateAppointment = async () => {
+  const handleCreateAppointment = async (options?: JournalCreateOpenOptions) => {
     if (!canCreateJournalAppointments) {
       setToast('Нет прав на создание записи');
       return;
@@ -3020,7 +3014,7 @@ export function useAppController(): AppController {
       setToast('Нет данных staff/services для создания записи');
       return;
     }
-    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalCreateBaseStaff, services));
+    setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalCreateBaseStaff, services, options));
     setPage('journalCreate');
     setTab('journal');
   };
@@ -3033,14 +3027,6 @@ export function useAppController(): AppController {
 
     const clientName = journalCreateDraft.clientName.trim();
     const phone = journalCreateDraft.clientPhone.trim();
-    if (!clientName) {
-      setToast('Укажите имя клиента');
-      return;
-    }
-    if (!phone) {
-      setToast('Укажите телефон клиента');
-      return;
-    }
     if (!isValidTime(journalCreateDraft.startTime)) {
       setToast('Неверное время начала');
       return;
@@ -3053,9 +3039,7 @@ export function useAppController(): AppController {
     const selectedServiceIds =
       journalCreateDraft.serviceIds.length > 0
         ? journalCreateDraft.serviceIds.filter((serviceId) => services.some((item) => item.id === serviceId))
-        : services[0]
-          ? [services[0].id]
-          : [];
+        : [];
     const selectedStaff =
       journalCreateStaff.find((item) => item.id === selectedStaffId) ||
       journalCreateBaseStaff.find((item) => item.id === selectedStaffId) ||

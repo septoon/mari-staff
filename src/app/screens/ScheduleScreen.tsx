@@ -95,6 +95,7 @@ const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as 
 const STAFF_COLUMN_WIDTH = 344;
 const TOTAL_COLUMN_WIDTH = 128;
 const DAY_COLUMN_WIDTH = 56;
+const MOBILE_DATE_STRIP_START_OFFSET = 20;
 
 function getMonthDates(date: Date) {
   const year = date.getFullYear();
@@ -115,6 +116,10 @@ function formatWeekdayShort(date: Date) {
 
 function formatLongDateLabel(date: Date) {
   return `${date.getDate()} ${MONTHS_RU_GENITIVE[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function formatShortMonthLabel(date: Date) {
+  return MONTHS_RU[date.getMonth()].slice(0, 3);
 }
 
 function formatRange(start: string, end: string) {
@@ -908,13 +913,18 @@ function MobileStaffCard({
   selectedDate,
   onOpenMenu,
   onOpenDay,
+  onOpenOnlineSlots,
+  onEditTemplate,
 }: {
   row: ScheduleRow;
   selectedDate: Date;
   onOpenMenu: () => void;
   onOpenDay: () => void;
+  onOpenOnlineSlots: () => void;
+  onEditTemplate: () => void;
 }) {
   const dayInterval = row.selectedDayIntervals[0];
+  const hasOnlineSlotEditor = row.selectedDayIntervals.length <= 1;
 
   return (
     <section className="rounded-[28px] border border-[#e2e8f0] bg-white p-4 shadow-[0_12px_32px_rgba(31,39,50,0.06)]">
@@ -950,17 +960,41 @@ function MobileStaffCard({
             {row.monthDays} дн. · {formatHours(row.monthHours)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onOpenDay}
-          className="rounded-2xl bg-[#f5f8fb] px-4 py-3 text-left transition hover:bg-[#eef5fb]"
-        >
+        <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
             {formatLongDateLabel(selectedDate)}
           </p>
           <p className="mt-2 text-base font-extrabold text-[#232c36]">
             {dayInterval ? `${dayInterval.start} - ${dayInterval.end}` : 'Пусто'}
           </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={onOpenDay}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#232427] px-3 text-sm font-bold text-white"
+        >
+          <CalendarDays className="h-4 w-4" />
+          День
+        </button>
+        <button
+          type="button"
+          onClick={onEditTemplate}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
+        >
+          <Settings2 className="h-4 w-4" />
+          Шаблон
+        </button>
+        <button
+          type="button"
+          onClick={onOpenOnlineSlots}
+          disabled={!hasOnlineSlotEditor}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843] disabled:opacity-45"
+        >
+          <MonitorSmartphone className="h-4 w-4" />
+          Онлайн
         </button>
       </div>
     </section>
@@ -1011,6 +1045,7 @@ export function ScheduleScreen({
 }: ScheduleScreenProps) {
   const desktopHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const desktopBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileDateStripRef = useRef<HTMLDivElement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [staffMenuId, setStaffMenuId] = useState<string | null>(null);
@@ -1098,6 +1133,7 @@ export function ScheduleScreen({
   const gridMinWidth =
     STAFF_COLUMN_WIDTH + (showEmployeeTotals ? TOTAL_COLUMN_WIDTH : 0) + visibleDates.length * DAY_COLUMN_WIDTH;
   const openMenuRow = filteredRows.find((row) => row.staff.id === staffMenuId) ?? null;
+  const selectedDayWorkingRows = filteredRows.filter((row) => row.selectedDayIntervals.length > 0);
 
   const resetFilters = () => {
     setSearchValue('');
@@ -1165,13 +1201,145 @@ export function ScheduleScreen({
     body.scrollLeft = nextScrollLeft;
   }, [selectedIso, visibleDates]);
 
+  useEffect(() => {
+    const strip = mobileDateStripRef.current;
+    if (!strip) {
+      return;
+    }
+
+    const selectedIndex = monthDates.findIndex((date) => toISODate(date) === selectedIso);
+    if (selectedIndex < 0) {
+      return;
+    }
+
+    const selectedNode = strip.querySelector<HTMLElement>(`[data-date="${selectedIso}"]`);
+    if (!selectedNode) {
+      return;
+    }
+
+    strip.scrollLeft = Math.max(0, selectedNode.offsetLeft - MOBILE_DATE_STRIP_START_OFFSET);
+  }, [monthDates, selectedIso]);
+
   return (
     <>
       <div className="pb-6 pt-4 md:pt-6">
         <section className="overflow-x-hidden overflow-y-visible rounded-[34px] border border-[#dfe6ee] bg-white shadow-[0_24px_60px_rgba(31,39,50,0.08)]">
           <div className="sticky top-0 z-30 bg-white/95 backdrop-blur">
             <div className="border-b border-[#e7edf4] px-4 py-4 md:px-6 md:py-5">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="space-y-4 xl:hidden">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onSelectDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d8e0ea] bg-white text-[#2f3843]"
+                    aria-label="Предыдущий месяц"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="min-w-0 text-center">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">График</p>
+                    <h1 className="mt-1 truncate text-[24px] font-extrabold text-[#2f3843]">
+                      {monthLabel}
+                    </h1>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onSelectDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d8e0ea] bg-white text-[#2f3843]"
+                    aria-label="Следующий месяц"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltersOpen((value) => !value);
+                      setSettingsOpen(false);
+                      setStaffMenuId(null);
+                    }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#f0c64d] bg-white px-3 text-sm font-bold text-[#2f3843]"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Фильтры
+                    {activeFilterCount > 0 ? (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#232427] px-1 text-[10px] font-bold text-white">
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenTimetable(selectedDate)}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    День
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#232427] px-3 text-sm font-bold text-white"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    Шаблон
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettingsOpen((value) => !value);
+                      setFiltersOpen(false);
+                      setStaffMenuId(null);
+                    }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
+                  >
+                    <MonitorSmartphone className="h-4 w-4" />
+                    Вид
+                  </button>
+                </div>
+
+                <div className="rounded-[24px] bg-[#f5f8fb] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">
+                        Выбранный день
+                      </p>
+                      <p className="mt-2 text-[20px] font-extrabold text-[#232c36]">
+                        {formatLongDateLabel(selectedDate)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onSelectDate(new Date())}
+                      className="inline-flex h-10 items-center rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
+                    >
+                      Сегодня
+                    </button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="rounded-2xl bg-white px-3 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">Работают</p>
+                      <p className="mt-1 text-[20px] font-extrabold text-[#232c36]">{selectedDayWorkingRows.length}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white px-3 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">В списке</p>
+                      <p className="mt-1 text-[20px] font-extrabold text-[#232c36]">{filteredRows.length}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onReload}
+                      className="inline-flex flex-col items-start justify-center rounded-2xl bg-white px-3 py-3 text-left text-[#2f3843]"
+                    >
+                      <RefreshCw className={clsx('h-4 w-4', loading ? 'animate-spin' : undefined)} />
+                      <span className="mt-1 text-[12px] font-extrabold">Обновить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden flex-col gap-4 xl:flex xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -1383,19 +1551,20 @@ export function ScheduleScreen({
             ) : null}
 
             <div className="xl:hidden px-4 py-4">
-              <div className="scrollbar-hidden overflow-x-auto pb-2">
+              <div ref={mobileDateStripRef} className="scrollbar-hidden overflow-x-auto pb-2">
                 <div className="flex w-max gap-2">
-                  {visibleDates.map((date) => {
+                  {monthDates.map((date) => {
                     const active = toISODate(date) === selectedIso;
                     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                     const coverage = dayCoverage.find((item) => item.iso === toISODate(date))?.count ?? 0;
                     return (
                       <button
                         key={toISODate(date)}
+                        data-date={toISODate(date)}
                         type="button"
                         onClick={() => onSelectDate(date)}
                         className={clsx(
-                          'rounded-[22px] border px-4 py-3 text-left transition',
+                          'min-w-[92px] rounded-[22px] border px-4 py-3 text-left transition',
                           active
                             ? 'border-[#f4c900] bg-[#fff4bf] text-[#232c36]'
                             : 'border-[#d8e0ea] bg-white text-[#4c5664]',
@@ -1404,9 +1573,12 @@ export function ScheduleScreen({
                         <p className="text-[11px] font-bold uppercase tracking-[0.14em]">
                           {formatWeekdayShort(date)}
                         </p>
+                        <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">
+                          {formatShortMonthLabel(date)}
+                        </p>
                         <p
                           className={clsx(
-                            'mt-1 text-[24px] font-extrabold tracking-[-0.04em]',
+                            'mt-1 text-[26px] font-extrabold',
                             isWeekend ? 'text-[#c95555]' : undefined,
                           )}
                         >
@@ -1414,7 +1586,7 @@ export function ScheduleScreen({
                         </p>
                         {showDayTotals ? (
                           <p className="mt-2 text-[12px] font-semibold text-[#85909d]">
-                            {coverage > 0 ? `👤 ${coverage}` : '–'}
+                            {coverage > 0 ? `${coverage} раб.` : 'Пусто'}
                           </p>
                         ) : null}
                       </button>
@@ -1435,6 +1607,8 @@ export function ScheduleScreen({
                       setSettingsOpen(false);
                     }}
                     onOpenDay={() => onOpenDesktopEditor(row.staff, selectedDate)}
+                    onOpenOnlineSlots={() => onOpenOnlineSlots(row.staff, selectedDate)}
+                    onEditTemplate={() => onEditStaff(row.staff)}
                   />
                 ))}
               </div>

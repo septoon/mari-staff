@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { api } from '../../api';
 import {
+  ArrowUpDown,
   BadgePercent,
   ChartPie,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Filter,
   History,
   ImagePlus,
   Loader2,
@@ -58,6 +60,7 @@ type ClientsScreenProps = {
 type ClientSegment = 'all' | 'new' | 'repeat' | 'lost';
 type ActivityFilter = 'all' | 'visited' | 'without-visits';
 type SortMode = 'recent' | 'visits' | 'revenue';
+type MobileHeaderPanel = 'filter' | 'sort' | 'info' | null;
 type ClientModalTab = 'card' | 'history' | 'stats';
 type HistoryFilter = 'all' | 'upcoming' | 'confirmed' | 'arrived' | 'no-show';
 
@@ -561,6 +564,7 @@ export function ClientsScreen({
   const [segment, setSegment] = useState<ClientSegment>('all');
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [mobileHeaderPanel, setMobileHeaderPanel] = useState<MobileHeaderPanel>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isDesktop, setIsDesktop] = useState(isDesktopViewport);
   const [clientOverrides, setClientOverrides] = useState<Record<string, Partial<ClientItem>>>({});
@@ -1287,56 +1291,116 @@ export function ClientsScreen({
             />
           </label>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <SelectField
-              value={activityFilter}
-              onChange={(next) => setActivityFilter(next as ActivityFilter)}
-              options={[
-                { value: 'all', label: 'Все клиенты' },
-                { value: 'visited', label: 'Только с визитами' },
-                { value: 'without-visits', label: 'Без визитов' },
-              ]}
-            />
-            <SelectField
-              value={sortMode}
-              onChange={(next) => setSortMode(next as SortMode)}
-              options={[
-                { value: 'recent', label: 'По последнему визиту' },
-                { value: 'visits', label: 'По числу визитов' },
-                { value: 'revenue', label: 'По выручке' },
-              ]}
-            />
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileHeaderPanel((current) => (current === 'filter' ? null : 'filter'))}
+              className={clsx(
+                'inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-[12px] font-extrabold transition',
+                mobileHeaderPanel === 'filter'
+                  ? 'border-[#222b33] bg-[#222b33] text-white'
+                  : 'border-[#dce2ea] bg-white text-[#647083]',
+              )}
+              aria-expanded={mobileHeaderPanel === 'filter'}
+            >
+              <Filter className="h-4 w-4" />
+              <span>Фильтр</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileHeaderPanel((current) => (current === 'sort' ? null : 'sort'))}
+              className={clsx(
+                'inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-[12px] font-extrabold transition',
+                mobileHeaderPanel === 'sort'
+                  ? 'border-[#222b33] bg-[#222b33] text-white'
+                  : 'border-[#dce2ea] bg-white text-[#647083]',
+              )}
+              aria-expanded={mobileHeaderPanel === 'sort'}
+            >
+              <ArrowUpDown className="h-4 w-4" />
+              <span>Сорт.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileHeaderPanel((current) => (current === 'info' ? null : 'info'))}
+              className={clsx(
+                'inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-[12px] font-extrabold transition',
+                mobileHeaderPanel === 'info'
+                  ? 'border-[#222b33] bg-[#222b33] text-white'
+                  : 'border-[#dce2ea] bg-white text-[#647083]',
+              )}
+              aria-expanded={mobileHeaderPanel === 'info'}
+            >
+              <ChartPie className="h-4 w-4" />
+              <span>Инфо</span>
+            </button>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(Object.keys(SEGMENT_LABELS) as ClientSegment[]).map((key) => (
-              <SegmentChip
-                key={key}
-                active={segment === key}
-                label={SEGMENT_LABELS[key]}
-                count={segmentCounts[key]}
-                onClick={() => setSegment(key)}
-              />
-            ))}
-          </div>
+          <div
+            className={clsx(
+              'overflow-hidden transition-[max-height,opacity] duration-300 ease-out',
+              mobileHeaderPanel ? 'max-h-[560px] opacity-100' : 'max-h-0 opacity-0',
+            )}
+          >
+            {mobileHeaderPanel === 'filter' ? (
+              <div className="mt-4 space-y-4">
+                <SelectField
+                  value={activityFilter}
+                  onChange={(next) => setActivityFilter(next as ActivityFilter)}
+                  options={[
+                    { value: 'all', label: 'Все клиенты' },
+                    { value: 'visited', label: 'Только с визитами' },
+                    { value: 'without-visits', label: 'Без визитов' },
+                  ]}
+                />
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(SEGMENT_LABELS) as ClientSegment[]).map((key) => (
+                    <SegmentChip
+                      key={key}
+                      active={segment === key}
+                      label={SEGMENT_LABELS[key]}
+                      count={segmentCounts[key]}
+                      onClick={() => setSegment(key)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">После фильтра</p>
-              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{filteredSummaries.length}</p>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С визитами</p>
-              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{visitedClientsCount}</p>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Выручка</p>
-              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{formatGroupedRub(totalRevenue)}</p>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Повторные</p>
-              <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{repeatClientsCount}</p>
-            </div>
+            {mobileHeaderPanel === 'sort' ? (
+              <div className="mt-4">
+                <SelectField
+                  value={sortMode}
+                  onChange={(next) => setSortMode(next as SortMode)}
+                  options={[
+                    { value: 'recent', label: 'По последнему визиту' },
+                    { value: 'visits', label: 'По числу визитов' },
+                    { value: 'revenue', label: 'По выручке' },
+                  ]}
+                />
+              </div>
+            ) : null}
+
+            {mobileHeaderPanel === 'info' ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">После фильтра</p>
+                  <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{filteredSummaries.length}</p>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">С визитами</p>
+                  <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{visitedClientsCount}</p>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Выручка</p>
+                  <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{formatGroupedRub(totalRevenue)}</p>
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Повторные</p>
+                  <p className="mt-2 text-[24px] font-extrabold leading-none text-ink">{repeatClientsCount}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
 

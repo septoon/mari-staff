@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, CalendarDays, Clock3, Loader2, Plus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronDown, Clock3, Loader2, Plus, UserRound, X } from 'lucide-react';
 import { formatRub, formatTime } from '../helpers';
 import { JOURNAL_CREATE_STEP_MINUTES } from '../journalCreate';
 import type { ClientItem, JournalCreateDraft, ServiceItem, StaffItem } from '../types';
@@ -139,11 +139,28 @@ function Content({
   onSave,
 }: Omit<JournalCreateScreenProps, 'onBack'>) {
   const [clientSuggestOpen, setClientSuggestOpen] = useState(false);
+  const [openCategoryIds, setOpenCategoryIds] = useState<string[]>([]);
   const selectedStaff = staff.find((item) => item.id === draft.staffId) || null;
   const selectedServices = useMemo(
     () => services.filter((item) => draft.serviceIds.includes(item.id)),
     [draft.serviceIds, services],
   );
+  const serviceCategories = useMemo(() => {
+    const categories = new Map<string, { id: string; name: string; services: ServiceItem[] }>();
+    services.forEach((item) => {
+      const existing = categories.get(item.categoryId);
+      if (existing) {
+        existing.services.push(item);
+        return;
+      }
+      categories.set(item.categoryId, {
+        id: item.categoryId,
+        name: item.categoryName || 'Без категории',
+        services: [item],
+      });
+    });
+    return Array.from(categories.values());
+  }, [services]);
   const startAt = combineDateTime(draft.dateValue, draft.startTime);
   const endAt = addMinutes(startAt, draft.durationMin);
   const createDisabled = loading || servicesLoading || services.length === 0 || draft.serviceIds.length === 0;
@@ -220,12 +237,24 @@ function Content({
     });
   };
 
+  useEffect(() => {
+    setOpenCategoryIds([]);
+  }, [services]);
+
+  const toggleCategory = (categoryId: string) => {
+    setOpenCategoryIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((item) => item !== categoryId)
+        : [...current, categoryId],
+    );
+  };
+
   return (
     <div className="space-y-5">
       <Section
         eyebrow="Клиент"
         title="Контакт для записи"
-        description="Минимальный набор для создания: имя и телефон. Остальное можно дополнить позже из карточки визита."
+        description="Имя и телефон можно оставить пустыми. Если контакт известен, его удобно добавить сразу или выбрать из подсказок."
       >
         <div className="grid min-w-0 gap-4 md:grid-cols-2">
           <label className="relative block">
@@ -330,7 +359,7 @@ function Content({
       <Section
         eyebrow="Услуга"
         title="Что именно записываем"
-        description="Список пока общий. Если понадобится, следующим этапом можно ограничить услуги выбранным мастером."
+        description="Услуги сгруппированы по категориям. Все разделы по умолчанию закрыты, а запись создаётся только после явного выбора услуг."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -343,52 +372,88 @@ function Content({
               </div>
             ) : services.length > 0 ? (
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Услуги</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Категории услуг</p>
                 <div className="mt-3 grid gap-3">
-                  {services.map((item) => {
-                    const active = draft.serviceIds.includes(item.id);
-                    const priceLabel =
-                      item.priceMax && item.priceMax !== item.priceMin
-                        ? `${formatRub(item.priceMin)}-${formatRub(item.priceMax)}`
-                        : formatRub(item.priceMax || item.priceMin);
-
+                  {serviceCategories.map((category) => {
+                    const isOpen = openCategoryIds.includes(category.id);
+                    const selectedCount = category.services.filter((item) => draft.serviceIds.includes(item.id)).length;
                     return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => toggleService(item.id)}
-                        className={clsx(
-                          'rounded-[24px] border px-4 py-4 text-left transition',
-                          active
-                            ? 'border-[#222b33] bg-[#222b33] text-white shadow-[0_16px_34px_rgba(34,43,51,0.16)]'
-                            : 'border-[#d9dfe8] bg-white text-ink hover:border-[#c2cad6] hover:bg-[#f7f9fc]',
-                        )}
+                      <div
+                        key={category.id}
+                        className="overflow-hidden rounded-[24px] border border-[#d9dfe8] bg-white"
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(category.id)}
+                          className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-[#f7f9fc]"
+                        >
                           <div className="min-w-0">
-                            <p className="text-sm font-extrabold">{item.name}</p>
-                            <p
-                              className={clsx(
-                                'mt-2 text-sm font-semibold',
-                                active ? 'text-white/75' : 'text-[#788292]',
-                              )}
-                            >
-                              {Math.max(15, Math.round(item.durationSec / 60))} мин
+                            <p className="text-sm font-extrabold text-ink">{category.name}</p>
+                            <p className="mt-2 text-sm font-semibold text-[#788292]">
+                              {category.services.length} услуг
+                              {selectedCount > 0 ? ` · выбрано ${selectedCount}` : ''}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-extrabold">{priceLabel}</p>
-                            <p
-                              className={clsx(
-                                'mt-2 text-xs font-bold uppercase tracking-[0.18em]',
-                                active ? 'text-white/70' : 'text-[#98a1ae]',
-                              )}
-                            >
-                              {active ? 'Выбрано' : 'Добавить'}
-                            </p>
+                          <ChevronDown
+                            className={clsx(
+                              'h-5 w-5 shrink-0 text-[#7d8795] transition-transform',
+                              isOpen ? 'rotate-180' : undefined,
+                            )}
+                          />
+                        </button>
+                        {isOpen ? (
+                          <div className="border-t border-[#eef2f6] px-3 py-3">
+                            <div className="grid gap-3">
+                              {category.services.map((item) => {
+                                const active = draft.serviceIds.includes(item.id);
+                                const priceLabel =
+                                  item.priceMax && item.priceMax !== item.priceMin
+                                    ? `${formatRub(item.priceMin)}-${formatRub(item.priceMax)}`
+                                    : formatRub(item.priceMax || item.priceMin);
+
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => toggleService(item.id)}
+                                    className={clsx(
+                                      'rounded-[20px] border px-4 py-4 text-left transition',
+                                      active
+                                        ? 'border-[#222b33] bg-[#222b33] text-white shadow-[0_16px_34px_rgba(34,43,51,0.16)]'
+                                        : 'border-[#d9dfe8] bg-white text-ink hover:border-[#c2cad6] hover:bg-[#f7f9fc]',
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-extrabold">{item.name}</p>
+                                        <p
+                                          className={clsx(
+                                            'mt-2 text-sm font-semibold',
+                                            active ? 'text-white/75' : 'text-[#788292]',
+                                          )}
+                                        >
+                                          {Math.max(15, Math.round(item.durationSec / 60))} мин
+                                        </p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-sm font-extrabold">{priceLabel}</p>
+                                        <p
+                                          className={clsx(
+                                            'mt-2 text-xs font-bold uppercase tracking-[0.18em]',
+                                            active ? 'text-white/70' : 'text-[#98a1ae]',
+                                          )}
+                                        >
+                                          {active ? 'Выбрано' : 'Добавить'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>

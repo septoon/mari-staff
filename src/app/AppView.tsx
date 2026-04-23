@@ -731,6 +731,7 @@ export function AppView({ controller }: AppViewProps) {
             staff={state.journalStaff}
             mobileStaff={journalMobileStaff}
             journalHours={state.journalHours}
+            workingHoursByStaff={state.workingHoursByStaff}
             cards={state.journalCards}
             listAppointments={state.journalListAppointments}
             journalSettings={effectiveJournalSettings}
@@ -748,6 +749,9 @@ export function AppView({ controller }: AppViewProps) {
             onSelectDate={actions.selectJournalDate}
             onCreate={() => {
               void actions.handleCreateAppointment();
+            }}
+            onCreateAt={(staffId, startTime) => {
+              void actions.handleCreateAppointment({ staffId, startTime });
             }}
             onReload={() => {
               void actions.loadAppointmentsForSelectedDate();
@@ -767,6 +771,7 @@ export function AppView({ controller }: AppViewProps) {
               staff={state.journalStaff}
               mobileStaff={journalMobileStaff}
               journalHours={state.journalHours}
+              workingHoursByStaff={state.workingHoursByStaff}
               cards={state.journalCards}
               listAppointments={state.journalListAppointments}
               journalSettings={effectiveJournalSettings}
@@ -784,6 +789,9 @@ export function AppView({ controller }: AppViewProps) {
               onSelectDate={actions.selectJournalDate}
               onCreate={() => {
                 void actions.handleCreateAppointment();
+              }}
+              onCreateAt={(staffId, startTime) => {
+                void actions.handleCreateAppointment({ staffId, startTime });
               }}
               onReload={() => {
                 void actions.loadAppointmentsForSelectedDate();
@@ -991,6 +999,10 @@ export function AppView({ controller }: AppViewProps) {
               );
             }}
             onOpenAppointment={actions.handleOpenJournalAppointment}
+            canCreate={state.canCreateJournalAppointments}
+            onCreateAt={(staffId, startTime) => {
+              void actions.handleCreateAppointment({ staffId, startTime });
+            }}
             onOpenDayEditor={(item: StaffItem) => {
               void actions.openScheduleEditorForStaff(item, {
                 presentation: 'panel',
