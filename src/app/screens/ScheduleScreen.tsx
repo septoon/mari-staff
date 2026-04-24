@@ -1331,7 +1331,7 @@ export function ScheduleScreen({
 
   const activeFilterCount =
     (searchValue.trim() ? 1 : 0) + (positionValue ? 1 : 0) + (scheduleMode !== 'all' ? 1 : 0);
-  const monthLabel = `${MONTHS_RU_GENITIVE[selectedDate.getMonth()][0]?.toUpperCase() || ''}${MONTHS_RU_GENITIVE[
+  const monthLabel = `${MONTHS_RU[selectedDate.getMonth()][0]?.toUpperCase() || ''}${MONTHS_RU[
     selectedDate.getMonth()
   ].slice(1)} ${selectedDate.getFullYear()}`;
   const gridTemplateColumns = `${STAFF_COLUMN_WIDTH}px ${showEmployeeTotals ? `${TOTAL_COLUMN_WIDTH}px ` : ''}repeat(${visibleDates.length}, ${DAY_COLUMN_WIDTH}px)`;
@@ -1911,7 +1911,7 @@ export function ScheduleScreen({
                         </p>
                         {showDayTotals ? (
                           <p className="mt-2 text-[12px] font-semibold text-[#85909d]">
-                            {coverage > 0 ? `${coverage} раб.` : 'Пусто'}
+                            {coverage > 0 ? `${coverage} спец.` : 'Пусто'}
                           </p>
                         ) : null}
                       </button>
