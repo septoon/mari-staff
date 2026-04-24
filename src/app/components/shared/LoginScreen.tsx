@@ -47,8 +47,8 @@ export function LoginScreen({
 
   return (
     <>
-      <div className="relative flex flex-1 flex-col overflow-hidden bg-[#f3f3f4] md:hidden">
-        <div className="relative min-h-[320px] bg-[#f4c900]">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[#f3f3f4] md:hidden">
+        <div className="relative min-h-[320px] shrink-0 bg-[#f4c900]">
           <div
             className="absolute inset-0 opacity-35"
             style={{
@@ -69,12 +69,12 @@ export function LoginScreen({
           </svg>
         </div>
 
-        <div className="relative z-10 -mt-6 flex flex-1 flex-col bg-[#f3f3f4] px-7 pb-10 pt-8">
+        <div className="relative z-10 -mt-6 flex flex-none flex-col bg-[#f3f3f4] px-7 pb-[calc(env(safe-area-inset-bottom,0px)+32px)] pt-8">
           <h1 className="text-[52px] font-extrabold leading-none text-[#30343a]">Вход</h1>
           <div className="mt-3 h-1 w-[92px] rounded-full bg-[#f6878d]" />
           <p className="mt-4 text-sm font-semibold text-[#767c86]">Mari Staff</p>
 
-          <form className="mt-8 flex flex-1 flex-col" onSubmit={handleSubmit}>
+          <form className="mt-8 flex flex-col" onSubmit={handleSubmit}>
             <label className="text-[17px] font-bold text-[#51565f]">Телефон</label>
             <div className="mt-3 flex items-center gap-3 border-b border-[#f4a7ab] pb-3">
               <Phone className="h-5 w-5 text-[#a3a8b0]" strokeWidth={2.2} />
@@ -130,7 +130,7 @@ export function LoginScreen({
               Войти
             </button>
 
-            <div className="mt-auto pt-8 text-center">
+            <div className="mt-8 text-center">
               <a
                 href="/staff/reset-pin"
                 className="text-[19px] font-bold text-[#f6878d] underline decoration-2 underline-offset-4"
