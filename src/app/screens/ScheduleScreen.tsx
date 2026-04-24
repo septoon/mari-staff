@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
   CalendarDays,
@@ -6,7 +6,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardPaste,
   Clock3,
+  Copy,
   MonitorSmartphone,
   MoreHorizontal,
   RefreshCw,
@@ -66,6 +68,11 @@ type ScheduleScreenProps = {
   onToggleOnlineSlotGroup: (values: string[]) => void;
   onResetOnlineSlots: () => void;
   onSaveOnlineSlots: () => void;
+  onPasteScheduleDay: (item: StaffItem, date: Date, intervals: ScheduleInterval[]) => void;
+  onPasteScheduleDate: (
+    date: Date,
+    entries: Array<{ staffId: string; staffName: string; intervals: ScheduleInterval[] }>,
+  ) => void;
   onSelectDate: (value: Date) => void;
   onOpenTimetable: (value: Date) => void;
 };
@@ -90,6 +97,36 @@ type PositionOption = {
 };
 
 type ScheduleFilterMode = 'all' | 'with' | 'without';
+
+type ScheduleDayClipboard = {
+  staffName: string;
+  dateLabel: string;
+  intervals: ScheduleInterval[];
+};
+
+type ScheduleDateClipboard = {
+  dateLabel: string;
+  entries: Array<{
+    staffId: string;
+    staffName: string;
+    intervals: ScheduleInterval[];
+  }>;
+};
+
+type ScheduleCellContextMenuState = {
+  x: number;
+  y: number;
+  staff: StaffItem;
+  date: Date;
+  intervals: ScheduleInterval[];
+};
+
+type ScheduleDateContextMenuState = {
+  x: number;
+  y: number;
+  date: Date;
+  coverage: number;
+};
 
 const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
 const STAFF_COLUMN_WIDTH = 344;
@@ -124,6 +161,13 @@ function formatShortMonthLabel(date: Date) {
 
 function formatRange(start: string, end: string) {
   return `${start} - ${end}`;
+}
+
+function cloneScheduleIntervals(intervals: ScheduleInterval[]) {
+  return intervals.map((interval) => ({
+    ...interval,
+    bookingSlots: interval.bookingSlots ? [...interval.bookingSlots] : interval.bookingSlots ?? null,
+  }));
 }
 
 function getIntervalsForDate(hoursByStaff: WorkingHoursMap, staffId: string, date: Date) {
@@ -231,6 +275,10 @@ function DayEditorPanel({
   onPresetSelect,
   onSave,
   onClear,
+  onCopy,
+  onPaste,
+  canPaste,
+  hasDaySchedule,
   mobile = false,
 }: {
   staff: StaffItem;
@@ -248,6 +296,10 @@ function DayEditorPanel({
   onPresetSelect: (value: string) => void;
   onSave: () => void;
   onClear: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  canPaste: boolean;
+  hasDaySchedule: boolean;
   mobile?: boolean;
 }) {
   return (
@@ -333,6 +385,27 @@ function DayEditorPanel({
         >
           Очистить день
         </button>
+        {hasDaySchedule ? (
+          <button
+            type="button"
+            onClick={onCopy}
+            className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dce2ea] bg-white px-5 text-sm font-semibold text-[#39424d]"
+          >
+            <Copy className="h-4 w-4" />
+            Копировать день
+          </button>
+        ) : null}
+        {!hasDaySchedule ? (
+          <button
+            type="button"
+            onClick={onPaste}
+            disabled={!canPaste || loading}
+            className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dce2ea] bg-white px-5 text-sm font-semibold text-[#39424d] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <ClipboardPaste className="h-4 w-4" />
+            Вставить день
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -354,6 +427,10 @@ function DayEditorModal({
   onPresetSelect,
   onSave,
   onClear,
+  onCopy,
+  onPaste,
+  canPaste,
+  hasDaySchedule,
 }: {
   staff: StaffItem;
   date: Date;
@@ -370,6 +447,10 @@ function DayEditorModal({
   onPresetSelect: (value: string) => void;
   onSave: () => void;
   onClear: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  canPaste: boolean;
+  hasDaySchedule: boolean;
 }) {
   return (
     <div
@@ -398,6 +479,10 @@ function DayEditorModal({
             onPresetSelect={onPresetSelect}
             onSave={onSave}
             onClear={onClear}
+            onCopy={onCopy}
+            onPaste={onPaste}
+            canPaste={canPaste}
+            hasDaySchedule={hasDaySchedule}
           />
         </div>
       </div>
@@ -420,6 +505,10 @@ function DayEditorModal({
             onPresetSelect={onPresetSelect}
             onSave={onSave}
             onClear={onClear}
+            onCopy={onCopy}
+            onPaste={onPaste}
+            canPaste={canPaste}
+            hasDaySchedule={hasDaySchedule}
             mobile
           />
         </div>
@@ -873,14 +962,123 @@ function StaffMenu({
   );
 }
 
+function ScheduleCellContextMenu({
+  state,
+  canPaste,
+  clipboard,
+  onCopy,
+  onPaste,
+}: {
+  state: ScheduleCellContextMenuState;
+  canPaste: boolean;
+  clipboard: ScheduleDayClipboard | null;
+  onCopy: () => void;
+  onPaste: () => void;
+}) {
+  const hasIntervals = state.intervals.length > 0;
+
+  return (
+    <div
+      className="fixed z-[80] w-[240px] rounded-[22px] border border-[#e2e8f0] bg-white p-2 shadow-[0_24px_60px_rgba(31,39,50,0.18)]"
+      style={{ left: state.x, top: state.y }}
+    >
+      <div className="px-3 py-2">
+        <p className="truncate text-[12px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
+          {state.staff.name}
+        </p>
+        <p className="mt-1 text-sm font-semibold text-[#6f7b89]">{formatLongDateLabel(state.date)}</p>
+      </div>
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={onCopy}
+          disabled={!hasIntervals}
+          className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#f5f8fb] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <Copy className="h-4 w-4 text-[#7a8593]" />
+          <span className="text-sm font-semibold text-[#2f3843]">Копировать</span>
+        </button>
+        <button
+          type="button"
+          onClick={onPaste}
+          disabled={!canPaste}
+          className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#f5f8fb] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <ClipboardPaste className="h-4 w-4 text-[#7a8593]" />
+          <span className="text-sm font-semibold text-[#2f3843]">Вставить</span>
+        </button>
+      </div>
+      {clipboard ? (
+        <p className="px-3 pb-2 pt-1 text-[11px] font-semibold leading-4 text-[#8a94a1]">
+          Скопировано: {clipboard.staffName}, {clipboard.dateLabel}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ScheduleDateContextMenu({
+  state,
+  clipboard,
+  onCopy,
+  onPaste,
+}: {
+  state: ScheduleDateContextMenuState;
+  clipboard: ScheduleDateClipboard | null;
+  onCopy: () => void;
+  onPaste: () => void;
+}) {
+  const canCopy = state.coverage > 0;
+  const canPaste = Boolean(clipboard);
+
+  return (
+    <div
+      className="fixed z-[80] w-[260px] rounded-[22px] border border-[#e2e8f0] bg-white p-2 shadow-[0_24px_60px_rgba(31,39,50,0.18)]"
+      style={{ left: state.x, top: state.y }}
+    >
+      <div className="px-3 py-2">
+        <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">Графики дня</p>
+        <p className="mt-1 text-sm font-semibold text-[#6f7b89]">{formatLongDateLabel(state.date)}</p>
+      </div>
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={onCopy}
+          disabled={!canCopy}
+          className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#f5f8fb] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <Copy className="h-4 w-4 text-[#7a8593]" />
+          <span className="text-sm font-semibold text-[#2f3843]">Копировать графики</span>
+        </button>
+        <button
+          type="button"
+          onClick={onPaste}
+          disabled={!canPaste}
+          className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#f5f8fb] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <ClipboardPaste className="h-4 w-4 text-[#7a8593]" />
+          <span className="text-sm font-semibold text-[#2f3843]">Вставить графики</span>
+        </button>
+      </div>
+      {clipboard ? (
+        <p className="px-3 pb-2 pt-1 text-[11px] font-semibold leading-4 text-[#8a94a1]">
+          Скопировано: {clipboard.entries.length} граф., {clipboard.dateLabel}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ScheduleCell({
   intervals,
   isSelected,
   onClick,
+  onContextMenu,
 }: {
   intervals: ScheduleInterval[];
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const first = intervals[0];
   const hasIntervals = Boolean(first);
@@ -890,6 +1088,7 @@ function ScheduleCell({
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={clsx(
         'group relative flex min-h-[92px] w-full items-stretch border-r border-b border-[#e7edf4] bg-white p-[3px] text-left transition',
         isSelected ? 'bg-[#fff9e8]' : 'hover:bg-[#fbfcfe]',
@@ -1040,6 +1239,8 @@ export function ScheduleScreen({
   onToggleOnlineSlotGroup,
   onResetOnlineSlots,
   onSaveOnlineSlots,
+  onPasteScheduleDay,
+  onPasteScheduleDate,
   onSelectDate,
   onOpenTimetable,
 }: ScheduleScreenProps) {
@@ -1054,6 +1255,10 @@ export function ScheduleScreen({
   const [scheduleMode, setScheduleMode] = useState<ScheduleFilterMode>('all');
   const [showEmployeeTotals, setShowEmployeeTotals] = useState(true);
   const [showDayTotals, setShowDayTotals] = useState(true);
+  const [dayClipboard, setDayClipboard] = useState<ScheduleDayClipboard | null>(null);
+  const [dateClipboard, setDateClipboard] = useState<ScheduleDateClipboard | null>(null);
+  const [cellContextMenu, setCellContextMenu] = useState<ScheduleCellContextMenuState | null>(null);
+  const [dateContextMenu, setDateContextMenu] = useState<ScheduleDateContextMenuState | null>(null);
 
   const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
   const visibleDates = useMemo(() => getVisibleScheduleDates(selectedDate), [selectedDate]);
@@ -1134,11 +1339,83 @@ export function ScheduleScreen({
     STAFF_COLUMN_WIDTH + (showEmployeeTotals ? TOTAL_COLUMN_WIDTH : 0) + visibleDates.length * DAY_COLUMN_WIDTH;
   const openMenuRow = filteredRows.find((row) => row.staff.id === staffMenuId) ?? null;
   const selectedDayWorkingRows = filteredRows.filter((row) => row.selectedDayIntervals.length > 0);
+  const editorDayIntervals = editorStaff ? getIntervalsForDate(hoursByStaff, editorStaff.id, selectedDate) : [];
+  const hasEditorDaySchedule = editorDayIntervals.length > 0;
+  const editorDraftInterval = {
+    start: editorStart,
+    end: editorEnd,
+    bookingStart: editorBookingStart,
+    bookingEnd: editorBookingEnd,
+    bookingSlots: null,
+  };
 
   const resetFilters = () => {
     setSearchValue('');
     setPositionValue('');
     setScheduleMode('all');
+  };
+
+  const copyScheduleDay = (input: {
+    staff: StaffItem;
+    date: Date;
+    intervals: ScheduleInterval[];
+    fallbackIntervals?: ScheduleInterval[];
+  }) => {
+    const intervalsToCopy = input.intervals.length > 0 ? input.intervals : input.fallbackIntervals ?? [];
+    if (intervalsToCopy.length === 0) {
+      return;
+    }
+    setDayClipboard({
+      staffName: input.staff.name,
+      dateLabel: formatLongDateLabel(input.date),
+      intervals: cloneScheduleIntervals(intervalsToCopy),
+    });
+  };
+
+  const pasteScheduleDay = (staffItem: StaffItem, date: Date) => {
+    if (!dayClipboard) {
+      return;
+    }
+    onPasteScheduleDay(staffItem, date, cloneScheduleIntervals(dayClipboard.intervals));
+  };
+
+  const copyScheduleDate = (date: Date) => {
+    const entries = staff
+      .map((item) => ({
+        staffId: item.id,
+        staffName: item.name,
+        intervals: cloneScheduleIntervals(getIntervalsForDate(hoursByStaff, item.id, date)),
+      }))
+      .filter((entry) => entry.intervals.length > 0);
+
+    if (entries.length === 0) {
+      return;
+    }
+    setDateClipboard({
+      dateLabel: formatLongDateLabel(date),
+      entries,
+    });
+  };
+
+  const pasteScheduleDate = (date: Date) => {
+    if (!dateClipboard) {
+      return;
+    }
+    onPasteScheduleDate(
+      date,
+      dateClipboard.entries.map((entry) => ({
+        ...entry,
+        intervals: cloneScheduleIntervals(entry.intervals),
+      })),
+    );
+  };
+
+  const closeFloatingMenus = () => {
+    setFiltersOpen(false);
+    setSettingsOpen(false);
+    setStaffMenuId(null);
+    setCellContextMenu(null);
+    setDateContextMenu(null);
   };
 
   useEffect(() => {
@@ -1469,6 +1746,19 @@ export function ScheduleScreen({
                         key={`head-${iso}`}
                         type="button"
                         onClick={() => onSelectDate(date)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setFiltersOpen(false);
+                          setSettingsOpen(false);
+                          setStaffMenuId(null);
+                          setCellContextMenu(null);
+                          setDateContextMenu({
+                            x: Math.min(event.clientX, window.innerWidth - 280),
+                            y: Math.min(event.clientY, window.innerHeight - 190),
+                            date,
+                            coverage,
+                          });
+                        }}
                         className={clsx(
                           'border-r border-[#e7edf4] px-2 py-4 text-center transition',
                           isSelected ? 'bg-[#fff5c9]' : 'bg-white hover:bg-[#fafbfc]',
@@ -1511,13 +1801,13 @@ export function ScheduleScreen({
           </div>
 
           <div className="relative">
-            {filtersOpen || settingsOpen || openMenuRow ? (
+            {filtersOpen || settingsOpen || openMenuRow || cellContextMenu || dateContextMenu ? (
               <div
                 className="fixed inset-0 z-40 bg-transparent"
-                onClick={() => {
-                  setFiltersOpen(false);
-                  setSettingsOpen(false);
-                  setStaffMenuId(null);
+                onClick={closeFloatingMenus}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  closeFloatingMenus();
                 }}
               />
             ) : null}
@@ -1548,6 +1838,41 @@ export function ScheduleScreen({
                   onClose={() => setSettingsOpen(false)}
                 />
               </div>
+            ) : null}
+
+            {cellContextMenu ? (
+              <ScheduleCellContextMenu
+                state={cellContextMenu}
+                clipboard={dayClipboard}
+                canPaste={Boolean(dayClipboard) && cellContextMenu.intervals.length === 0}
+                onCopy={() => {
+                  copyScheduleDay({
+                    staff: cellContextMenu.staff,
+                    date: cellContextMenu.date,
+                    intervals: cellContextMenu.intervals,
+                  });
+                  setCellContextMenu(null);
+                }}
+                onPaste={() => {
+                  pasteScheduleDay(cellContextMenu.staff, cellContextMenu.date);
+                  setCellContextMenu(null);
+                }}
+              />
+            ) : null}
+
+            {dateContextMenu ? (
+              <ScheduleDateContextMenu
+                state={dateContextMenu}
+                clipboard={dateClipboard}
+                onCopy={() => {
+                  copyScheduleDate(dateContextMenu.date);
+                  setDateContextMenu(null);
+                }}
+                onPaste={() => {
+                  pasteScheduleDate(dateContextMenu.date);
+                  setDateContextMenu(null);
+                }}
+              />
             ) : null}
 
             <div className="xl:hidden px-4 py-4">
@@ -1700,7 +2025,23 @@ export function ScheduleScreen({
                               key={`${row.staff.id}-${iso}`}
                               intervals={intervals}
                               isSelected={iso === selectedIso}
-                              onClick={() => onOpenDesktopEditor(row.staff, date)}
+                              onClick={() => {
+                                setCellContextMenu(null);
+                                onOpenDesktopEditor(row.staff, date);
+                              }}
+                              onContextMenu={(event) => {
+                                event.preventDefault();
+                                setFiltersOpen(false);
+                                setSettingsOpen(false);
+                                setStaffMenuId(null);
+                                setCellContextMenu({
+                                  x: Math.min(event.clientX, window.innerWidth - 260),
+                                  y: Math.min(event.clientY, window.innerHeight - 190),
+                                  staff: row.staff,
+                                  date,
+                                  intervals,
+                                });
+                              }}
                             />
                           );
                         }),
@@ -1754,6 +2095,17 @@ export function ScheduleScreen({
           onPresetSelect={onEditorPresetSelect}
           onSave={onSaveEditor}
           onClear={onClearEditor}
+          onCopy={() => {
+            copyScheduleDay({
+              staff: editorStaff,
+              date: selectedDate,
+              intervals: editorDayIntervals,
+              fallbackIntervals: [editorDraftInterval],
+            });
+          }}
+          onPaste={() => pasteScheduleDay(editorStaff, selectedDate)}
+          canPaste={Boolean(dayClipboard)}
+          hasDaySchedule={hasEditorDaySchedule}
         />
       ) : null}
 

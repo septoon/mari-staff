@@ -5329,6 +5329,92 @@ export function useAppController(): AppController {
     }
   };
 
+  const pasteScheduleDayForStaff = async (
+    item: StaffItem,
+    date: Date,
+    intervals: ScheduleInterval[],
+  ) => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
+    if (!item.id) {
+      setToast('Сотрудник не выбран');
+      return;
+    }
+
+    const isoDate = toISODate(date);
+    const existingIntervals = workingHoursByStaff[item.id]?.[isoDate] ?? [];
+    if (existingIntervals.length > 0) {
+      setToast('Вставка доступна только в пустой день');
+      return;
+    }
+
+    const nextIntervals = intervals.map((interval) => ({
+      ...interval,
+      bookingSlots: interval.bookingSlots ? [...interval.bookingSlots] : interval.bookingSlots ?? null,
+    }));
+    if (nextIntervals.length === 0 || nextIntervals.some((interval) => !isScheduleIntervalValid(interval))) {
+      setToast('Не удалось вставить день: некорректный график');
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await putStaffDailySchedule(item.id, date, nextIntervals);
+      await loadWorkingHours(staff);
+      if (scheduleEditorStaff?.id === item.id && toISODate(selectedDate) === isoDate) {
+        resetScheduleEditorDraft(nextIntervals[0]);
+      }
+      setToast('День вставлен и сохранен');
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
+  const pasteScheduleDateForStaff = async (
+    date: Date,
+    entries: Array<{ staffId: string; staffName: string; intervals: ScheduleInterval[] }>,
+  ) => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return;
+    }
+
+    const validEntries = entries
+      .map((entry) => ({
+        ...entry,
+        intervals: entry.intervals.map((interval) => ({
+          ...interval,
+          bookingSlots: interval.bookingSlots ? [...interval.bookingSlots] : interval.bookingSlots ?? null,
+        })),
+      }))
+      .filter((entry) => entry.staffId && entry.intervals.length > 0);
+
+    if (
+      validEntries.length === 0 ||
+      validEntries.some((entry) => entry.intervals.some((interval) => !isScheduleIntervalValid(interval)))
+    ) {
+      setToast('Не удалось вставить день: некорректный график');
+      return;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await Promise.all(
+        validEntries.map((entry) => putStaffDailySchedule(entry.staffId, date, entry.intervals)),
+      );
+      await loadWorkingHours(staff);
+      setToast(`Графики на день сохранены: ${validEntries.length}`);
+    } catch (error) {
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const handleOpenJournalStaffActions = (item: StaffItem) => {
     if (item.role === 'OWNER') {
       return;
@@ -5779,6 +5865,8 @@ export function useAppController(): AppController {
       saveScheduleEditor,
       clearScheduleEditor,
       clearScheduleDayForStaff,
+      pasteScheduleDayForStaff,
+      pasteScheduleDateForStaff,
       openScheduleOnlineSlotsForStaff,
       closeScheduleOnlineSlots,
       setScheduleOnlineSlotsShiftStart: handleScheduleOnlineSlotsShiftStartChange,

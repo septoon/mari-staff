@@ -976,6 +976,12 @@ export function AppView({ controller }: AppViewProps) {
             onSaveOnlineSlots={() => {
               void actions.saveScheduleOnlineSlots();
             }}
+            onPasteScheduleDay={(item: StaffItem, date: Date, intervals) => {
+              void actions.pasteScheduleDayForStaff(item, date, intervals);
+            }}
+            onPasteScheduleDate={(date: Date, entries) => {
+              void actions.pasteScheduleDateForStaff(date, entries);
+            }}
             onSelectDate={actions.setSelectedDate}
             onOpenTimetable={actions.openTimetableForDate}
           />

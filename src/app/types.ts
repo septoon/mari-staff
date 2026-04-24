@@ -506,6 +506,15 @@ export type ControllerActions = {
   saveScheduleEditor: () => Promise<void>;
   clearScheduleEditor: () => Promise<void>;
   clearScheduleDayForStaff: (item: StaffItem) => Promise<void>;
+  pasteScheduleDayForStaff: (
+    item: StaffItem,
+    date: Date,
+    intervals: ScheduleInterval[],
+  ) => Promise<void>;
+  pasteScheduleDateForStaff: (
+    date: Date,
+    entries: Array<{ staffId: string; staffName: string; intervals: ScheduleInterval[] }>,
+  ) => Promise<void>;
   openScheduleOnlineSlotsForStaff: (item: StaffItem, date: Date) => Promise<void>;
   closeScheduleOnlineSlots: () => void;
   setScheduleOnlineSlotsShiftStart: (value: string) => void;
