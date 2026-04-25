@@ -79,6 +79,7 @@ import type {
   AppController,
   AppointmentItem,
   ClientItem,
+  JournalAppointmentPatch,
   JournalCreateDraft,
   JournalCreateOpenOptions,
   JournalCard,
@@ -111,6 +112,7 @@ const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
 
 const EDIT_PERMISSION = {
   journal: 'EDIT_JOURNAL',
+  appointments: 'EDIT_APPOINTMENTS',
   schedule: 'EDIT_SCHEDULE',
   clients: 'EDIT_CLIENTS',
   services: 'EDIT_SERVICES',
@@ -121,10 +123,13 @@ const EDIT_PERMISSION = {
 const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   VIEW_JOURNAL: ['VIEW_JOURNAL', 'EDIT_JOURNAL', 'ACCESS_JOURNAL'],
   VIEW_ALL_JOURNAL_APPOINTMENTS: ['VIEW_ALL_JOURNAL_APPOINTMENTS'],
-  EDIT_JOURNAL: ['EDIT_JOURNAL', 'ACCESS_JOURNAL'],
+  EDIT_JOURNAL: ['EDIT_JOURNAL', 'EDIT_APPOINTMENTS', 'MANAGE_APPOINTMENTS', 'ACCESS_JOURNAL'],
+  EDIT_APPOINTMENTS: ['EDIT_APPOINTMENTS', 'EDIT_JOURNAL', 'MANAGE_APPOINTMENTS', 'ACCESS_JOURNAL'],
   CREATE_JOURNAL_APPOINTMENTS: [
     'CREATE_JOURNAL_APPOINTMENTS',
     'EDIT_JOURNAL',
+    'EDIT_APPOINTMENTS',
+    'MANAGE_APPOINTMENTS',
     'ACCESS_JOURNAL',
   ],
   VIEW_SCHEDULE: ['VIEW_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
@@ -133,7 +138,7 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   EDIT_CLIENTS: ['EDIT_CLIENTS', 'ACCESS_CLIENTS'],
   VIEW_CLIENT_PHONE: ['VIEW_CLIENT_PHONE', 'VIEW_CLIENTS', 'EDIT_CLIENTS', 'ACCESS_CLIENTS'],
   VIEW_FINANCIAL_STATS: ['VIEW_FINANCIAL_STATS', 'ACCESS_FINANCIAL_STATS', 'VIEW_REPORTS'],
-  VIEW_SERVICES: ['VIEW_SERVICES', 'EDIT_SERVICES', 'ACCESS_SERVICES'],
+  VIEW_SERVICES: ['VIEW_SERVICES', 'EDIT_SERVICES', 'EDIT_APPOINTMENTS', 'ACCESS_SERVICES'],
   EDIT_SERVICES: ['EDIT_SERVICES', 'ACCESS_SERVICES'],
   VIEW_STAFF: ['VIEW_STAFF', 'EDIT_STAFF', 'ACCESS_STAFF'],
   EDIT_STAFF: ['EDIT_STAFF', 'ACCESS_STAFF'],
@@ -511,7 +516,8 @@ export function useAppController(): AppController {
   const canViewSchedule = hasPermissionAccess('VIEW_SCHEDULE');
   const canViewClients = hasPermissionAccess('VIEW_CLIENTS');
   const canViewClientPhone = hasPermissionAccess('VIEW_CLIENT_PHONE');
-  const canViewServices = hasPermissionAccess('VIEW_SERVICES');
+  const canEditAppointments = hasPermissionAccess('EDIT_APPOINTMENTS');
+  const canViewServices = hasPermissionAccess('VIEW_SERVICES') || canEditAppointments;
   const canViewStaff = hasPermissionAccess('VIEW_STAFF');
   const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
   const canCreateJournalAppointments = hasPermissionAccess('CREATE_JOURNAL_APPOINTMENTS');
@@ -917,7 +923,17 @@ export function useAppController(): AppController {
       return selectedCategoryServices;
     }
     return selectedCategoryServices.filter((item) => {
-      const haystack = `${item.name} ${item.nameOnline || ''}`.toLowerCase();
+      const haystack = [
+        item.name,
+        item.nameOnline || '',
+        item.description || '',
+        item.categoryName,
+        String(item.priceMin),
+        String(item.priceMax),
+        ...item.providerNames,
+      ]
+        .join(' ')
+        .toLowerCase();
       return haystack.includes(query);
     });
   }, [selectedCategoryServices, servicesItemsSearch]);
@@ -935,7 +951,18 @@ export function useAppController(): AppController {
       return sorted;
     }
     return sorted.filter((item) =>
-      `${item.name} ${item.categoryName} ${item.nameOnline || ''}`.toLowerCase().includes(query),
+      [
+        item.name,
+        item.categoryName,
+        item.nameOnline || '',
+        item.description || '',
+        String(item.priceMin),
+        String(item.priceMax),
+        ...item.providerNames,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query),
     );
   }, [services, staffServicesEditorQuery]);
 
@@ -2551,6 +2578,16 @@ export function useAppController(): AppController {
     setClientHistoryAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
   };
 
+  const replaceAppointmentInLocalState = (appointment: AppointmentItem) => {
+    const replace = (items: AppointmentItem[]) =>
+      items.map((item) => (item.id === appointment.id ? appointment : item));
+    setAppointments(replace);
+    setJournalListAppointments(replace);
+    setJournalClientHistory(replace);
+    setClientHistoryAppointments(replace);
+    setJournalAppointmentTarget((prev) => (prev && prev.id === appointment.id ? appointment : prev));
+  };
+
   const removeClientFromLocalState = (clientId: string) => {
     setClients((prev) => prev.filter((item) => item.id !== clientId));
     setAppointments((prev) => prev.filter((item) => item.clientId !== clientId));
@@ -2568,7 +2605,7 @@ export function useAppController(): AppController {
     if (!appointment) {
       return;
     }
-    if (!canEdit(EDIT_PERMISSION.journal)) {
+    if (!canEdit(EDIT_PERMISSION.appointments)) {
       setToast('Нет прав на редактирование журнала');
       return;
     }
@@ -2596,6 +2633,82 @@ export function useAppController(): AppController {
     }
   };
 
+  const handleSaveJournalAppointment = async (patch: JournalAppointmentPatch) => {
+    const appointment = journalAppointmentTarget;
+    if (!appointment) {
+      return;
+    }
+    if (!canEdit(EDIT_PERMISSION.appointments)) {
+      setToast('Нет прав на редактирование записи');
+      return;
+    }
+    if (!patch.staffId) {
+      setToast('Выберите сотрудника');
+      return;
+    }
+    if (patch.serviceIds.length === 0) {
+      setToast('Выберите хотя бы одну услугу');
+      return;
+    }
+    if (Number.isNaN(patch.startAt.getTime()) || Number.isNaN(patch.endAt.getTime())) {
+      setToast('Проверьте дату и время записи');
+      return;
+    }
+    if (patch.endAt <= patch.startAt) {
+      setToast('Время окончания должно быть позже начала');
+      return;
+    }
+    if (!isJournalCreateStartAligned(patch.startAt)) {
+      setToast(`Время записи должно быть кратно ${JOURNAL_CREATE_STEP_MINUTES} минутам`);
+      return;
+    }
+
+    const payment =
+      patch.paidAmount !== null || patch.paymentMethod
+        ? {
+            ...(patch.paidAmount !== null ? { paidAmount: patch.paidAmount } : {}),
+            ...(patch.paymentMethod ? { method: patch.paymentMethod } : {}),
+          }
+        : undefined;
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const data = await api.patch<unknown>(`/appointments/${appointment.id}`, {
+        client: {
+          name: patch.clientName.trim() || appointment.clientName || 'Клиент',
+          ...(patch.clientPhone.trim() ? { phone: patch.clientPhone.trim() } : {}),
+        },
+        staffId: patch.staffId,
+        serviceIds: patch.serviceIds,
+        startAt: patch.startAt.toISOString(),
+        endAt: patch.endAt.toISOString(),
+        status: patch.status,
+        comment: patch.comment.trim() || null,
+        ...(payment ? { payment } : {}),
+      });
+      const parsed = parseAppointment(toRecord(data)?.appointment ?? data);
+      if (parsed) {
+        replaceAppointmentInLocalState(parsed);
+        setSelectedDate(parsed.startAt);
+        await Promise.all([
+          loadAppointments(parsed.startAt),
+          loadJournalListAppointments(),
+          loadJournalMarkedDates(parsed.startAt),
+        ]);
+      } else {
+        await Promise.all([
+          loadAppointmentsForSelectedDate(),
+          loadJournalListAppointments(),
+        ]);
+      }
+      setToast('Запись обновлена');
+    } catch (error) {
+      setToast(formatJournalCreateSaveError(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const handleUpdateJournalAppointmentStatus = async (
     status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED',
   ) => {
@@ -2603,7 +2716,7 @@ export function useAppController(): AppController {
     if (!appointment) {
       return;
     }
-    if (!canEdit(EDIT_PERMISSION.journal)) {
+    if (!canEdit(EDIT_PERMISSION.appointments)) {
       setToast('Нет прав на редактирование журнала');
       return;
     }
@@ -2623,18 +2736,7 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       await api.patch<unknown>(`/appointments/${appointment.id}/status`, { status });
-      setAppointments((prev) =>
-        prev.map((item) => (item.id === appointment.id ? { ...item, status } : item)),
-      );
-      setJournalAppointmentTarget((prev) =>
-        prev && prev.id === appointment.id ? { ...prev, status } : prev,
-      );
-      setJournalClientHistory((prev) =>
-        prev.map((item) => (item.id === appointment.id ? { ...item, status } : item)),
-      );
-      setClientHistoryAppointments((prev) =>
-        prev.map((item) => (item.id === appointment.id ? { ...item, status } : item)),
-      );
+      replaceAppointmentInLocalState({ ...appointment, status });
       setToast('Статус записи обновлен');
     } catch (error) {
       setToast(toErrorMessage(error));
@@ -4337,6 +4439,7 @@ export function useAppController(): AppController {
               name: payload.name,
               categoryId: payload.categoryId,
               categoryName: serviceDraft.categoryName,
+              providerNames: [],
               nameOnline: payload.nameOnline,
               description: payload.description || null,
               imageAssetId: serviceDraft.imageAssetId,
@@ -5768,7 +5871,7 @@ export function useAppController(): AppController {
       canViewClientPhone,
       canCreateJournalAppointments,
       canEditClients: canEdit(EDIT_PERMISSION.clients),
-      canEditJournal: canEdit(EDIT_PERMISSION.journal),
+      canEditJournal: canEditAppointments,
       canViewSchedule,
       canSelectPastJournalDates,
       canEditPrivacyPolicy,
@@ -5829,6 +5932,7 @@ export function useAppController(): AppController {
       handleOpenJournalAppointment,
       handleCloseJournalAppointment,
       handleDeleteJournalAppointment,
+      handleSaveJournalAppointment,
       handleUpdateJournalAppointmentStatus,
       handleOpenJournalClient,
       handleCloseJournalClient,

@@ -48,6 +48,14 @@ import {
   type SiteHomePageDraft,
 } from '../clientSiteHomePage';
 import {
+  SITE_SERVICES_PAGE_DEFAULTS,
+  SITE_SERVICES_PAGE_SECTION_COUNT,
+  countConfiguredSiteServicesPageSections,
+  createSiteServicesPageDraft,
+  mergeSiteServicesPageIntoExtra,
+  type SiteServicesPageDraft,
+} from '../clientSiteServicesPage';
+import {
   SITE_SPECIALISTS_PAGE_DEFAULTS,
   SITE_SPECIALISTS_PAGE_SECTION_COUNT,
   applySiteSpecialistsPageTemplate,
@@ -368,6 +376,12 @@ type HomePageObjectSectionKey =
   | 'featuredServices'
   | 'featuredSpecialists'
   | 'contacts'
+  | 'bottomCta';
+
+type ServicesPageObjectSectionKey =
+  | 'seo'
+  | 'heroActions'
+  | 'catalog'
   | 'bottomCta';
 
 const STANDARD_FEATURE_FLAGS_EXAMPLE = `{
@@ -1632,6 +1646,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const [homePageDraft, setHomePageDraft] = useState<SiteHomePageDraft>(() =>
     createSiteHomePageDraft({})
   );
+  const [servicesPageDraft, setServicesPageDraft] = useState<SiteServicesPageDraft>(() =>
+    createSiteServicesPageDraft({})
+  );
   const [specialistsPageDraft, setSpecialistsPageDraft] = useState<SiteSpecialistsPageDraft>(() =>
     createSiteSpecialistsPageDraft({})
   );
@@ -1755,6 +1772,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setPageHeroDraft(createSitePageHeroDraft(config.extra ?? {}));
     setBookingPageDraft(createSiteBookingPageDraft(config.extra ?? {}));
     setHomePageDraft(createSiteHomePageDraft(config.extra ?? {}));
+    setServicesPageDraft(createSiteServicesPageDraft(config.extra ?? {}));
     setSpecialistsPageDraft(createSiteSpecialistsPageDraft(config.extra ?? {}));
     setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
@@ -1946,8 +1964,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const featureRules = featureFlags.reduce((sum, [, item]) => sum + (item.rules?.length ?? 0), 0);
     const configuredPageHeroes = countConfiguredSitePageHeroes(config?.extra ?? {});
     const configuredBookingPageSections = countConfiguredSiteBookingPageSections(config?.extra ?? {});
-    const servicesCategoriesCount = serviceCategories.length || new Set(services.map((item) => item.category.id)).size;
-    const activeServices = services.filter((item) => item.isActive);
     const visibleSpecialists = specialists.filter((item) => item.isVisible);
 
     return categories.map((category) => {
@@ -1968,15 +1984,15 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         case 'services':
           return {
             ...category,
-            stat: screenData.services.error ? screenData.services.error : `${activeServices.length}/${services.length}`,
-            details: services.length
-              ? [
-                  `Активных услуг: ${activeServices.length}`,
-                  `Категорий в витрине: ${servicesCategoriesCount}`,
-                  `С отдельным названием для клиента: ${services.filter((item) => item.nameOnline).length}`,
-                ]
-              : ['Услуги пока не загружены.'],
-            warning: screenData.services.error || undefined,
+            stat: screenData.config.error
+              ? screenData.config.error
+              : `${countConfiguredSiteServicesPageSections(config?.extra ?? {})}/${SITE_SERVICES_PAGE_SECTION_COUNT}`,
+            details: [
+              'Редактирует страницу /services: SEO, hero, каталог и финальный CTA.',
+              'Сами услуги, категории и разделы остаются в разделе /services.',
+              `Hero услуги настроен: ${pageHeroDraft.services.title ? 'да' : 'нет'}`,
+            ],
+            warning: screenData.config.error || undefined,
           };
         case 'specialists':
           return {
@@ -2095,7 +2111,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
+  }, [blocks, config, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, pageHeroDraft.services.title, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -2369,6 +2385,53 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
+  const buildServicesExtra = useCallback(() => {
+    const nextExtra = mergeSiteServicesPageIntoExtra(config?.extra ?? {}, servicesPageDraft);
+    const currentPageHero = asObjectRecord(asObjectRecord(config?.extra ?? {}).pageHero);
+
+    nextExtra.pageHero = {
+      ...currentPageHero,
+      services: pageHeroDraft.services,
+    };
+
+    return nextExtra;
+  }, [config?.extra, pageHeroDraft.services, servicesPageDraft]);
+
+  const updateServicesPageField = <
+    TSection extends ServicesPageObjectSectionKey,
+    TField extends keyof SiteServicesPageDraft[TSection]
+  >(
+    section: TSection,
+    field: TField,
+    value: string,
+  ) => {
+    setServicesPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetServicesPageSection = (section: ServicesPageObjectSectionKey) => {
+    setServicesPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...SITE_SERVICES_PAGE_DEFAULTS[section],
+      },
+    }));
+  };
+
+  const saveServicesPage = async () => {
+    await saveConfigPatch(
+      {
+        extra: buildServicesExtra(),
+      },
+      'Страница услуг сохранена',
+    );
+  };
+
   const updateSpecialistsPageField = <
     TSection extends keyof SiteSpecialistsPageDraft,
     TField extends keyof SiteSpecialistsPageDraft[TSection]
@@ -2554,24 +2617,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       setServiceEditor(null);
       await loadData({ silent: true });
       setBanner('success', 'Карточка услуги сохранена. Изменения для сайта доступны сразу.');
-    } catch (error) {
-      setBanner('error', getErrorMessage(error));
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const deleteService = async (service: ServiceRecord) => {
-    const confirmed = window.confirm(`Удалить услугу «${service.nameOnline || service.name}»?`);
-    if (!confirmed) {
-      return;
-    }
-    setBusyKey(`service-delete:${service.id}`);
-    setMessage(null);
-    try {
-      await api.delete(`/services/${service.id}`);
-      await loadData({ silent: true });
-      setBanner('success', 'Карточка услуги удалена. Изменения для сайта доступны сразу.');
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     } finally {
@@ -5133,142 +5178,204 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   );
 
   const renderServicesDetail = () => {
-    const visibleServices = services.filter((item) => item.isActive).slice(0, 8);
-    const orderedServices = [...services].sort((left, right) => {
-      if (left.isActive !== right.isActive) {
-        return left.isActive ? -1 : 1;
-      }
-      return (left.nameOnline || left.name).localeCompare(right.nameOnline || right.name, 'ru');
-    });
+    const servicesHeroDefinition =
+      SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'services') ?? null;
+    const heroPreview = servicesHeroDefinition
+      ? resolveSitePageHeroPreview(servicesHeroDefinition, pageHeroDraft.services)
+      : null;
+
     return (
       <div className="space-y-5">
         <SectionCard
-          title="Витрина услуг"
-          subtitle="Здесь видно, как услуги показаны клиенту. Полное редактирование самих услуг остаётся в отдельном разделе."
+          title="Страница `/services` на клиентском сайте"
+          subtitle="Здесь редактируется контент страницы услуг. Сами услуги, категории и разделы остаются в разделе `/services` staff-панели."
           action={
             <button
               type="button"
-              onClick={onOpenServices}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+              onClick={() => {
+                void saveServicesPage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
             >
-              Открыть услуги
-              <ChevronRight className="h-4 w-4" />
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
             </button>
           }
         >
-          <div className="mb-4 rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
-            <span className="font-extrabold text-ink">Связка:</span>
-            {' '}
-            редактор услуг пишет напрямую в `mari-server` через `/services`,
-            {' '}
-            а `mari` читает витрину из `/services/public`.
-            {' '}
-            Поэтому услуги на сайте обновляются сразу и не ждут публикации `client-front`.
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Всего услуг</div>
-              <div className="mt-1 text-[24px] font-extrabold text-ink">{services.length}</div>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">Активны</div>
-              <div className="mt-1 text-[24px] font-extrabold text-ink">{services.filter((item) => item.isActive).length}</div>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <div className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#8590a0]">С названием для клиента</div>
-              <div className="mt-1 text-[24px] font-extrabold text-ink">{services.filter((item) => item.nameOnline).length}</div>
-            </div>
+          <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
+            <span className="font-extrabold text-ink">Связка:</span>{' '}
+            эта форма пишет в `client-front.config.extra.siteContent.servicesPage` и `pageHero.services`, а `mari` собирает из этих данных страницу `/services`.
+            Данные карточек разделов и категорий не дублируются здесь.
           </div>
         </SectionCard>
 
-        <SectionCard title="Что увидит клиент первым" subtitle="Первые активные услуги, которые попадут в витрину записи.">
-          <div className="space-y-3">
-            {visibleServices.length === 0 ? (
-              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Активных услуг пока нет.</div>
-            ) : (
-              visibleServices.map((service) => (
-                <div key={service.id} className="rounded-2xl bg-white px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[18px] font-extrabold text-ink">{service.nameOnline || service.name}</p>
-                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                        {service.category.name} • {formatDuration(service.durationSec)} • {formatMoney(service.priceMin)}
-                        {service.priceMax && service.priceMax !== service.priceMin ? ` – ${formatMoney(service.priceMax)}` : ''}
-                      </p>
-                      {service.description ? (
-                        <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">{service.description}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+        <SectionCard title="SEO и hero" subtitle="Заголовок браузера, описание для поиска, верхний экран, картинка и подписи кнопок.">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-3">
+              <TextField label="SEO title" value={servicesPageDraft.seo.title} onChange={(value) => updateServicesPageField('seo', 'title', value)} />
+              <TextAreaField label="SEO description" value={servicesPageDraft.seo.description} onChange={(value) => updateServicesPageField('seo', 'description', value)} rows={3} />
+              <TextField label="Hero eyebrow" value={pageHeroDraft.services.eyebrow} onChange={(value) => updatePageHeroField('services', 'eyebrow', value)} />
+              <TextField label="Hero title" value={pageHeroDraft.services.title} onChange={(value) => updatePageHeroField('services', 'title', value)} />
+              <TextAreaField label="Hero description" value={pageHeroDraft.services.description} onChange={(value) => updatePageHeroField('services', 'description', value)} rows={4} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField label="Кнопка primary" value={servicesPageDraft.heroActions.primaryLabel} onChange={(value) => updateServicesPageField('heroActions', 'primaryLabel', value)} />
+                <TextField label="Кнопка secondary" value={servicesPageDraft.heroActions.secondaryLabel} onChange={(value) => updateServicesPageField('heroActions', 'secondaryLabel', value)} />
+              </div>
+              <InlineImageField
+                label="Изображение hero"
+                previewUrl={assetUrlMap[pageHeroDraft.services.imageAssetId] ?? ''}
+                placeholder="Используется на верхнем экране страницы /services."
+                busy={busyKey === 'page-hero-image:services'}
+                onSelect={(file) => {
+                  void uploadPageHeroImage('services', file);
+                }}
+                onClear={() => updatePageHeroField('services', 'imageAssetId', '')}
+              />
+            </div>
+
+            <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Preview</p>
+              <p className="mt-3 text-[13px] font-bold uppercase tracking-[0.18em] text-[#8d95a1]">{heroPreview?.eyebrow}</p>
+              <p className="mt-3 text-[30px] font-extrabold leading-tight text-ink">{heroPreview?.title}</p>
+              <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{heroPreview?.description}</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">{servicesPageDraft.heroActions.primaryLabel}</button>
+                <button type="button" className="rounded-2xl border border-line bg-screen px-4 py-3 text-[14px] font-extrabold text-ink">{servicesPageDraft.heroActions.secondaryLabel}</button>
+              </div>
+              <div className="mt-5 flex h-44 items-center justify-center overflow-hidden rounded-[22px] bg-[#eef2f6]">
+                {assetUrlMap[pageHeroDraft.services.imageAssetId] ? (
+                  <img src={assetUrlMap[pageHeroDraft.services.imageAssetId]} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Image className="h-8 w-8 text-[#68768a]" />
+                )}
+              </div>
+            </div>
           </div>
+          <div className="mt-4 flex justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                resetPageHeroFields('services');
+                resetServicesPageSection('seo');
+                resetServicesPageSection('heroActions');
+              }}
+              className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]"
+            >
+              Сбросить hero
+            </button>
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pageHero('services'))}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(buildServicesExtra(), SITE_BLOCK_KEYS.pageHero('services'), 'Hero страницы /services');
+              }}
+            />
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Блок каталога" subtitle="Текст перед карточками разделов и категорий, а также подписи внутри этих карточек.">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-3">
+              <TextField label="Eyebrow" value={servicesPageDraft.catalog.eyebrow} onChange={(value) => updateServicesPageField('catalog', 'eyebrow', value)} />
+              <TextField label="Заголовок" value={servicesPageDraft.catalog.title} onChange={(value) => updateServicesPageField('catalog', 'title', value)} />
+              <TextAreaField label="Описание" value={servicesPageDraft.catalog.description} onChange={(value) => updateServicesPageField('catalog', 'description', value)} rows={4} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField label="Eyebrow карточки раздела" value={servicesPageDraft.catalog.sectionCardEyebrow} onChange={(value) => updateServicesPageField('catalog', 'sectionCardEyebrow', value)} />
+                <TextField label="Плейсхолдер фото раздела" value={servicesPageDraft.catalog.sectionCardFallbackText} onChange={(value) => updateServicesPageField('catalog', 'sectionCardFallbackText', value)} />
+                <TextField label="Шаблон счётчика раздела" value={servicesPageDraft.catalog.sectionCardServiceCountTemplate} onChange={(value) => updateServicesPageField('catalog', 'sectionCardServiceCountTemplate', value)} />
+                <TextField label="Действие карточки раздела" value={servicesPageDraft.catalog.sectionCardActionLabel} onChange={(value) => updateServicesPageField('catalog', 'sectionCardActionLabel', value)} />
+                <TextField label="Плейсхолдер фото категории" value={servicesPageDraft.catalog.categoryFallbackText} onChange={(value) => updateServicesPageField('catalog', 'categoryFallbackText', value)} />
+                <TextField label="Шаблон счётчика категории" value={servicesPageDraft.catalog.categoryServiceCountTemplate} onChange={(value) => updateServicesPageField('catalog', 'categoryServiceCountTemplate', value)} />
+                <TextField label="Действие карточки категории" value={servicesPageDraft.catalog.categoryActionLabel} onChange={(value) => updateServicesPageField('catalog', 'categoryActionLabel', value)} />
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{servicesPageDraft.catalog.eyebrow}</p>
+              <p className="mt-3 text-[28px] font-extrabold leading-tight text-ink">{servicesPageDraft.catalog.title}</p>
+              <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{servicesPageDraft.catalog.description}</p>
+              <div className="mt-5 rounded-[22px] border border-line bg-screen px-4 py-4">
+                <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-[#8d95a1]">{servicesPageDraft.catalog.sectionCardEyebrow}</p>
+                <p className="mt-3 text-[22px] font-extrabold text-ink">Пример раздела</p>
+                <div className="mt-5 flex items-center justify-between text-[14px] font-semibold text-[#5f6773]">
+                  <span>{servicesPageDraft.catalog.sectionCardServiceCountTemplate.replace('{count}', '12')}</span>
+                  <span>{servicesPageDraft.catalog.sectionCardActionLabel}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" onClick={() => resetServicesPageSection('catalog')} className="mt-4 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
+            Сбросить каталог
+          </button>
+        </SectionCard>
+
+        <SectionCard title="Финальный CTA" subtitle="Нижний блок страницы /services с переходом к записи и мастерам.">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-3">
+              <TextField label="Eyebrow" value={servicesPageDraft.bottomCta.eyebrow} onChange={(value) => updateServicesPageField('bottomCta', 'eyebrow', value)} />
+              <TextField label="Заголовок" value={servicesPageDraft.bottomCta.title} onChange={(value) => updateServicesPageField('bottomCta', 'title', value)} />
+              <TextAreaField label="Описание" value={servicesPageDraft.bottomCta.description} onChange={(value) => updateServicesPageField('bottomCta', 'description', value)} rows={4} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField label="Кнопка primary" value={servicesPageDraft.bottomCta.primaryCtaLabel} onChange={(value) => updateServicesPageField('bottomCta', 'primaryCtaLabel', value)} />
+                <TextField label="Кнопка secondary" value={servicesPageDraft.bottomCta.secondaryCtaLabel} onChange={(value) => updateServicesPageField('bottomCta', 'secondaryCtaLabel', value)} />
+              </div>
+            </div>
+
+            <div className="rounded-[24px] bg-[#1f2d39] px-4 py-4 text-white">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-white/62">{servicesPageDraft.bottomCta.eyebrow}</p>
+              <p className="mt-3 text-[28px] font-extrabold leading-tight">{servicesPageDraft.bottomCta.title}</p>
+              <p className="mt-3 text-[14px] font-medium leading-relaxed text-white/76">{servicesPageDraft.bottomCta.description}</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" className="rounded-2xl bg-white px-4 py-3 text-[14px] font-extrabold text-[#1f2d39]">{servicesPageDraft.bottomCta.primaryCtaLabel}</button>
+                <button type="button" className="rounded-2xl border border-white/24 bg-transparent px-4 py-3 text-[14px] font-extrabold text-white">{servicesPageDraft.bottomCta.secondaryCtaLabel}</button>
+              </div>
+            </div>
+          </div>
+          <button type="button" onClick={() => resetServicesPageSection('bottomCta')} className="mt-4 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
+            Сбросить CTA
+          </button>
         </SectionCard>
 
         <SectionCard
-          title="Карточки услуг"
-          subtitle="Добавляйте, редактируйте и удаляйте услуги, из которых собираются ServiceCard на главной, в каталоге, у мастеров и в карточках услуг."
+          title="Сами услуги"
+          subtitle="Названия, цены, длительности, категории и изображения услуг редактируются отдельно."
           action={
-            <button
-              type="button"
-              onClick={() => openServiceEditor(null)}
-              disabled={serviceCategories.length === 0}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              Добавить услугу
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={onOpenServices} className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink">
+                Открыть /services
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => openServiceEditor(null)}
+                disabled={serviceCategories.length === 0}
+                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Добавить услугу
+              </button>
+            </div>
           }
         >
-          <div className="mb-4 rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-            Категория выбирается из существующих. Если услуга скрыта, карточка пропадает со всех клиентских страниц, где используется ServiceCard.
-          </div>
-          <div className="space-y-3">
-            {orderedServices.length === 0 ? (
-              <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">Услуг пока нет.</div>
-            ) : (
-              orderedServices.map((service) => (
-                <div key={service.id} className="rounded-2xl bg-white px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[18px] font-extrabold text-ink">{service.nameOnline || service.name}</p>
-                      <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                        {service.category.name} • {formatDuration(service.durationSec)} • {formatMoney(service.priceMin)}
-                        {service.priceMax && service.priceMax !== service.priceMin ? ` – ${formatMoney(service.priceMax)}` : ''}
-                      </p>
-                      <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
-                        {service.description || 'Без краткого описания.'}
-                      </p>
-                      <p className="mt-2 text-[13px] font-semibold text-[#8590a0]">
-                        {service.isActive ? 'Активна на сайте' : 'Скрыта с сайта'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openServiceEditor(service)}
-                        className="rounded-2xl border border-line p-3 text-[#6c7685]"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void deleteService(service);
-                        }}
-                        disabled={busyKey === `service-delete:${service.id}`}
-                        className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
-                      >
-                        {busyKey === `service-delete:${service.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
+            Здесь намеренно нет списка услуг: страница `/online-booking/uslugi` управляет только контентом клиентской страницы `/services`.
           </div>
         </SectionCard>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              void saveServicesPage();
+            }}
+            disabled={busyKey === 'config'}
+            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+          >
+            {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Сохранить и опубликовать страницу услуг
+          </button>
+        </div>
       </div>
     );
   };
@@ -7633,6 +7740,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       : categorySnapshots.slice(0, 4);
     const configuredClientSiteContentCount =
       countConfiguredSiteHomePageSections(config?.extra ?? {}) +
+      countConfiguredSiteServicesPageSections(config?.extra ?? {}) +
       countConfiguredSiteSpecialistsPageSections(config?.extra ?? {}) +
       countConfiguredSiteBookingPageSections(config?.extra ?? {}) +
       countConfiguredSitePageHeroes(config?.extra ?? {}) +
@@ -7783,6 +7891,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   </p>
                   <p className="mt-1 text-[22px] font-extrabold text-ink">
                     {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) +
+                      countConfiguredSiteServicesPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSiteSpecialistsPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSitePageHeroes(previewState.data.config.extra ?? {})}
@@ -7802,6 +7911,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 </p>
                 <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
                   {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) > 0 ||
+                  countConfiguredSiteServicesPageSections(previewState.data.config.extra ?? {}) > 0 ||
                   countConfiguredSiteSpecialistsPageSections(previewState.data.config.extra ?? {}) > 0 ||
                   countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) > 0
                     ? 'Проверка собрана по тем же настройкам главной страницы, специалистов и страницы записи, которые использует сайт mari.'

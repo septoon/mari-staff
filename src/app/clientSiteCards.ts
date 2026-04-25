@@ -426,14 +426,25 @@ export const createSiteCardsDraft = (extra: Record<string, unknown>): SiteCardsD
   };
 };
 
+const omitBlankImageAssetId = <T extends { imageAssetId?: string }>(item: T): T => {
+  const imageAssetId = item.imageAssetId?.trim();
+  if (imageAssetId) {
+    return { ...item, imageAssetId };
+  }
+
+  const next = { ...item };
+  delete next.imageAssetId;
+  return next;
+};
+
 export const mergeSiteCardsIntoExtra = (extra: Record<string, unknown>, draft: SiteCardsDraft): Record<string, unknown> => {
   const nextExtra = { ...extra };
   const nextSiteContent = asObjectRecord(extra.siteContent);
   nextExtra.siteContent = {
     ...nextSiteContent,
-    offers: draft.offers,
-    news: draft.news,
-    locations: draft.locations,
+    offers: draft.offers.map(omitBlankImageAssetId),
+    news: draft.news.map(omitBlankImageAssetId),
+    locations: draft.locations.map(omitBlankImageAssetId),
     policy: draft.policy
   };
   return nextExtra;

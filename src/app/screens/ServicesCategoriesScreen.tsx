@@ -43,6 +43,11 @@ type ServiceGroup = {
   totalCount: number;
 };
 
+type SectionGroup = {
+  section: ServiceSectionItem;
+  categories: ServiceCategoryItem[];
+};
+
 const DESKTOP_SERVICES_TABLE_COLUMNS =
   'minmax(320px,2.2fr) 168px 120px 150px 160px 180px 170px 56px';
 const DESKTOP_SERVICES_TABLE_MIN_WIDTH = '1324px';
@@ -81,6 +86,28 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
   window.URL.revokeObjectURL(url);
 }
 
+function normalizeSearch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function serviceMatchesQuery(service: ServiceItem, query: string) {
+  if (!query) {
+    return true;
+  }
+  return [
+    service.name,
+    service.nameOnline || '',
+    service.description || '',
+    service.categoryName,
+    String(service.priceMin),
+    String(service.priceMax),
+    ...service.providerNames,
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(query);
+}
+
 export function ServicesCategoriesScreen({
   categories,
   sections,
@@ -106,7 +133,7 @@ export function ServicesCategoriesScreen({
   const [pendingServiceIds, setPendingServiceIds] = useState<string[]>([]);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const normalizedQuery = search.trim().toLowerCase();
+  const normalizedQuery = normalizeSearch(search);
   const servicesByCategory = useMemo(() => {
     const map = new Map<string, ServiceItem[]>();
     services.forEach((item) => {
@@ -136,9 +163,39 @@ export function ServicesCategoriesScreen({
     () => categories.filter((item) => !item.sectionId),
     [categories],
   );
+  const categoriesForGroups = normalizedQuery ? categories : categoriesWithoutSection;
+
+  const sectionGroups = useMemo<SectionGroup[]>(() => {
+    return sections
+      .map((section) => {
+        const linkedCategories = categoriesBySection.get(section.id) ?? [];
+        const sectionMatches = section.name.toLowerCase().includes(normalizedQuery);
+        const visibleCategories = normalizedQuery
+          ? linkedCategories.filter((category) => {
+              const categoryServices = servicesByCategory.get(category.id) ?? [];
+              return (
+                sectionMatches ||
+                category.name.toLowerCase().includes(normalizedQuery) ||
+                categoryServices.some((service) => serviceMatchesQuery(service, normalizedQuery))
+              );
+            })
+          : linkedCategories;
+
+        return {
+          section,
+          categories: visibleCategories,
+        };
+      })
+      .filter(
+        (group) =>
+          !normalizedQuery ||
+          group.section.name.toLowerCase().includes(normalizedQuery) ||
+          group.categories.length > 0,
+      );
+  }, [categoriesBySection, normalizedQuery, sections, servicesByCategory]);
 
   const serviceGroups = useMemo<ServiceGroup[]>(() => {
-    return categoriesWithoutSection
+    return categoriesForGroups
       .map((category) => {
         const categoryServices = servicesByCategory.get(category.id) ?? [];
         const categoryMatches =
@@ -147,11 +204,7 @@ export function ServicesCategoriesScreen({
         const matchedServices =
           normalizedQuery.length === 0
             ? categoryServices
-            : categoryServices.filter((item) =>
-                `${item.name} ${item.nameOnline || ''} ${item.description || ''} ${item.categoryName}`
-                  .toLowerCase()
-                  .includes(normalizedQuery),
-              );
+            : categoryServices.filter((item) => serviceMatchesQuery(item, normalizedQuery));
         const visibleServices =
           normalizedQuery.length === 0
             ? categoryServices
@@ -171,7 +224,7 @@ export function ServicesCategoriesScreen({
           group.category.name.toLowerCase().includes(normalizedQuery) ||
           group.services.length > 0,
       );
-  }, [categoriesWithoutSection, normalizedQuery, servicesByCategory]);
+  }, [categoriesForGroups, normalizedQuery, servicesByCategory]);
 
   useEffect(() => {
     if (serviceGroups.length === 0) {
@@ -302,7 +355,7 @@ export function ServicesCategoriesScreen({
         </div>
 
         <ul>
-          {sections.map((section) => (
+          {sectionGroups.map(({ section }) => (
             <li key={`section:${section.id}`} className="border-b border-line py-4">
               <button
                 type="button"
@@ -348,6 +401,24 @@ export function ServicesCategoriesScreen({
                   <Pencil className="h-6 w-6" />
                 </button>
               </div>
+              {normalizedQuery && group.services.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {group.services.map((service) => (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => onOpenService(service.id)}
+                      className="w-full rounded-2xl border border-line bg-screen px-3 py-3 text-left"
+                    >
+                      <p className="truncate text-[16px] font-extrabold text-ink">{service.name}</p>
+                      <p className="mt-1 truncate text-[13px] font-semibold text-[#6f7682]">
+                        {group.category.name} • {formatGroupedRub(service.priceMin)}
+                        {service.providerNames.length > 0 ? ` • ${service.providerNames.join(', ')}` : ''}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -361,7 +432,7 @@ export function ServicesCategoriesScreen({
           </div>
         ) : null}
 
-        {!loading && serviceGroups.length === 0 ? (
+        {!loading && sectionGroups.length === 0 && serviceGroups.length === 0 ? (
           <p className="mt-4 text-sm font-semibold text-muted">Категории не найдены</p>
         ) : null}
       </div>
@@ -523,10 +594,9 @@ export function ServicesCategoriesScreen({
           </div>
         </section>
 
-        {!loading && sections.length > 0 ? (
+        {!loading && sectionGroups.length > 0 ? (
           <section className="mt-5 grid gap-4 xl:grid-cols-2">
-            {sections.map((section) => {
-              const linkedCategories = categoriesBySection.get(section.id) ?? [];
+            {sectionGroups.map(({ section, categories: linkedCategories }) => {
               return (
                 <div
                   key={section.id}
@@ -604,7 +674,7 @@ export function ServicesCategoriesScreen({
 
         {!loading ? (
           <div className="mt-5 space-y-4">
-            {categoriesWithoutSection.length > 0 ? (
+            {!normalizedQuery && categoriesWithoutSection.length > 0 ? (
               <section className="rounded-[32px] border border-dashed border-[#d7dde6] bg-[#f8fafc] px-5 py-5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Без раздела</p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -737,7 +807,7 @@ export function ServicesCategoriesScreen({
                                     onClick={() => onConfigureService(service.id)}
                                     className="truncate text-left font-bold text-[#2d5fd6] transition hover:text-[#2148a3]"
                                   >
-                                    Назначить
+                                    {service.providerNames.length > 0 ? service.providerNames.join(', ') : 'Назначить'}
                                   </button>
 
                                   <button
@@ -777,7 +847,7 @@ export function ServicesCategoriesScreen({
               );
             })}
 
-            {!loading && serviceGroups.length === 0 ? (
+            {!loading && sectionGroups.length === 0 && serviceGroups.length === 0 ? (
               <section className="rounded-[32px] border border-[#e2e6ed] bg-[#fcfcfd] px-6 py-14 text-center shadow-[0_18px_40px_rgba(42,49,56,0.08)]">
                 <p className="text-[28px] font-extrabold text-ink">Ничего не найдено</p>
                 <p className="mt-3 text-base font-semibold text-[#7d8693]">

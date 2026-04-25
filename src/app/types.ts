@@ -110,6 +110,7 @@ export type ServiceItem = {
   name: string;
   categoryId: string;
   categoryName: string;
+  providerNames: string[];
   nameOnline: string | null;
   description: string | null;
   imageAssetId: string | null;
@@ -165,10 +166,12 @@ export type AppointmentItem = {
   clientName: string;
   clientPhone: string;
   serviceName: string;
+  serviceIds: string[];
   amountBeforeDiscount: number | null;
   discountPercent: number | null;
   amountAfterDiscount: number | null;
   paidAmount: number | null;
+  paymentMethod: string | null;
   comment: string;
   createdAt: Date;
 };
@@ -216,6 +219,19 @@ export type JournalCreateDraft = {
   durationMin: number;
   staffId: string;
   serviceIds: string[];
+};
+
+export type JournalAppointmentPatch = {
+  clientName: string;
+  clientPhone: string;
+  staffId: string;
+  serviceIds: string[];
+  startAt: Date;
+  endAt: Date;
+  status: string;
+  comment: string;
+  paidAmount: number | null;
+  paymentMethod: string | null;
 };
 
 export type JournalCard = AppointmentItem & {
@@ -467,6 +483,7 @@ export type ControllerActions = {
   handleOpenJournalAppointment: (appointment: AppointmentItem) => void;
   handleCloseJournalAppointment: () => void;
   handleDeleteJournalAppointment: () => Promise<void>;
+  handleSaveJournalAppointment: (patch: JournalAppointmentPatch) => Promise<void>;
   handleUpdateJournalAppointmentStatus: (
     status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED',
   ) => Promise<void>;

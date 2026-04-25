@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { BottomSheet, type BottomSheetProps } from 'react-spring-bottom-sheet';
 
@@ -78,6 +79,17 @@ export function PageSheet({
     }
     return fallback;
   };
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  }, [open]);
 
   return (
     <BottomSheet

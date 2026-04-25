@@ -107,6 +107,12 @@ export function parseService(value: unknown): ServiceItem | null {
   const categoryRecord = toRecord(record.category);
   const categoryId = toString(categoryRecord?.id) || 'uncategorized';
   const categoryName = toString(categoryRecord?.name) || 'Без категории';
+  const providerNames = asArray(record.providers)
+    .map((item) => {
+      const providerRecord = toRecord(item);
+      return toString(providerRecord?.name);
+    })
+    .filter(Boolean);
   if (!id || !name) {
     return null;
   }
@@ -115,6 +121,7 @@ export function parseService(value: unknown): ServiceItem | null {
     name,
     categoryId,
     categoryName,
+    providerNames,
     nameOnline: toNullableString(record.nameOnline),
     description: toNullableString(record.description),
     imageAssetId: toNullableString(record.imageAssetId),
@@ -215,6 +222,15 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
     .map((item) => toString(toRecord(item)?.name))
     .filter(Boolean)
     .join(', ');
+  const serviceIds = serviceCandidates
+    .map((item) => {
+      const serviceRecord = toRecord(item);
+      return (
+        toString(serviceRecord?.serviceId) ||
+        toString(serviceRecord?.id)
+      );
+    })
+    .filter(Boolean);
 
   const startAtRaw =
     toString(record.startAt) ||
@@ -322,10 +338,12 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
       toString(record.servicesLabel) ||
       toString(record.title) ||
       'Услуга',
+    serviceIds,
     amountBeforeDiscount,
     discountPercent,
     amountAfterDiscount,
     paidAmount,
+    paymentMethod: toString(paymentRecord?.method) || toString(record.paymentMethod) || null,
     comment: toString(record.comment),
     createdAt: Number.isNaN(createdAt.getTime()) ? startAt : createdAt,
   };

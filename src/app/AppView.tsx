@@ -841,6 +841,7 @@ export function AppView({ controller }: AppViewProps) {
               client={state.journalClientTarget}
               clientDraft={state.journalClientDraft}
               staff={state.staff}
+              services={state.services}
               history={activeJournalHistory}
               historyLoading={state.journalClientLoading}
               historyOpen={state.page === 'journalClient'}
@@ -854,6 +855,9 @@ export function AppView({ controller }: AppViewProps) {
               onCloseHistory={actions.handleCloseJournalClient}
               onStatusChange={(status: 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED') => {
                 void actions.handleUpdateJournalAppointmentStatus(status);
+              }}
+              onSave={(patch) => {
+                void actions.handleSaveJournalAppointment(patch);
               }}
               onOpenClient={() => {
                 void actions.handleOpenJournalClient();

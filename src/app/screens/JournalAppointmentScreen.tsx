@@ -32,7 +32,14 @@ import {
   formatRub,
   formatTime,
 } from '../helpers';
-import type { AppointmentItem, ClientItem, JournalClientDraft, StaffItem } from '../types';
+import type {
+  AppointmentItem,
+  ClientItem,
+  JournalAppointmentPatch,
+  JournalClientDraft,
+  ServiceItem,
+  StaffItem,
+} from '../types';
 
 type AppointmentStatus = 'PENDING' | 'ARRIVED' | 'NO_SHOW' | 'CONFIRMED';
 
@@ -41,6 +48,7 @@ type JournalAppointmentScreenProps = {
   client: ClientItem | null;
   clientDraft: JournalClientDraft;
   staff: StaffItem[];
+  services: ServiceItem[];
   history: AppointmentItem[];
   historyLoading: boolean;
   historyOpen: boolean;
@@ -53,6 +61,7 @@ type JournalAppointmentScreenProps = {
   onBack: () => void;
   onCloseHistory: () => void;
   onStatusChange: (status: AppointmentStatus) => void;
+  onSave: (patch: JournalAppointmentPatch) => void;
   onOpenClient: () => void;
   onOpenAppointment: (appointment: AppointmentItem) => void;
   onCall: () => void;
@@ -62,13 +71,18 @@ type JournalAppointmentScreenProps = {
 };
 
 type DesktopAppointmentDraft = {
+  clientName: string;
+  clientPhone: string;
   staffId: string;
   dateValue: string;
   startTime: string;
   endTime: string;
   durationMin: number;
+  serviceIds: string[];
   technicalBreaks: string[];
   comment: string;
+  paidAmount: string;
+  paymentMethod: string;
 };
 
 const STATUS_ITEMS: Array<{
@@ -244,13 +258,18 @@ function buildDesktopDraft(appointment: AppointmentItem): DesktopAppointmentDraf
   );
 
   return {
+    clientName: appointment.clientName || '',
+    clientPhone: appointment.clientPhone || '',
     staffId: appointment.staffId,
     dateValue: formatDateDraftValue(appointment.startAt),
     startTime: formatTime(appointment.startAt),
     endTime: formatTime(appointment.endAt),
     durationMin,
+    serviceIds: appointment.serviceIds,
     technicalBreaks: [],
     comment: appointment.comment || '',
+    paidAmount: appointment.paidAmount === null ? '' : String(appointment.paidAmount),
+    paymentMethod: appointment.paymentMethod || 'OTHER',
   };
 }
 
@@ -303,13 +322,18 @@ const LEFT_PANEL_CONTROL_CLASS =
   'h-16 w-full rounded-[18px] border border-[#d7dde6] bg-white px-5 text-[17px] font-semibold text-ink outline-none transition focus:border-[#c0c8d4]';
 
 const EMPTY_DESKTOP_DRAFT: DesktopAppointmentDraft = {
+  clientName: '',
+  clientPhone: '',
   staffId: '',
   dateValue: '',
   startTime: '10:00',
   endTime: '11:00',
   durationMin: 60,
+  serviceIds: [],
   technicalBreaks: [],
   comment: '',
+  paidAmount: '',
+  paymentMethod: 'OTHER',
 };
 
 export function JournalAppointmentScreen({
@@ -317,6 +341,7 @@ export function JournalAppointmentScreen({
   client,
   clientDraft,
   staff,
+  services,
   history,
   historyLoading,
   historyOpen,
@@ -329,6 +354,7 @@ export function JournalAppointmentScreen({
   onBack,
   onCloseHistory,
   onStatusChange,
+  onSave,
   onOpenClient,
   onOpenAppointment,
   onCall,
@@ -404,9 +430,7 @@ export function JournalAppointmentScreen({
     );
   }
 
-  const availableStaff = staff.filter(
-    (item) => item.isActive && (item.role === 'MASTER' || item.id === appointment.staffId),
-  );
+  const availableStaff = staff.filter((item) => item.isActive || item.id === appointment.staffId);
   const selectedStaff =
     availableStaff.find((item) => item.id === desktopDraft.staffId) ||
     availableStaff.find((item) => item.id === appointment.staffId) ||
@@ -478,6 +502,47 @@ export function JournalAppointmentScreen({
       };
     });
   };
+  const handleServiceToggle = (serviceId: string) => {
+    setDesktopDraft((prev) => {
+      const serviceIds = prev.serviceIds.includes(serviceId)
+        ? prev.serviceIds.filter((id) => id !== serviceId)
+        : [...prev.serviceIds, serviceId];
+      const selectedServices = services.filter((item) => serviceIds.includes(item.id));
+      const durationMin =
+        selectedServices.reduce((sum, item) => sum + Math.max(15, Math.round(item.durationSec / 60)), 0) ||
+        prev.durationMin;
+      const startDate = combineDraftDateTime(prev.dateValue, prev.startTime);
+      const endTime = startDate
+        ? formatTime(new Date(startDate.getTime() + durationMin * 60000))
+        : prev.endTime;
+      return {
+        ...prev,
+        serviceIds,
+        durationMin,
+        endTime,
+      };
+    });
+  };
+  const saveDesktopDraft = () => {
+    const startAt = combineDraftDateTime(desktopDraft.dateValue, desktopDraft.startTime);
+    const endAt = combineDraftDateTime(desktopDraft.dateValue, desktopDraft.endTime);
+    if (!startAt || !endAt) {
+      return;
+    }
+    onSave({
+      clientName: desktopDraft.clientName,
+      clientPhone: desktopDraft.clientPhone,
+      staffId: desktopDraft.staffId,
+      serviceIds: desktopDraft.serviceIds,
+      startAt,
+      endAt,
+      status: appointment.status,
+      comment: desktopDraft.comment,
+      paidAmount: desktopDraft.paidAmount.trim() ? Number(desktopDraft.paidAmount) : null,
+      paymentMethod: desktopDraft.paymentMethod || null,
+    });
+    setDesktopEditing(false);
+  };
   const displayStaffName = selectedStaff?.name || appointment.staffName;
   const displayStaffSubtitle =
     selectedStaff?.positionName?.trim() || appointment.serviceName || 'Специалист';
@@ -517,6 +582,7 @@ export function JournalAppointmentScreen({
     : null;
   const totalSold = sortedHistory.reduce((sum, item) => sum + (appointmentAmountValue(item) ?? 0), 0);
   const totalPaid = sortedHistory.reduce((sum, item) => sum + (appointmentPaidValue(item) ?? 0), 0);
+  const selectedDraftServices = services.filter((item) => desktopDraft.serviceIds.includes(item.id));
   const historyGroups = sortedHistory.reduce<Array<{ day: string; date: Date; items: AppointmentItem[] }>>(
     (accumulator, item) => {
       const day = formatHistoryDate(item.startAt);
@@ -763,6 +829,7 @@ export function JournalAppointmentScreen({
                           <button
                             type="button"
                             onClick={() => setDesktopEditing(true)}
+                            disabled={!canEdit}
                             className="mt-7 inline-flex items-center gap-2 text-[16px] font-semibold text-[#6c7380] transition hover:text-ink"
                           >
                             <Pencil className="h-4 w-4" />
@@ -771,6 +838,33 @@ export function JournalAppointmentScreen({
                         </>
                       ) : (
                         <div className="space-y-6">
+                          <LeftPanelField label="Клиент">
+                            <input
+                              value={desktopDraft.clientName}
+                              onChange={(event) =>
+                                setDesktopDraft((prev) => ({
+                                  ...prev,
+                                  clientName: event.target.value,
+                                }))
+                              }
+                              placeholder="Имя клиента"
+                              className={LEFT_PANEL_CONTROL_CLASS}
+                            />
+                            {canViewClientPhone ? (
+                              <input
+                                value={desktopDraft.clientPhone}
+                                onChange={(event) =>
+                                  setDesktopDraft((prev) => ({
+                                    ...prev,
+                                    clientPhone: event.target.value,
+                                  }))
+                                }
+                                placeholder="Телефон"
+                                className={`${LEFT_PANEL_CONTROL_CLASS} mt-3`}
+                              />
+                            ) : null}
+                          </LeftPanelField>
+
                           <LeftPanelField label="Сотрудник">
                             <select
                               value={desktopDraft.staffId}
@@ -905,10 +999,11 @@ export function JournalAppointmentScreen({
                             </button>
                             <button
                               type="button"
-                              onClick={() => setDesktopEditing(false)}
-                              className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#222b33] px-4 text-sm font-extrabold text-white"
+                              onClick={saveDesktopDraft}
+                              disabled={loading}
+                              className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#222b33] px-4 text-sm font-extrabold text-white disabled:opacity-50"
                             >
-                              Готово
+                              Сохранить
                             </button>
                           </div>
                         </div>
@@ -926,6 +1021,7 @@ export function JournalAppointmentScreen({
                           <p className="text-[16px] font-medium text-[#6d7582]">Комментарий к записи</p>
                           <textarea
                             value={desktopDraft.comment}
+                            readOnly={!canEdit}
                             onChange={(event) =>
                               setDesktopDraft((prev) => ({
                                 ...prev,
@@ -1033,17 +1129,47 @@ export function JournalAppointmentScreen({
                       </div>
 
                       <div className="mt-8">
-                        <p className="text-base font-semibold text-[#818997]">
-                          У записи пока одна услуга. Расширенное редактирование состава визита
-                          оставлено на следующий шаг.
-                        </p>
-                        <button
-                          type="button"
-                          className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#59616e] shadow-[0_10px_24px_rgba(42,49,56,0.06)]"
-                        >
-                          Все услуги
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
+                        {services.length > 0 ? (
+                          <div className="grid gap-3 xl:grid-cols-2">
+                            {services.map((item) => {
+                              const active = desktopDraft.serviceIds.includes(item.id);
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  disabled={!canEdit}
+                                  onClick={() => handleServiceToggle(item.id)}
+                                  className={clsx(
+                                    'rounded-[18px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60',
+                                    active
+                                      ? 'border-[#222b33] bg-[#222b33] text-white'
+                                      : 'border-[#dde3eb] bg-white text-ink hover:border-[#c8d0da]',
+                                  )}
+                                >
+                                  <p className="text-[16px] font-extrabold leading-tight">{item.name}</p>
+                                  <p
+                                    className={clsx(
+                                      'mt-2 text-sm font-semibold',
+                                      active ? 'text-white/70' : 'text-[#818997]',
+                                    )}
+                                  >
+                                    {Math.max(15, Math.round(item.durationSec / 60))} мин ·{' '}
+                                    {formatRub(item.priceMax || item.priceMin)}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-base font-semibold text-[#818997]">
+                            Список услуг недоступен. Обновите данные и попробуйте снова.
+                          </p>
+                        )}
+                        {selectedDraftServices.length > 0 ? (
+                          <p className="mt-5 text-sm font-bold uppercase tracking-[0.16em] text-[#8f97a5]">
+                            Выбрано: {selectedDraftServices.length}
+                          </p>
+                        ) : null}
                       </div>
                     </section>
 
@@ -1058,24 +1184,39 @@ export function JournalAppointmentScreen({
                       </div>
 
                       <div className="grid gap-3 p-5 lg:grid-cols-3">
-                        <div className="rounded-[22px] border border-[#f2c200] bg-[#fffdf3] px-4 py-4">
-                          <p className="text-[20px] font-extrabold text-ink">Карта</p>
-                          <p className="mt-2 text-sm font-semibold text-[#7f8794]">
-                            Расчетный счет
-                          </p>
-                        </div>
-                        <div className="rounded-[22px] border border-[#f2c200] bg-[#fffdf3] px-4 py-4">
-                          <p className="text-[20px] font-extrabold text-ink">Наличные</p>
-                          <p className="mt-2 text-sm font-semibold text-[#7f8794]">
-                            Основная касса
-                          </p>
-                        </div>
-                        <div className="rounded-[22px] border border-[#dfe4ec] bg-[#fafbfd] px-4 py-4">
-                          <p className="text-[20px] font-extrabold text-ink">Все способы</p>
-                          <p className="mt-2 text-sm font-semibold text-[#7f8794]">
-                            Стандартный набор
-                          </p>
-                        </div>
+                        <label className="block rounded-[22px] border border-[#dfe4ec] bg-[#fafbfd] px-4 py-4">
+                          <span className="text-sm font-bold uppercase tracking-[0.14em] text-[#8f97a5]">
+                            Оплачено
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={desktopDraft.paidAmount}
+                            disabled={!canEdit}
+                            onChange={(event) =>
+                              setDesktopDraft((prev) => ({ ...prev, paidAmount: event.target.value }))
+                            }
+                            className="mt-3 h-11 w-full rounded-2xl border border-[#d7dde6] bg-white px-3 text-sm font-semibold text-ink outline-none"
+                          />
+                        </label>
+                        <label className="block rounded-[22px] border border-[#dfe4ec] bg-[#fafbfd] px-4 py-4 lg:col-span-2">
+                          <span className="text-sm font-bold uppercase tracking-[0.14em] text-[#8f97a5]">
+                            Метод оплаты
+                          </span>
+                          <select
+                            value={desktopDraft.paymentMethod}
+                            disabled={!canEdit}
+                            onChange={(event) =>
+                              setDesktopDraft((prev) => ({ ...prev, paymentMethod: event.target.value }))
+                            }
+                            className="mt-3 h-11 w-full rounded-2xl border border-[#d7dde6] bg-white px-3 text-sm font-semibold text-ink outline-none"
+                          >
+                            <option value="OTHER">Другой</option>
+                            <option value="CASH">Наличные</option>
+                            <option value="CARD">Карта</option>
+                            <option value="TRANSFER">Перевод</option>
+                          </select>
+                        </label>
                       </div>
                     </section>
                   </div>
