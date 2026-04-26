@@ -950,7 +950,7 @@ export function JournalAppointmentScreen({
                               <div className="mt-3 rounded-[16px] bg-[#f4f6fa] px-3 py-3 text-sm font-semibold text-[#5f6876]">
                                 {desktopDraft.serviceIds.length > 0
                                   ? `${desktopDraft.serviceIds.length} услуг · ${selectedDraftDurationMin || desktopDraft.durationMin} мин · ${formatRub(selectedDraftPrice)}`
-                                  : 'Выберите хотя бы одну услугу'}
+                                  : 'Без услуги'}
                               </div>
                             </div>
                           </LeftPanelField>
@@ -1054,7 +1054,7 @@ export function JournalAppointmentScreen({
                             <button
                               type="button"
                               onClick={saveDesktopDraft}
-                              disabled={loading || desktopDraft.serviceIds.length === 0}
+                              disabled={loading}
                               className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#222b33] px-4 text-sm font-extrabold text-white disabled:opacity-50"
                             >
                               Сохранить

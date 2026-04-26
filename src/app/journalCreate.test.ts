@@ -10,6 +10,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
   expect(
     buildJournalCreateAppointmentPayload({
       startAt: new Date('2026-03-20T10:30:00.000Z'),
+      endAt: new Date('2026-03-20T11:30:00.000Z'),
       staffId: 'staff-1',
       serviceIds: ['service-1', 'service-2'],
       clientName: ' Анна ',
@@ -18,6 +19,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
     }),
   ).toEqual({
     startAt: '2026-03-20T10:30:00.000Z',
+    endAt: '2026-03-20T11:30:00.000Z',
     staffId: 'staff-1',
     anyStaff: false,
     serviceIds: ['service-1', 'service-2'],
@@ -33,20 +35,18 @@ test('buildJournalCreateAppointmentPayload allows empty client fields', () => {
   expect(
     buildJournalCreateAppointmentPayload({
       startAt: new Date('2026-03-20T10:30:00.000Z'),
+      endAt: new Date('2026-03-20T11:30:00.000Z'),
       staffId: 'staff-1',
-      serviceIds: ['service-1'],
+      serviceIds: [],
       clientName: '   ',
       clientPhone: '   ',
     }),
   ).toEqual({
     startAt: '2026-03-20T10:30:00.000Z',
+    endAt: '2026-03-20T11:30:00.000Z',
     staffId: 'staff-1',
     anyStaff: false,
-    serviceIds: ['service-1'],
-    client: {
-      name: '',
-      phone: '',
-    },
+    serviceIds: [],
     comment: undefined,
   });
 });

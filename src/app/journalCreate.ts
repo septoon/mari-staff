@@ -9,6 +9,7 @@ type BuildJournalCreateAppointmentPayloadInput = {
   serviceIds: string[];
   staffId: string;
   startAt: Date;
+  endAt: Date;
 };
 
 export function buildJournalCreateAppointmentPayload({
@@ -18,16 +19,24 @@ export function buildJournalCreateAppointmentPayload({
   serviceIds,
   staffId,
   startAt,
+  endAt,
 }: BuildJournalCreateAppointmentPayloadInput) {
+  const clientNameTrimmed = clientName.trim();
+  const clientPhoneTrimmed = clientPhone.trim();
   return {
     startAt: startAt.toISOString(),
+    endAt: endAt.toISOString(),
     staffId,
     anyStaff: false,
     serviceIds,
-    client: {
-      name: clientName.trim(),
-      phone: clientPhone.trim(),
-    },
+    ...(clientNameTrimmed || clientPhoneTrimmed
+      ? {
+          client: {
+            ...(clientNameTrimmed ? { name: clientNameTrimmed } : {}),
+            ...(clientPhoneTrimmed ? { phone: clientPhoneTrimmed } : {}),
+          },
+        }
+      : {}),
     comment: comment?.trim() || undefined,
   };
 }

@@ -35,7 +35,7 @@ if (isIosStandalonePwa()) {
   if (viewportMeta) {
     viewportMeta.setAttribute(
       'content',
-      `width=device-width, initial-scale=${scale}, viewport-fit=cover`,
+      `width=device-width, initial-scale=${scale}, maximum-scale=${scale}, user-scalable=no, viewport-fit=cover`,
     );
   }
   document.documentElement.setAttribute('data-ios-standalone-pwa', 'true');

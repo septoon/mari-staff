@@ -97,6 +97,27 @@ export function parseClient(value: unknown): ClientItem | null {
   };
 }
 
+export function clientFromAppointment(appointment: AppointmentItem): ClientItem | null {
+  const id = appointment.clientId.trim();
+  const name = appointment.clientName.trim();
+  const phone = appointment.clientPhone.trim();
+
+  if (!id || (!phone && (!name || name === 'Клиент'))) {
+    return null;
+  }
+
+  return {
+    id,
+    name: name || phone || 'Клиент',
+    phone,
+    email: '',
+    comment: '',
+    avatarUrl: null,
+    permanentDiscountType: 'NONE',
+    permanentDiscountValue: null,
+  };
+}
+
 export function parseService(value: unknown): ServiceItem | null {
   const record = toRecord(value);
   if (!record) {
@@ -337,7 +358,7 @@ export function parseAppointment(value: unknown): AppointmentItem | null {
       toString(record.serviceName) ||
       toString(record.servicesLabel) ||
       toString(record.title) ||
-      'Услуга',
+      'Без услуги',
     serviceIds,
     amountBeforeDiscount,
     discountPercent,

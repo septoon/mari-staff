@@ -23,6 +23,7 @@ import {
   Search,
   SendHorizontal,
   Trash2,
+  UserPlus,
   UserRound,
   X,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ import {
   toRecord,
   toString,
 } from '../helpers';
+import { parseClient } from '../parsers';
 import type { AppointmentItem, ClientItem } from '../types';
 
 type ClientsScreenProps = {
@@ -119,6 +121,17 @@ const SEGMENT_LABELS: Record<ClientSegment, string> = {
 };
 const DONUT_COLORS = ['#f4c900', '#222b33', '#4ba3ff', '#7bc8a4', '#f29f67', '#d4a8ff'];
 const CHART_COLORS = ['#f4c900', '#222b33', '#5aa8ff', '#9bd6af', '#f09b53', '#c0c8d6'];
+
+function createEmptyClientDraft(): ClientDraft {
+  return {
+    name: '',
+    phone: '',
+    email: '',
+    comment: '',
+    avatarUrl: null,
+    permanentDiscountPercent: '',
+  };
+}
 
 function mapClientToDraft(client: ClientItem): ClientDraft {
   return {
@@ -568,8 +581,13 @@ export function ClientsScreen({
   const [mobileHeaderPanel, setMobileHeaderPanel] = useState<MobileHeaderPanel>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isDesktop, setIsDesktop] = useState(isDesktopViewport);
+  const [createdClients, setCreatedClients] = useState<ClientItem[]>([]);
   const [clientOverrides, setClientOverrides] = useState<Record<string, Partial<ClientItem>>>({});
   const [draft, setDraft] = useState<ClientDraft | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDraft, setCreateDraft] = useState<ClientDraft>(() => createEmptyClientDraft());
+  const [createSaving, setCreateSaving] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -620,14 +638,27 @@ export function ClientsScreen({
     };
   }, [desktopClient, isDesktop]);
 
-  const effectiveClients = useMemo(
-    () =>
-      clients.map((client) => ({
+  const effectiveClients = useMemo(() => {
+    const byId = new Map<string, ClientItem>();
+
+    clients.forEach((client) => {
+      byId.set(client.id, {
         ...client,
         ...(clientOverrides[client.id] || {}),
-      })),
-    [clientOverrides, clients],
-  );
+      });
+    });
+    createdClients.forEach((client) => {
+      if (byId.has(client.id)) {
+        return;
+      }
+      byId.set(client.id, {
+        ...client,
+        ...(clientOverrides[client.id] || {}),
+      });
+    });
+
+    return Array.from(byId.values());
+  }, [clientOverrides, clients, createdClients]);
   const appointmentLookup = useMemo(() => buildAppointmentLookup(appointments), [appointments]);
 
   const clientSummaries = useMemo(
@@ -931,6 +962,31 @@ export function ClientsScreen({
     handleDraftChange('permanentDiscountPercent', value);
   };
 
+  const handleCreateDraftChange = (key: keyof ClientDraft, value: string) => {
+    setCreateDraft((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleOpenCreateClient = () => {
+    if (!canEdit) {
+      return;
+    }
+    setCreateDraft(createEmptyClientDraft());
+    setCreateError('');
+    setCreateOpen(true);
+    setMobileHeaderPanel(null);
+  };
+
+  const handleCloseCreateClient = () => {
+    if (createSaving) {
+      return;
+    }
+    setCreateOpen(false);
+    setCreateError('');
+  };
+
   const applyClientUpdateLocally = (clientId: string, nextClient: Partial<ClientItem>, nextDraft?: Partial<ClientDraft>) => {
     setClientOverrides((prev) => ({
       ...prev,
@@ -976,6 +1032,44 @@ export function ClientsScreen({
         fallback.permanentDiscountValue ??
         null,
     } satisfies Partial<ClientItem>;
+  };
+
+  const handleCreateClient = async () => {
+    if (!canEdit) {
+      setCreateError('Нет прав на создание клиента');
+      return;
+    }
+
+    const payload = {
+      name: createDraft.name.trim() || null,
+      phone: createDraft.phone.trim() || null,
+      email: createDraft.email.trim() || null,
+      comment: createDraft.comment.trim() || null,
+    };
+
+    setCreateSaving(true);
+    setCreateError('');
+    try {
+      const data = await api.post<unknown>('/clients', payload);
+      const root = toRecord(data);
+      const created = parseClient(root?.client ?? data);
+      if (!created) {
+        throw new Error('Сервер не вернул созданного клиента');
+      }
+
+      setCreatedClients((prev) => [created, ...prev.filter((client) => client.id !== created.id)]);
+      setDesktopClient(created);
+      setDesktopTab('card');
+      setDraft(mapClientToDraft(created));
+      setDiscountDirty(false);
+      setEditMode(false);
+      setCreateOpen(false);
+      setCreateDraft(createEmptyClientDraft());
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Не удалось создать клиента');
+    } finally {
+      setCreateSaving(false);
+    }
   };
 
   const handleUploadAvatar = async (file: File) => {
@@ -1081,10 +1175,6 @@ export function ClientsScreen({
       email: draft.email.trim(),
       comment: draft.comment.trim(),
     };
-    if (!payload.name || !payload.phone) {
-      setDraftError('Имя и телефон обязательны');
-      return;
-    }
 
     const nextDiscountPercent = parsePercentInput(draft.permanentDiscountPercent);
     if (draft.permanentDiscountPercent.trim() && nextDiscountPercent === null) {
@@ -1104,15 +1194,15 @@ export function ClientsScreen({
     setDraftError('');
     try {
       const data = await api.patch<unknown>(`/clients/${activeClient.id}`, {
-        name: payload.name,
-        phone: payload.phone,
+        name: payload.name || null,
+        phone: payload.phone || null,
         email: payload.email || null,
         comment: payload.comment || null,
       });
       const root = toRecord(data);
       const updated = toRecord(root?.client) ?? root;
       const nextClient: Partial<ClientItem> = {
-        name: toString(updated?.name) || payload.name,
+        name: toString(updated?.name) || payload.name || 'Клиент',
         phone: toString(updated?.phoneE164) || toString(updated?.phone) || payload.phone,
         email: toString(updated?.email) || payload.email,
         comment: toString(updated?.comment) || payload.comment,
@@ -1273,6 +1363,15 @@ export function ClientsScreen({
               <h1 className="mt-2 text-[28px] font-extrabold leading-none text-ink">Клиенты</h1>
             </div>
             <div className="flex items-center gap-2 text-ink">
+              <button
+                type="button"
+                onClick={handleOpenCreateClient}
+                disabled={!canEdit}
+                className="rounded-2xl border border-[#dde3eb] bg-white p-2 disabled:opacity-45"
+                aria-label="Добавить клиента"
+              >
+                <UserPlus className="h-5 w-5" />
+              </button>
               <button type="button" onClick={onOpenTools} className="rounded-2xl border border-[#dde3eb] bg-white p-2">
                 <MoreVertical className="h-5 w-5" />
               </button>
@@ -1528,6 +1627,15 @@ export function ClientsScreen({
             <div className="flex items-center gap-3">
               <button
                 type="button"
+                onClick={handleOpenCreateClient}
+                disabled={!canEdit}
+                className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#222b33] px-5 text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(34,43,51,0.18)] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <UserPlus className="h-4 w-4" />
+                Добавить клиента
+              </button>
+              <button
+                type="button"
                 onClick={onOpenTools}
                 className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dde3eb] bg-[#f6f8fb] px-4 text-sm font-semibold text-ink"
               >
@@ -1773,6 +1881,106 @@ export function ClientsScreen({
           ) : null}
         </section>
       </div>
+
+      <PageSheet
+        open={createOpen}
+        onDismiss={handleCloseCreateClient}
+        snapPoints={({ maxHeight }) => [Math.max(560, maxHeight - 8)]}
+        defaultSnap={({ snapPoints }) => snapPoints[snapPoints.length - 1] ?? 0}
+      >
+        <div className="bg-white px-4 pb-6 pt-2 md:px-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Новый клиент</p>
+              <h2 className="mt-2 text-[28px] font-extrabold leading-none text-ink">Создать клиента</h2>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseCreateClient}
+              disabled={createSaving}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dde3eb] bg-white text-[#6e7784] disabled:opacity-50"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {createError ? (
+            <div className="mb-4 rounded-2xl border border-[#f1d0c8] bg-[#fff4f0] px-4 py-3 text-sm font-semibold text-[#bc5941]">
+              {createError}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Имя</span>
+              <input
+                type="text"
+                value={createDraft.name}
+                onChange={(event) => handleCreateDraftChange('name', event.target.value)}
+                disabled={createSaving}
+                className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:opacity-70"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Телефон</span>
+              <input
+                type="tel"
+                value={createDraft.phone}
+                onChange={(event) => handleCreateDraftChange('phone', event.target.value)}
+                disabled={createSaving}
+                className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:opacity-70"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Email</span>
+              <input
+                type="email"
+                value={createDraft.email}
+                onChange={(event) => handleCreateDraftChange('email', event.target.value)}
+                disabled={createSaving}
+                className="h-12 w-full rounded-2xl border border-[#dce2ea] bg-[#f9fbfd] px-4 text-base font-semibold text-ink outline-none disabled:opacity-70"
+              />
+            </label>
+            <div className="rounded-[24px] border border-[#e5e9f0] bg-[#f8fafc] px-4 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Поля</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#7d8693]">
+                Можно создать пустую карточку и заполнить данные позже.
+              </p>
+            </div>
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Комментарий</span>
+              <textarea
+                value={createDraft.comment}
+                onChange={(event) => handleCreateDraftChange('comment', event.target.value)}
+                disabled={createSaving}
+                className="h-32 w-full resize-none rounded-[24px] border border-[#dce2ea] bg-[#f9fbfd] px-4 py-4 text-base font-medium leading-7 text-ink outline-none disabled:opacity-70"
+              />
+            </label>
+          </div>
+
+          <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={handleCloseCreateClient}
+              disabled={createSaving}
+              className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#dde3eb] bg-[#f7f9fc] px-5 text-sm font-semibold text-ink disabled:opacity-50"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleCreateClient();
+              }}
+              disabled={createSaving || !canEdit}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#222b33] disabled:opacity-60"
+            >
+              {createSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              Создать клиента
+            </button>
+          </div>
+        </div>
+      </PageSheet>
 
       {!isDesktop && activeClient ? (
         <PageSheet

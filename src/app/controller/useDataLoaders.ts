@@ -251,17 +251,37 @@ export function useDataLoaders({
       }
       setLoadingKey(setLoading, 'clients', true);
       try {
-        const params = new URLSearchParams({
-          page: '1',
-          limit: '200',
-        });
         const normalizedSearch = search.trim();
-        if (normalizedSearch.length > 0) {
-          params.set('search', normalizedSearch);
+        const limit = 200;
+        const maxPages = 50;
+        const clients: ClientItem[] = [];
+        let page = 1;
+
+        while (page <= maxPages) {
+          const params = new URLSearchParams({
+            page: String(page),
+            limit: String(limit),
+          });
+          if (normalizedSearch.length > 0) {
+            params.set('search', normalizedSearch);
+          }
+
+          const data = await api.get<unknown>(`/clients?${params.toString()}`);
+          const parsed = extractItems(data).map(parseClient).filter(Boolean) as ClientItem[];
+          clients.push(...parsed);
+
+          const root = toRecord(data);
+          const meta = toRecord(root?.meta);
+          const totalPages =
+            toNumber(meta?.totalPages) ?? toNumber(meta?.pages) ?? toNumber(meta?.pageCount);
+
+          if ((totalPages && page >= totalPages) || (!totalPages && parsed.length < limit)) {
+            break;
+          }
+          page += 1;
         }
-        const data = await api.get<unknown>(`/clients?${params.toString()}`);
-        const parsed = extractItems(data).map(parseClient).filter(Boolean) as ClientItem[];
-        setClients(parsed);
+
+        setClients(clients);
       } catch (error) {
         setAppError(toErrorMessage(error));
       } finally {

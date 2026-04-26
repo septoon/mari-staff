@@ -163,13 +163,13 @@ function Content({
   }, [services]);
   const startAt = combineDateTime(draft.dateValue, draft.startTime);
   const endAt = addMinutes(startAt, draft.durationMin);
-  const createDisabled = loading || servicesLoading || services.length === 0 || draft.serviceIds.length === 0;
+  const createDisabled = loading || !draft.staffId || !draft.dateValue || !draft.startTime || draft.durationMin <= 0;
   const createDisabledReason = servicesLoading
     ? 'Пока загружаются услуги выбранного сотрудника.'
-    : services.length === 0
-      ? 'Создание недоступно: у выбранного сотрудника нет назначенных услуг.'
-      : draft.serviceIds.length === 0
-        ? 'Выберите хотя бы одну услугу.'
+    : !draft.staffId
+      ? 'Выберите сотрудника.'
+      : draft.durationMin <= 0
+        ? 'Укажите длительность записи.'
       : null;
   const durationOptions = useMemo(() => {
     const presetValues = [30, 45, 60, 90, 120, 150, 180];
@@ -359,7 +359,7 @@ function Content({
       <Section
         eyebrow="Услуга"
         title="Что именно записываем"
-        description="Услуги сгруппированы по категориям. Все разделы по умолчанию закрыты, а запись создаётся только после явного выбора услуг."
+        description="Услугу можно выбрать сейчас или оставить пустой слот с ручной длительностью."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -463,7 +463,7 @@ function Content({
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Услуга</p>
                 <p className="mt-3 text-sm font-bold text-ink">Для этого сотрудника услуги не назначены</p>
                 <p className="mt-2 text-sm font-semibold leading-6 text-[#788292]">
-                  Назначьте услуги сотруднику в разделе управления услугами и персоналом.
+                  Запись всё равно можно создать без услуги, если нужен ручной слот в журнале.
                 </p>
               </div>
             )}
@@ -490,7 +490,7 @@ function Content({
                   <p className="mt-1 text-sm font-semibold text-[#788292]">
                     {selectedServices.length > 0
                       ? selectedServices.map((item) => item.name).join(', ')
-                      : 'Услуги не выбраны'}
+                      : 'Без услуги'}
                   </p>
                 </div>
               </div>

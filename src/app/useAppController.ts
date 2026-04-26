@@ -43,6 +43,7 @@ import {
   JOURNAL_CREATE_STEP_MINUTES,
 } from './journalCreate';
 import {
+  clientFromAppointment,
   extractItems,
   parseAppointment,
   parseStaff,
@@ -119,6 +120,38 @@ const EDIT_PERMISSION = {
   staff: 'EDIT_STAFF',
   selfProfile: 'EDIT_SELF_PROFILE',
 } as const;
+
+function mergeAppointmentClients(clients: ClientItem[], appointments: AppointmentItem[]) {
+  const existingIds = new Set(clients.map((client) => client.id));
+  const existingPhones = new Set(
+    clients
+      .map((client) => normalizePhoneForWhatsApp(client.phone))
+      .filter(Boolean),
+  );
+  const addedIds = new Set<string>();
+  const addedPhones = new Set<string>();
+  const missingClients: ClientItem[] = [];
+
+  appointments.forEach((appointment) => {
+    const client = clientFromAppointment(appointment);
+    if (!client || existingIds.has(client.id) || addedIds.has(client.id)) {
+      return;
+    }
+
+    const phoneKey = normalizePhoneForWhatsApp(client.phone);
+    if (phoneKey && (existingPhones.has(phoneKey) || addedPhones.has(phoneKey))) {
+      return;
+    }
+
+    missingClients.push(client);
+    addedIds.add(client.id);
+    if (phoneKey) {
+      addedPhones.add(phoneKey);
+    }
+  });
+
+  return missingClients.length > 0 ? [...missingClients, ...clients] : clients;
+}
 
 const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
   VIEW_JOURNAL: ['VIEW_JOURNAL', 'EDIT_JOURNAL', 'ACCESS_JOURNAL'],
@@ -697,11 +730,8 @@ export function useAppController(): AppController {
     [journalStaff],
   );
   const journalCreateStaff = useMemo(
-    () =>
-      journalCreateBaseStaff.filter(
-        (item) => (journalCreateServiceIdsByStaff[item.id]?.length ?? 0) > 0,
-      ),
-    [journalCreateBaseStaff, journalCreateServiceIdsByStaff],
+    () => journalCreateBaseStaff,
+    [journalCreateBaseStaff],
   );
   const getStaffServiceIds = useCallback(async (staffId: string) => {
     const data = await api.get<unknown>(`/staff/${staffId}/services`);
@@ -1170,6 +1200,22 @@ export function useAppController(): AppController {
     setPrivacyPolicyText,
   });
 
+  const appointmentClientSyncRows = useMemo(
+    () => [...journalListAppointments, ...appointments],
+    [appointments, journalListAppointments],
+  );
+
+  useEffect(() => {
+    if (!isAuthorized || !canViewClients || appointmentClientSyncRows.length === 0) {
+      return;
+    }
+
+    const nextClients = mergeAppointmentClients(clients, appointmentClientSyncRows);
+    if (nextClients !== clients) {
+      setClients(nextClients);
+    }
+  }, [appointmentClientSyncRows, canViewClients, clients, isAuthorized, setClients]);
+
   const refreshSchedule = useCallback(async () => {
     if (!isAuthorized || !canViewSchedule) {
       return;
@@ -1447,7 +1493,7 @@ export function useAppController(): AppController {
     if (hasPendingStaffServices) {
       return;
     }
-    if (journalCreateStaff.length === 0 || services.length === 0) {
+    if (journalCreateStaff.length === 0) {
       setPage('tabs');
       setTab('journal');
       return;
@@ -2646,10 +2692,6 @@ export function useAppController(): AppController {
       setToast('Выберите сотрудника');
       return;
     }
-    if (patch.serviceIds.length === 0) {
-      setToast('Выберите хотя бы одну услугу');
-      return;
-    }
     if (Number.isNaN(patch.startAt.getTime()) || Number.isNaN(patch.endAt.getTime())) {
       setToast('Проверьте дату и время записи');
       return;
@@ -3113,8 +3155,8 @@ export function useAppController(): AppController {
       setToast('Нет прав на создание записи');
       return;
     }
-    if (journalCreateBaseStaff.length === 0 || services.length === 0) {
-      setToast('Нет данных staff/services для создания записи');
+    if (journalCreateBaseStaff.length === 0) {
+      setToast('Нет сотрудников для создания записи');
       return;
     }
     setJournalCreateDraft(buildJournalCreateDraft(selectedDate, journalCreateBaseStaff, services, options));
@@ -3154,11 +3196,6 @@ export function useAppController(): AppController {
       setToast('Выберите сотрудника для записи.');
       return;
     }
-    if (selectedServiceIds.length === 0) {
-      setToast('Выберите хотя бы одну услугу для записи.');
-      return;
-    }
-
     const start = combineJournalCreateDateTime(
       journalCreateDraft.dateValue,
       journalCreateDraft.startTime,
@@ -3171,9 +3208,13 @@ export function useAppController(): AppController {
       setToast(`Время записи должно быть кратно ${JOURNAL_CREATE_STEP_MINUTES} минутам`);
       return;
     }
+    const end = new Date(
+      start.getTime() + Math.max(15, Math.round(journalCreateDraft.durationMin || 0)) * 60_000,
+    );
 
     const payload = buildJournalCreateAppointmentPayload({
       startAt: start,
+      endAt: end,
       staffId: selectedStaffId,
       serviceIds: selectedServiceIds,
       clientName,
