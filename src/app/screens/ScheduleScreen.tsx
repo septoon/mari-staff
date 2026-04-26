@@ -567,8 +567,8 @@ function OnlineSlotsModal({
         }
       }}
     >
-      <div className="max-h-[92vh] w-full overflow-hidden rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-full md:max-w-[980px] md:rounded-[32px]">
-        <div className="flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5 sm:px-6">
+      <div className="flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-full md:max-w-[980px] md:rounded-[32px]">
+        <div className="shrink-0 flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5 sm:px-6">
           <div className="min-w-0 flex-1">
             <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
               Онлайн-запись
@@ -590,7 +590,7 @@ function OnlineSlotsModal({
           </button>
         </div>
 
-        <div className="max-h-[calc(92vh-84px)] overflow-y-auto px-5 py-5 sm:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+96px)] pt-5 sm:px-6 md:pb-5">
           <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="space-y-4">
               <div className="rounded-[28px] border border-[#e1e6ee] bg-white px-4 py-4">
@@ -698,7 +698,7 @@ function OnlineSlotsModal({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="sticky bottom-0 -mx-5 flex flex-wrap gap-3 border-t border-[#e5eaf1] bg-[#fbfcfe]/95 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:border-t-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:backdrop-blur-0">
                 <button
                   type="button"
                   onClick={onSave}

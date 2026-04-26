@@ -17,6 +17,7 @@ import {
   JOURNAL_TIME_COLUMN_WIDTH,
 } from '../constants';
 import { formatDateLabel, formatRub, formatTime, toISODate } from '../helpers';
+import { isStaffAcceptingAt } from '../scheduleAvailability';
 import type {
   AppointmentItem,
   JournalCard,
@@ -290,14 +291,9 @@ export function JournalTabScreen({
     return slots;
   }, [journalHours]);
   const selectedDateIso = toISODate(selectedDate);
-  const isStaffWorkingAt = (staffId: string, time: string) => {
-    const slotStart = timeValueToMinutes(time);
+  const isStaffAcceptingAtTime = (staffId: string, time: string) => {
     const intervals = workingHoursByStaff[staffId]?.[selectedDateIso] ?? [];
-    return intervals.some((interval) => {
-      const intervalStart = timeValueToMinutes(interval.start);
-      const intervalEnd = timeValueToMinutes(interval.end);
-      return slotStart >= intervalStart && slotStart < intervalEnd;
-    });
+    return isStaffAcceptingAt(intervals, time);
   };
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -528,7 +524,7 @@ export function JournalTabScreen({
                   <div key={colIndex} className="space-y-0">
                     {mobileTimeSlots.map((time) => {
                       const item = resolvedMobileStaff[colIndex];
-                      const isWorking = item ? isStaffWorkingAt(item.id, time) : false;
+                      const isAccepting = item ? isStaffAcceptingAtTime(item.id, time) : false;
                       return (
                         <button
                           key={time}
@@ -538,10 +534,10 @@ export function JournalTabScreen({
                               onCreateAt(item.id, time);
                             }
                           }}
-                          disabled={!item || !canCreate}
+                          disabled={!item || !canCreate || !isAccepting}
                           className={clsx(
                             'block w-full border-t border-[#dce1e8] text-left transition',
-                            isWorking
+                            isAccepting
                               ? 'bg-[#eef8f2] hover:bg-[#e0f3e8]'
                               : 'bg-[repeating-linear-gradient(135deg,#f4f6f9_0px,#f4f6f9_7px,#e8edf4_7px,#e8edf4_14px)] opacity-75 hover:opacity-100',
                           )}

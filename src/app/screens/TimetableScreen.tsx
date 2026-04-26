@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { MONTHS_RU_GENITIVE } from '../constants';
 import { formatTime, toISODate } from '../helpers';
+import { buildUnavailableBookingRanges, isStaffAcceptingAt } from '../scheduleAvailability';
 import type { AppointmentItem, ScheduleInterval, StaffItem, WorkingHoursMap } from '../types';
 
 type TimetableScreenProps = {
@@ -97,23 +98,6 @@ function getBookingRangeLabel(intervals: ScheduleInterval[]) {
 
 function getMinutesFromDate(date: Date) {
   return date.getHours() * 60 + date.getMinutes();
-}
-
-function getMinutesFromTime(value: string) {
-  const [hours, minutes] = value.split(':').map(Number);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    return 0;
-  }
-  return hours * 60 + minutes;
-}
-
-function isSlotInsideIntervals(intervals: ScheduleInterval[], time: string) {
-  const slotStart = getMinutesFromTime(time);
-  return intervals.some((interval) => {
-    const intervalStart = getMinutesFromTime(interval.start);
-    const intervalEnd = getMinutesFromTime(interval.end);
-    return slotStart >= intervalStart && slotStart < intervalEnd;
-  });
 }
 
 function getAppointmentTone(status: string) {
@@ -501,9 +485,15 @@ export function TimetableScreen({
           appointmentGroups.byName.get(normalizedName) ??
           [];
         const intervals = getIntervalsForDate(hoursByStaff, item.id, selectedDate);
+        const unavailableBookingRanges = buildUnavailableBookingRanges(
+          intervals,
+          timeBounds.startMinutes,
+          timeBounds.endMinutes,
+        );
         return {
           staff: item,
           intervals,
+          unavailableBookingRanges,
           appointments: appointmentsForStaff.sort(
             (left, right) => left.startAt.getTime() - right.startAt.getTime(),
           ),
@@ -511,7 +501,7 @@ export function TimetableScreen({
           editable: editableStaffIds.has(item.id),
         };
       }),
-    [appointmentGroups.byId, appointmentGroups.byName, editableStaffIds, hoursByStaff, mergedStaff, selectedDate, timeBounds.startMinutes],
+    [appointmentGroups.byId, appointmentGroups.byName, editableStaffIds, hoursByStaff, mergedStaff, selectedDate, timeBounds.endMinutes, timeBounds.startMinutes],
   );
 
   const staffInShiftCount = dayData.filter((item) => item.intervals.length > 0).length;
@@ -808,7 +798,7 @@ export function TimetableScreen({
                 <div key={column.staff.id} className="relative border-r border-[#eef2f6] bg-white">
                   <div className="relative" style={{ height: gridHeight }}>
                     {axisLabels.slice(0, -1).map((label, index) => {
-                      const isWorking = isSlotInsideIntervals(column.intervals, label.key);
+                      const isAccepting = isStaffAcceptingAt(column.intervals, label.key);
                       return (
                         <button
                           key={`${column.staff.id}-${label.key}`}
@@ -818,18 +808,31 @@ export function TimetableScreen({
                               onCreateAt(column.staff.id, label.key);
                             }
                           }}
-                          disabled={!canCreate}
+                          disabled={!canCreate || !isAccepting}
                           className={clsx(
-                            'absolute inset-x-0 block border-t border-[#dce1e8] text-left transition disabled:cursor-default disabled:opacity-80',
-                            isWorking
-                              ? 'bg-[#eef8f2] hover:bg-[#e0f3e8]'
-                              : 'bg-[repeating-linear-gradient(135deg,#f4f6f9_0px,#f4f6f9_7px,#e8edf4_7px,#e8edf4_14px)] opacity-75 hover:opacity-100',
+                            'absolute inset-x-0 block border-t border-[#dce1e8] bg-[#eef8f2] text-left transition disabled:cursor-default',
+                            isAccepting ? 'hover:bg-[#e0f3e8]' : undefined,
                           )}
                           style={{ top: index * HALF_HOUR_HEIGHT, height: HALF_HOUR_HEIGHT }}
                           aria-label={`${column.staff.name}, ${label.key}`}
                         />
                       );
                     })}
+
+                    {column.unavailableBookingRanges.map((range) => (
+                      <div
+                        key={`${column.staff.id}-unavailable-${range.startMinutes}-${range.endMinutes}`}
+                        className="pointer-events-none absolute inset-x-0 bg-[repeating-linear-gradient(135deg,rgba(244,246,249,0.92)_0px,rgba(244,246,249,0.92)_7px,rgba(223,230,240,0.92)_7px,rgba(223,230,240,0.92)_14px)]"
+                        style={{
+                          top:
+                            ((range.startMinutes - timeBounds.startMinutes) / 30) *
+                            HALF_HOUR_HEIGHT,
+                          height:
+                            ((range.endMinutes - range.startMinutes) / 30) *
+                            HALF_HOUR_HEIGHT,
+                        }}
+                      />
+                    ))}
 
                     {column.intervals.map((interval, index) => {
                       const [startHour, startMinute] = interval.start.split(':').map(Number);
@@ -861,7 +864,7 @@ export function TimetableScreen({
                             </div>
                           ) : null}
                           <div
-                            className="pointer-events-none absolute left-0 right-0 border-y border-[#d7dde6] bg-white/25"
+                            className="pointer-events-none absolute left-0 right-0 border-y border-[#c9ead3] bg-white/20"
                             style={{ top: bookingTop, height: Math.max(bookingHeight, 18) }}
                           />
                         </div>
@@ -912,11 +915,11 @@ export function TimetableScreen({
           <div className="mt-3 flex items-center gap-5 px-2 text-xs font-semibold text-[#7b8694]">
             <span className="inline-flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[#eef8f2]" />
-              Рабочее время
+              Прием открыт
             </span>
             <span className="inline-flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[repeating-linear-gradient(135deg,#f4f6f9_0px,#f4f6f9_4px,#e8edf4_4px,#e8edf4_8px)]" />
-              Нерабочее время
+              Прием закрыт
             </span>
             <span className="inline-flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[#bfe8dd]" />
