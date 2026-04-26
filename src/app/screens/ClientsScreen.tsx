@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { convertImageFileToWebp } from '../media';
 import { PageSheet } from '../components/shared/PageSheet';
+import { PHOTO_CROP_ASPECTS, usePhotoCropper } from '../components/shared/PhotoCropperDialog';
 import {
   formatGroupedRub,
   formatHistoryDate,
@@ -584,6 +585,7 @@ export function ClientsScreen({
   const [promoError, setPromoError] = useState('');
   const [promoResult, setPromoResult] = useState<PromoSendResult | null>(null);
   const clientAvatarInputRef = useRef<HTMLInputElement | null>(null);
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1946,7 +1948,13 @@ export function ClientsScreen({
                           if (!file) {
                             return;
                           }
-                          void handleUploadAvatar(file);
+                          openPhotoCropper(file, {
+                            title: 'Фото клиента',
+                            aspect: PHOTO_CROP_ASPECTS.square,
+                            onCrop: (croppedFile) => {
+                              void handleUploadAvatar(croppedFile);
+                            },
+                          });
                         }}
                       />
                       {editMode ? (
@@ -2731,7 +2739,13 @@ export function ClientsScreen({
                                   if (!file) {
                                     return;
                                   }
-                                  void handleUploadAvatar(file);
+                                  openPhotoCropper(file, {
+                                    title: 'Фото клиента',
+                                    aspect: PHOTO_CROP_ASPECTS.square,
+                                    onCrop: (croppedFile) => {
+                                      void handleUploadAvatar(croppedFile);
+                                    },
+                                  });
                                 }}
                               />
                               {editMode ? (
@@ -3036,6 +3050,7 @@ export function ClientsScreen({
           </section>
         </div>
       ) : null}
+      {cropperDialog}
     </>
   );
 }

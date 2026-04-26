@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { ApiError, api } from '../../api';
 import { PrimeSwitch } from '../components/shared/PrimeSwitch';
+import { PHOTO_CROP_ASPECTS, usePhotoCropper, type PhotoCropAspect } from '../components/shared/PhotoCropperDialog';
 import { buildRuPhoneValue } from '../helpers';
 import { convertImageFileToWebp, uploadWebpImage } from '../media';
 import { PageSheet } from '../components/shared/PageSheet';
@@ -1534,6 +1535,7 @@ function InlineImageField({
   previewUrl,
   placeholder,
   busy,
+  aspect = PHOTO_CROP_ASPECTS.clientPortrait,
   onSelect,
   onClear,
 }: {
@@ -1541,15 +1543,17 @@ function InlineImageField({
   previewUrl: string;
   placeholder: string;
   busy: boolean;
+  aspect?: PhotoCropAspect;
   onSelect: (file: File) => void;
   onClear: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
 
   return (
     <div className="rounded-2xl border border-line bg-[#f4f6f9] px-4 py-4">
       <div className="flex items-start gap-4">
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
+        <div className="flex aspect-[4/5] w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
           {previewUrl ? (
             <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
           ) : (
@@ -1592,10 +1596,15 @@ function InlineImageField({
           const file = event.target.files?.[0];
           event.target.value = '';
           if (file) {
-            onSelect(file);
+            openPhotoCropper(file, {
+              title: label,
+              aspect,
+              onCrop: onSelect,
+            });
           }
         }}
       />
+      {cropperDialog}
     </div>
   );
 }
@@ -1669,6 +1678,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const [blockEditor, setBlockEditor] = useState<BlockEditorState | null>(null);
   const [mediaPicker, setMediaPicker] = useState<MediaPickerState | null>(null);
   const [assetUrlMap, setAssetUrlMap] = useState<Record<string, string>>({});
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
 
   const config = screenData.config.data;
   const contacts = useMemo(() => config?.contacts ?? [], [config]);
@@ -3112,10 +3122,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }
   };
 
-  const handleSpecialistPhotoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !specialistEditor) {
+  const uploadSpecialistPhoto = async (file: File) => {
+    if (!specialistEditor) {
       return;
     }
     setBusyKey(`specialist-photo:${specialistEditor.source.staffId}`);
@@ -3150,6 +3158,21 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     } finally {
       setBusyKey(null);
     }
+  };
+
+  const handleSpecialistPhotoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !specialistEditor) {
+      return;
+    }
+    openPhotoCropper(file, {
+      title: `Фото специалиста: ${specialistEditor.source.name}`,
+      aspect: PHOTO_CROP_ASPECTS.clientPortrait,
+      onCrop: (croppedFile) => {
+        void uploadSpecialistPhoto(croppedFile);
+      },
+    });
   };
 
   const pickMediaAsset = (asset: MediaAssetRecord) => {
@@ -3377,22 +3400,34 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }
   };
 
-  const handleBlockImageSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleBlockImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) {
       return;
     }
-    await uploadBlockImage(file);
+    openPhotoCropper(file, {
+      title: 'Изображение блока',
+      aspect: PHOTO_CROP_ASPECTS.clientPortrait,
+      onCrop: (croppedFile) => {
+        void uploadBlockImage(croppedFile);
+      },
+    });
   };
 
-  const handleOfferImageSelect = async (event: ChangeEvent<HTMLInputElement>, offerIndex: number) => {
+  const handleOfferImageSelect = (event: ChangeEvent<HTMLInputElement>, offerIndex: number) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) {
       return;
     }
-    await uploadBlockImage(file, { offerIndex });
+    openPhotoCropper(file, {
+      title: `Изображение оффера ${offerIndex + 1}`,
+      aspect: PHOTO_CROP_ASPECTS.clientPortrait,
+      onCrop: (croppedFile) => {
+        void uploadBlockImage(croppedFile, { offerIndex });
+      },
+    });
   };
 
   const uploadManagedImage = async ({
@@ -3594,7 +3629,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       return (
         <div className="rounded-2xl border border-line bg-[#f4f6f9] px-4 py-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
+            <div className="flex aspect-[4/5] w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
               {previewUrl ? (
                 <img src={previewUrl} alt={title} className="h-full w-full object-cover" />
               ) : (
@@ -4148,7 +4183,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
                       <div className="rounded-2xl border border-line bg-white px-4 py-4">
                         <div className="flex items-start gap-4">
-                          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f6f9]">
+                          <div className="flex aspect-[4/5] w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f6f9]">
                             {previewUrl ? (
                               <img src={previewUrl} alt={asStringValue(item.title) || `Предложение ${index + 1}`} className="h-full w-full object-cover" />
                             ) : (
@@ -8413,7 +8448,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             <div className="space-y-4">
               <div className="rounded-2xl bg-[#f4f6f9] px-4 py-4">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
+                  <div className="flex aspect-[4/5] w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
                     {specialistEditor.draft.photoPreviewUrl ? (
                       <img src={specialistEditor.draft.photoPreviewUrl} alt={specialistEditor.source.name} className="h-full w-full object-cover" />
                     ) : (
@@ -9168,6 +9203,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         ) : null}
       </PageSheet>
 
+      {cropperDialog}
     </>
   );
 }

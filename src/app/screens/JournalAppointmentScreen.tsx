@@ -583,6 +583,14 @@ export function JournalAppointmentScreen({
   const totalSold = sortedHistory.reduce((sum, item) => sum + (appointmentAmountValue(item) ?? 0), 0);
   const totalPaid = sortedHistory.reduce((sum, item) => sum + (appointmentPaidValue(item) ?? 0), 0);
   const selectedDraftServices = services.filter((item) => desktopDraft.serviceIds.includes(item.id));
+  const selectedDraftDurationMin = selectedDraftServices.reduce(
+    (sum, item) => sum + Math.max(15, Math.round(item.durationSec / 60)),
+    0,
+  );
+  const selectedDraftPrice = selectedDraftServices.reduce(
+    (sum, item) => sum + Math.max(item.priceMax || item.priceMin, 0),
+    0,
+  );
   const historyGroups = sortedHistory.reduce<Array<{ day: string; date: Date; items: AppointmentItem[] }>>(
     (accumulator, item) => {
       const day = formatHistoryDate(item.startAt);
@@ -901,6 +909,52 @@ export function JournalAppointmentScreen({
                             </div>
                           </LeftPanelField>
 
+                          <LeftPanelField label="Услуги записи">
+                            <div className="rounded-[22px] border border-[#d7dde6] bg-white p-3">
+                              <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
+                                {services.length > 0 ? (
+                                  services.map((item) => {
+                                    const active = desktopDraft.serviceIds.includes(item.id);
+                                    return (
+                                      <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => handleServiceToggle(item.id)}
+                                        className={clsx(
+                                          'w-full rounded-[16px] border px-3 py-3 text-left transition',
+                                          active
+                                            ? 'border-[#222b33] bg-[#222b33] text-white'
+                                            : 'border-[#dde3eb] bg-[#f8fafc] text-ink hover:border-[#c8d0da]',
+                                        )}
+                                      >
+                                        <p className="text-[15px] font-extrabold leading-tight">{item.name}</p>
+                                        <p
+                                          className={clsx(
+                                            'mt-1 text-[13px] font-semibold',
+                                            active ? 'text-white/70' : 'text-[#818997]',
+                                          )}
+                                        >
+                                          {Math.max(15, Math.round(item.durationSec / 60))} мин ·{' '}
+                                          {formatRub(item.priceMax || item.priceMin)}
+                                        </p>
+                                      </button>
+                                    );
+                                  })
+                                ) : (
+                                  <p className="px-2 py-3 text-sm font-semibold text-[#818997]">
+                                    Список услуг недоступен.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="mt-3 rounded-[16px] bg-[#f4f6fa] px-3 py-3 text-sm font-semibold text-[#5f6876]">
+                                {desktopDraft.serviceIds.length > 0
+                                  ? `${desktopDraft.serviceIds.length} услуг · ${selectedDraftDurationMin || desktopDraft.durationMin} мин · ${formatRub(selectedDraftPrice)}`
+                                  : 'Выберите хотя бы одну услугу'}
+                              </div>
+                            </div>
+                          </LeftPanelField>
+
                           <LeftPanelField label="Время и Длительность записи">
                             <div className="grid grid-cols-2 gap-3">
                               <div className="relative">
@@ -1000,7 +1054,7 @@ export function JournalAppointmentScreen({
                             <button
                               type="button"
                               onClick={saveDesktopDraft}
-                              disabled={loading}
+                              disabled={loading || desktopDraft.serviceIds.length === 0}
                               className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#222b33] px-4 text-sm font-extrabold text-white disabled:opacity-50"
                             >
                               Сохранить
@@ -1124,8 +1178,10 @@ export function JournalAppointmentScreen({
                         </div>
                       </div>
 
-                      <div className="mt-4 rounded-[18px] border border-[#dde3eb] bg-white px-4 py-3 text-base font-semibold text-[#adb4c0]">
-                        Поиск по услугам
+                      <div className="mt-4 rounded-[18px] border border-[#dde3eb] bg-white px-4 py-3 text-base font-semibold text-[#7f8794]">
+                        {desktopEditing
+                          ? 'Выберите услуги и сохраните запись слева'
+                          : 'Для изменения услуг нажмите «Редактировать»'}
                       </div>
 
                       <div className="mt-8">
@@ -1137,7 +1193,7 @@ export function JournalAppointmentScreen({
                                 <button
                                   key={item.id}
                                   type="button"
-                                  disabled={!canEdit}
+                                  disabled={!canEdit || !desktopEditing}
                                   onClick={() => handleServiceToggle(item.id)}
                                   className={clsx(
                                     'rounded-[18px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60',

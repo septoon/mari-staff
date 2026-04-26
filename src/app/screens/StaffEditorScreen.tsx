@@ -2,6 +2,7 @@ import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 're
 import clsx from 'clsx';
 import { ArrowLeft, ChevronDown, ChevronRight, Trash2, UserRound } from 'lucide-react';
 import { PrimeSwitch } from '../components/shared/PrimeSwitch';
+import { PHOTO_CROP_ASPECTS, usePhotoCropper } from '../components/shared/PhotoCropperDialog';
 import {
   buildRuPhoneValue,
   formatDateTimeLabel,
@@ -119,6 +120,7 @@ export function StaffEditorScreen({
   onDeleteAvatar,
 }: StaffEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
   const enabledPermissions = new Set(permissionCodes);
   const isDeleted = status === 'deleted';
   const isFired = status === 'fired';
@@ -142,7 +144,11 @@ export function StaffEditorScreen({
     if (!file) {
       return;
     }
-    onAvatarFilePick(file);
+    openPhotoCropper(file, {
+      title: 'Фото сотрудника',
+      aspect: PHOTO_CROP_ASPECTS.clientPortrait,
+      onCrop: onAvatarFilePick,
+    });
     event.target.value = '';
   };
 
@@ -177,7 +183,7 @@ export function StaffEditorScreen({
             type="button"
             onClick={pickAvatar}
             disabled={fieldsDisabled}
-            className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#e3e0f8] text-[#9a97ec]"
+            className="flex aspect-[4/5] w-32 items-center justify-center overflow-hidden rounded-[24px] bg-[#e3e0f8] text-[#9a97ec]"
           >
             {avatarUrl ? (
               <img src={avatarUrl} alt="Фото сотрудника" className="h-full w-full object-cover" />
@@ -476,7 +482,7 @@ export function StaffEditorScreen({
                 <button
                   type="button"
                   onClick={pickAvatar}
-                  className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[#e3e0f8] text-[#9a97ec]"
+                  className="flex aspect-[4/5] w-40 items-center justify-center overflow-hidden rounded-[28px] bg-[#e3e0f8] text-[#9a97ec]"
                 >
                   {avatarUrl ? (
                     <img src={avatarUrl} alt="Фото сотрудника" className="h-full w-full object-cover" />
@@ -778,6 +784,7 @@ export function StaffEditorScreen({
           </section>
         </div>
       </div>
+      {cropperDialog}
     </>
   );
 }

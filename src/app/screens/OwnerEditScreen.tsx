@@ -1,6 +1,7 @@
 import { useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, Loader2, UserRound } from 'lucide-react';
+import { PHOTO_CROP_ASPECTS, usePhotoCropper } from '../components/shared/PhotoCropperDialog';
 import { buildRuPhoneValue, getRuPhoneLocalDigits } from '../helpers';
 import type { OwnerDraft } from '../types';
 
@@ -84,6 +85,7 @@ export function OwnerEditScreen({
   onDeleteAvatar,
 }: OwnerEditScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
 
   const pickAvatar = () => {
     if (!canEdit) {
@@ -100,7 +102,11 @@ export function OwnerEditScreen({
     if (!file) {
       return;
     }
-    onAvatarFilePick(file);
+    openPhotoCropper(file, {
+      title: 'Фото профиля',
+      aspect: PHOTO_CROP_ASPECTS.square,
+      onCrop: onAvatarFilePick,
+    });
     event.target.value = '';
   };
 
@@ -392,6 +398,7 @@ export function OwnerEditScreen({
           </section>
         </div>
       </div>
+      {cropperDialog}
     </>
   );
 }

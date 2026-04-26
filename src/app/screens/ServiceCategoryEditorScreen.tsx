@@ -1,5 +1,6 @@
 import { useRef, type ChangeEvent } from 'react';
 import { ArrowLeft, ImagePlus, Trash2, X } from 'lucide-react';
+import { PHOTO_CROP_ASPECTS, usePhotoCropper } from '../components/shared/PhotoCropperDialog';
 import type { ServiceSectionItem } from '../types';
 
 const DESKTOP_PANEL_CLASS =
@@ -41,13 +42,18 @@ export function ServiceCategoryEditorScreen({
   onDelete,
 }: ServiceCategoryEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
-    onImageFilePick(file);
+    openPhotoCropper(file, {
+      title: 'Изображение категории',
+      aspect: PHOTO_CROP_ASPECTS.clientPortrait,
+      onCrop: onImageFilePick,
+    });
     event.target.value = '';
   };
 
@@ -106,7 +112,7 @@ export function ServiceCategoryEditorScreen({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex h-44 w-full items-center justify-center overflow-hidden rounded-3xl border-[2px] border-line bg-[#eceff5] text-[#7b8290]"
+            className="flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-3xl border-[2px] border-line bg-[#eceff5] text-[#7b8290]"
           >
             {imagePreviewUrl ? (
               <img src={imagePreviewUrl} alt="Изображение категории" className="h-full w-full object-cover" />
@@ -231,7 +237,7 @@ export function ServiceCategoryEditorScreen({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex h-64 w-full items-center justify-center overflow-hidden rounded-[28px] border border-[#dce2ea] bg-[#f6f8fb] text-[#7b8290]"
+                className="flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-[28px] border border-[#dce2ea] bg-[#f6f8fb] text-[#7b8290]"
               >
                 {imagePreviewUrl ? (
                   <img src={imagePreviewUrl} alt="Изображение категории" className="h-full w-full object-cover" />
@@ -283,6 +289,7 @@ export function ServiceCategoryEditorScreen({
           </section>
         </div>
       </div>
+      {cropperDialog}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import { ArrowLeft, Check, ChevronRight, ImagePlus, Loader2, Trash2, UserRound, X } from 'lucide-react';
 import { PageSheet } from '../components/shared/PageSheet';
+import { PHOTO_CROP_ASPECTS, usePhotoCropper } from '../components/shared/PhotoCropperDialog';
 import { PrimeSwitch } from '../components/shared/PrimeSwitch';
 import type { ServiceCategoryItem, ServiceDraft, StaffItem } from '../types';
 
@@ -47,6 +48,7 @@ export function ServiceEditorScreen({
   onImageClear,
 }: ServiceEditorScreenProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { openPhotoCropper, cropperDialog } = usePhotoCropper();
   const [assignSheetOpen, setAssignSheetOpen] = useState(false);
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
   const [durationInput, setDurationInput] = useState('');
@@ -81,7 +83,11 @@ export function ServiceEditorScreen({
     if (!file) {
       return;
     }
-    onImageFilePick(file);
+    openPhotoCropper(file, {
+      title: 'Изображение услуги',
+      aspect: PHOTO_CROP_ASPECTS.clientPortrait,
+      onCrop: onImageFilePick,
+    });
     event.target.value = '';
   };
 
@@ -228,7 +234,7 @@ export function ServiceEditorScreen({
           <button
             type="button"
             onClick={pickImage}
-            className="flex h-44 w-full items-center justify-center rounded-3xl border-[2px] border-line bg-[#eceff5] text-[#7b8290]"
+            className="flex aspect-[4/5] w-full items-center justify-center rounded-3xl border-[2px] border-line bg-[#eceff5] text-[#7b8290]"
           >
             {imagePreviewUrl ? (
               <div className="h-full w-full overflow-hidden rounded-3xl">
@@ -475,7 +481,7 @@ export function ServiceEditorScreen({
               <button
                 type="button"
                 onClick={pickImage}
-                className="mt-4 flex h-[240px] w-full items-center justify-center overflow-hidden rounded-[28px] border border-[#e1e6ee] bg-[#eef2f7] text-[#7b8290]"
+                className="mt-4 flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-[28px] border border-[#e1e6ee] bg-[#eef2f7] text-[#7b8290]"
               >
                 {imagePreviewUrl ? (
                   <img src={imagePreviewUrl} alt="Изображение услуги" className="h-full w-full object-cover" />
@@ -587,6 +593,8 @@ export function ServiceEditorScreen({
           </div>
         </div>
       </div>
+
+      {cropperDialog}
 
       {assignSheetOpen ? (
         <div
