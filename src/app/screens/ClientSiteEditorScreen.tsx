@@ -2204,17 +2204,11 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   );
 
   const buildSpecialistsExtra = useCallback(() => {
-    const nextExtra = mergeSiteSpecialistsPageIntoExtra(config?.extra ?? {}, specialistsPageDraft);
-    const currentPageHero = asObjectRecord(asObjectRecord(config?.extra ?? {}).pageHero);
-
-    nextExtra.pageHero = {
-      ...currentPageHero,
-      masters: pageHeroDraft.masters,
-      masterDetails: pageHeroDraft.masterDetails,
-    };
-
-    return nextExtra;
-  }, [config?.extra, pageHeroDraft.masterDetails, pageHeroDraft.masters, specialistsPageDraft]);
+    return mergeSitePageHeroesIntoExtra(
+      mergeSiteSpecialistsPageIntoExtra(config?.extra ?? {}, specialistsPageDraft),
+      pageHeroDraft,
+    );
+  }, [config?.extra, pageHeroDraft, specialistsPageDraft]);
 
   const buildBookingExtra = useCallback(
     () => mergeSitePageHeroesIntoExtra(
@@ -2386,16 +2380,11 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   };
 
   const buildServicesExtra = useCallback(() => {
-    const nextExtra = mergeSiteServicesPageIntoExtra(config?.extra ?? {}, servicesPageDraft);
-    const currentPageHero = asObjectRecord(asObjectRecord(config?.extra ?? {}).pageHero);
-
-    nextExtra.pageHero = {
-      ...currentPageHero,
-      services: pageHeroDraft.services,
-    };
-
-    return nextExtra;
-  }, [config?.extra, pageHeroDraft.services, servicesPageDraft]);
+    return mergeSitePageHeroesIntoExtra(
+      mergeSiteServicesPageIntoExtra(config?.extra ?? {}, servicesPageDraft),
+      pageHeroDraft,
+    );
+  }, [config?.extra, pageHeroDraft, servicesPageDraft]);
 
   const updateServicesPageField = <
     TSection extends ServicesPageObjectSectionKey,
