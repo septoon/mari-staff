@@ -27,7 +27,15 @@ export const SITE_BLOCK_KEYS = {
     detailCta: 'specialistsPage:detailCta',
   },
   bookingPage: {
+    heroActions: 'bookingPage:heroActions',
     connectivityNotice: 'bookingPage:connectivityNotice',
+    panel: 'bookingPage:panel',
+    schedule: 'bookingPage:schedule',
+    confirmation: 'bookingPage:confirmation',
+  },
+  servicesPage: {
+    catalog: 'servicesPage:catalog',
+    bottomCta: 'servicesPage:bottomCta',
   },
   pricesPage: {
     catalog: 'pricesPage:catalog',

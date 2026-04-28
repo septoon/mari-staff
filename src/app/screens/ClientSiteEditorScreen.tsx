@@ -6,8 +6,6 @@ import {
   ArrowLeft,
   BadgePercent,
   ChevronRight,
-  Eye,
-  EyeOff,
   FileText,
   House,
   Image,
@@ -127,6 +125,30 @@ type CategoryMeta = {
   note: string;
   tags: string[];
   icon: LucideIcon;
+};
+
+const CLIENT_SITE_PAGE_KEYS_BY_CATEGORY: Partial<Record<CategoryKey, string>> = {
+  home: 'home',
+  news: 'news',
+  services: 'services',
+  prices: 'prices',
+  specialists: 'masters',
+  contacts: 'contacts',
+  page: 'booking',
+  promo: 'offers',
+  legal: 'privacyPolicy',
+};
+
+const CLIENT_SITE_PAGE_LABELS_BY_CATEGORY: Partial<Record<CategoryKey, string>> = {
+  home: 'Главная страница',
+  news: 'Страница /news',
+  services: 'Страница /services',
+  prices: 'Страница /prices',
+  specialists: 'Страница /masters',
+  contacts: 'Страница /contacts',
+  page: 'Страница /booking',
+  promo: 'Страница /offers',
+  legal: 'Страница /privacy-policy',
 };
 
 type BannerMessage = {
@@ -1509,17 +1531,12 @@ function CategorySummaryCard({
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
           >
-            <PrimeButton
-              type="button"
-              label="Отображать на сайте"
-              aria-pressed={!pageVisibility.hidden}
+            <VisibilityActionButton
+              hidden={pageVisibility.hidden}
               disabled={pageVisibility.disabled}
               onClick={pageVisibility.onToggle}
-              className={`w-full rounded-2xl border px-4 py-3 text-left text-[14px] font-extrabold transition disabled:opacity-50 ${
-                pageVisibility.hidden
-                  ? 'border-line bg-white text-[#7a8493]'
-                  : 'border-[#d5b100] bg-[#f4c900] text-ink'
-              }`}
+              title="Отображать страницу на сайте"
+              description={pageVisibility.hidden ? 'Страница скрыта' : 'Страница показана'}
             />
           </div>
         ) : null}
@@ -1557,19 +1574,31 @@ function VisibilityActionButton({
   hidden,
   onClick,
   disabled,
+  title = 'Отображать на сайте',
+  description,
 }: {
   hidden: boolean;
   onClick: () => void;
   disabled?: boolean;
+  title?: string;
+  description?: string;
 }) {
   return (
-    <div className="inline-flex w-full min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
-      <span>Отображать на сайте</span>
+    <div className="flex min-h-[4.75rem] w-full items-start justify-between gap-4 rounded-2xl border border-line bg-white px-4 py-3 text-left sm:w-auto sm:min-w-[260px]">
+      <span className="min-w-0 text-[15px] font-extrabold leading-6 text-[#5f6773]">
+        {title}
+        {description ? (
+          <span className="mt-0.5 block text-[12px] font-semibold leading-4 text-[#8d95a1]">
+            {description}
+          </span>
+        ) : null}
+      </span>
       <PrimeSwitch
         checked={!hidden}
-        onChange={onClick}
+        onChange={() => onClick()}
         disabled={disabled}
-        size="sm"
+        size="md"
+        className="mt-0.5"
         ariaLabel={hidden ? 'Показать блок на сайте' : 'Скрыть блок на сайте'}
       />
     </div>
@@ -2658,6 +2687,77 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         extra: buildBookingExtra(),
       },
       'Контент страницы записи сохранен',
+    );
+  };
+
+  const buildCategoryPageExtra = useCallback(
+    (category: CategoryKey) => {
+      switch (category) {
+        case 'home':
+          return mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft);
+        case 'news':
+        case 'promo':
+        case 'legal':
+          return mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft);
+        case 'services':
+          return buildServicesExtra();
+        case 'prices':
+          return buildPricesExtra();
+        case 'specialists':
+          return buildSpecialistsExtra();
+        case 'page':
+          return buildBookingExtra();
+        case 'contacts':
+        default:
+          return config?.extra ?? {};
+      }
+    },
+    [
+      buildBookingExtra,
+      buildPricesExtra,
+      buildServicesExtra,
+      buildSpecialistsExtra,
+      config?.extra,
+      homePageDraft,
+      siteCardsDraft,
+    ],
+  );
+
+  const getCategoryPageVisibility = useCallback(
+    (category: CategoryKey) => {
+      const pageKey = CLIENT_SITE_PAGE_KEYS_BY_CATEGORY[category];
+      if (!pageKey) {
+        return undefined;
+      }
+
+      const blockKey = SITE_BLOCK_KEYS.page(pageKey);
+      const label = CLIENT_SITE_PAGE_LABELS_BY_CATEGORY[category] ?? `Страница ${pageKey}`;
+
+      return {
+        hidden: hasHiddenBlock(blockKey),
+        disabled: busyKey === 'config',
+        onToggle: () => {
+          void saveSiteVisibility(buildCategoryPageExtra(category), blockKey, label);
+        },
+      };
+    },
+    [buildCategoryPageExtra, busyKey, hasHiddenBlock, saveSiteVisibility],
+  );
+
+  const renderCategoryPageVisibilityAction = (category: CategoryKey) => {
+    const pageVisibility = getCategoryPageVisibility(category);
+    if (!pageVisibility) {
+      return null;
+    }
+
+    return (
+      <VisibilityActionButton
+        hidden={pageVisibility.hidden}
+        disabled={pageVisibility.disabled}
+        onClick={pageVisibility.onToggle}
+        title="Отображать страницу на сайте"
+        description={pageVisibility.hidden ? 'Страница скрыта целиком' : 'Страница показана целиком'}
+      />
     );
   };
 
@@ -4600,23 +4700,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       {block.blockKey}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <VisibilityActionButton
+                      hidden={!block.isEnabled}
+                      disabled={busyKey === `block-visibility:${block.id}`}
                       onClick={() => {
                         void toggleBlockEnabled(block);
                       }}
-                      disabled={busyKey === `block-visibility:${block.id}`}
-                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
-                    >
-                      {busyKey === `block-visibility:${block.id}` ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : block.isEnabled ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
+                    />
                     <button
                       type="button"
                       onClick={() => openBlockEditor(allowedTypes, title, block)}
@@ -4702,17 +4793,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             key={item.key}
             item={item}
             onOpen={() => openCategoryPage(item.key)}
-            pageVisibility={
-              item.key === 'prices'
-                ? {
-                    hidden: hasHiddenBlock(SITE_BLOCK_KEYS.page('prices')),
-                    disabled: busyKey === 'config',
-                    onToggle: () => {
-                      void saveSiteVisibility(buildPricesExtra(), SITE_BLOCK_KEYS.page('prices'), 'Страница /prices');
-                    },
-                  }
-                : undefined
-            }
+            pageVisibility={getCategoryPageVisibility(item.key)}
           />
         ))}
       </section>
@@ -4758,19 +4839,22 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         <SectionCard
           title="Первый экран /"
           subtitle="Hero, кнопки и редакционный визуал в верхней части главной страницы сайта MARI."
-          action={
-            <VisibilityActionButton
-              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.hero)}
-              disabled={busyKey === 'config'}
-              onClick={() => {
-                void saveSiteVisibility(
-                  mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
-                  SITE_BLOCK_KEYS.homePage.hero,
-                  'Первый экран главной',
-                );
-              }}
-            />
-          }
+          // action={
+          //   <>
+          //     {renderCategoryPageVisibilityAction('home')}
+          //     <VisibilityActionButton
+          //       hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.hero)}
+          //       disabled={busyKey === 'config'}
+          //       onClick={() => {
+          //         void saveSiteVisibility(
+          //           mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+          //           SITE_BLOCK_KEYS.homePage.hero,
+          //           'Первый экран главной',
+          //         );
+          //       }}
+          //     />
+          //   </>
+          // }
         >
           <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
             Здесь редактируется только смысл и подписи главной страницы.
@@ -5352,17 +5436,20 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           title="Страница `/services` на клиентском сайте"
           subtitle="Здесь редактируется контент страницы услуг. Сами услуги, категории и разделы остаются в разделе `/services` staff-панели."
           action={
-            <button
-              type="button"
-              onClick={() => {
-                void saveServicesPage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать
-            </button>
+            <>
+              {/* {renderCategoryPageVisibilityAction('services')} */}
+              <button
+                type="button"
+                onClick={() => {
+                  void saveServicesPage();
+                }}
+                disabled={busyKey === 'config'}
+                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+              >
+                {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Сохранить и опубликовать
+              </button>
+            </>
           }
         >
           <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
@@ -5436,7 +5523,19 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </div>
         </SectionCard>
 
-        <SectionCard title="Блок каталога" subtitle="Текст перед карточками разделов и категорий, а также подписи внутри этих карточек.">
+        <SectionCard
+          title="Блок каталога"
+          subtitle="Текст перед карточками разделов и категорий, а также подписи внутри этих карточек."
+          action={
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.servicesPage.catalog)}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(buildServicesExtra(), SITE_BLOCK_KEYS.servicesPage.catalog, 'Блок каталога /services');
+              }}
+            />
+          }
+        >
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
             <div className="grid gap-3">
               <TextField label="Eyebrow" value={servicesPageDraft.catalog.eyebrow} onChange={(value) => updateServicesPageField('catalog', 'eyebrow', value)} />
@@ -5472,7 +5571,19 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           </button>
         </SectionCard>
 
-        <SectionCard title="Финальный CTA" subtitle="Нижний блок страницы /services с переходом к записи и мастерам.">
+        <SectionCard
+          title="Финальный CTA"
+          subtitle="Нижний блок страницы /services с переходом к записи и мастерам."
+          action={
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.servicesPage.bottomCta)}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(buildServicesExtra(), SITE_BLOCK_KEYS.servicesPage.bottomCta, 'Финальный CTA /services');
+              }}
+            />
+          }
+        >
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
             <div className="grid gap-3">
               <TextField label="Eyebrow" value={servicesPageDraft.bottomCta.eyebrow} onChange={(value) => updateServicesPageField('bottomCta', 'eyebrow', value)} />
@@ -5555,23 +5666,26 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           title="Страница `/prices` на клиентском сайте"
           subtitle="Здесь редактируется весь собственный контент страницы цен. Строки прайса берутся из опубликованных услуг."
           action={
-            <button
-              type="button"
-              onClick={() => {
-                void savePricesPage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать
-            </button>
+            <>
+              {/* {renderCategoryPageVisibilityAction('prices')} */}
+              <button
+                type="button"
+                onClick={() => {
+                  void savePricesPage();
+                }}
+                disabled={busyKey === 'config'}
+                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+              >
+                {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Сохранить и опубликовать
+              </button>
+            </>
           }
         >
           <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
             <span className="font-extrabold text-ink">Связка:</span>{' '}
             форма пишет в `client-front.config.extra.siteContent.pricesPage`, `pageHero.prices` и `siteVisibility`.
-            Клиентский `mari` читает эти данные на `/prices`. Видимость всей страницы переключается на карточке «Цены» в общем списке разделов.
+            Клиентский `mari` читает эти данные на `/prices`. Видимость всей страницы переключается здесь и на карточке «Цены» в общем списке разделов.
           </div>
         </SectionCard>
 
@@ -5775,17 +5889,20 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           title="Страницы специалистов на клиентском сайте"
           subtitle="Этот раздел теперь управляет не только карточками мастеров, но и реальными страницами `/masters` и `/masters/{slug}` в mari."
           action={
-            <button
-              type="button"
-              onClick={() => {
-                void saveSpecialistsPage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать
-            </button>
+            <>
+              {/* {renderCategoryPageVisibilityAction('specialists')} */}
+              <button
+                type="button"
+                onClick={() => {
+                  void saveSpecialistsPage();
+                }}
+                disabled={busyKey === 'config'}
+                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+              >
+                {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Сохранить и опубликовать
+              </button>
+            </>
           }
         >
           <div className="rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#39516d]">
@@ -6267,6 +6384,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         <SectionCard
           title="Контакты сайта"
           subtitle="Этот экран сохраняет контакты в mari-server и сразу публикует их для сайта mari."
+          // action={renderCategoryPageVisibilityAction('contacts')}
         >
           <div className="rounded-2xl border border-[#e6d6a7] bg-[#fff7e4] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#7a6330]">
             <span className="font-extrabold text-[#5f4b1f]">Связка:</span>
@@ -6379,6 +6497,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         <SectionCard
           title="Как страница /booking собирается на сайте"
           subtitle="Каждая зона ниже соответствует реальному месту на клиентском сайте mari. Здесь больше не нужно гадать, какой элемент за что отвечает."
+          action={renderCategoryPageVisibilityAction('page')}
         >
           <div className="grid gap-3 xl:grid-cols-2">
             {[
@@ -6576,6 +6695,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   Сбросить кнопки
                 </button>
                 <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.bookingPage.heroActions)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(
+                      buildBookingExtra(),
+                      SITE_BLOCK_KEYS.bookingPage.heroActions,
+                      'Кнопки hero на /booking',
+                    );
+                  }}
+                />
+                <VisibilityActionButton
                   hidden={hasHiddenBlock(SITE_BLOCK_KEYS.bookingPage.connectivityNotice)}
                   disabled={busyKey === 'config'}
                   onClick={() => {
@@ -6640,6 +6770,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 >
                   Сбросить секцию
                 </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.bookingPage.panel)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(buildBookingExtra(), SITE_BLOCK_KEYS.bookingPage.panel, 'Верх панели записи');
+                  }}
+                />
               </div>
 
               <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -6689,6 +6826,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 >
                   Сбросить секцию
                 </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.bookingPage.schedule)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(buildBookingExtra(), SITE_BLOCK_KEYS.bookingPage.schedule, 'Блок даты, мастера и времени');
+                  }}
+                />
               </div>
 
               <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -6736,6 +6880,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 >
                   Сбросить секцию
                 </button>
+                <VisibilityActionButton
+                  hidden={hasHiddenBlock(SITE_BLOCK_KEYS.bookingPage.confirmation)}
+                  disabled={busyKey === 'config'}
+                  onClick={() => {
+                    void saveSiteVisibility(buildBookingExtra(), SITE_BLOCK_KEYS.bookingPage.confirmation, 'Блок подтверждения и входа');
+                  }}
+                />
               </div>
 
               <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -6894,14 +7045,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         title="Карточки предложений"
         subtitle="Редактор карточек предложений в блоке акций на главной странице и в связанных переходах на запись."
         action={
-          <button
-            type="button"
-            onClick={() => openOfferEditor(null)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
-          >
-            <Plus className="h-4 w-4" />
-            Добавить предложение
-          </button>
+          <>
+            {/* {renderCategoryPageVisibilityAction('promo')} */}
+            <button
+              type="button"
+              onClick={() => openOfferEditor(null)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+            >
+              <Plus className="h-4 w-4" />
+              Добавить предложение
+            </button>
+          </>
         }
       >
         <div className="space-y-3">
@@ -6922,9 +7076,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       {hasHiddenBlock(SITE_BLOCK_KEYS.offers.item(offer.slug)) ? 'Временно скрыто' : 'Показывается на сайте'}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <VisibilityActionButton
+                      hidden={hasHiddenBlock(SITE_BLOCK_KEYS.offers.item(offer.slug))}
+                      disabled={busyKey === 'config'}
                       onClick={() => {
                         void saveSiteVisibility(
                           mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft),
@@ -6932,17 +7087,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                           `Предложение ${offer.title}`,
                         );
                       }}
-                      disabled={busyKey === 'config'}
-                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
-                    >
-                      {busyKey === 'config' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : hasHiddenBlock(SITE_BLOCK_KEYS.offers.item(offer.slug)) ? (
-                        <Eye className="h-4 w-4" />
-                      ) : (
-                        <EyeOff className="h-4 w-4" />
-                      )}
-                    </button>
+                    />
                     <button
                       type="button"
                       onClick={() => openOfferEditor(offer)}
@@ -6983,14 +7128,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         title="Карточки статей"
         subtitle="Редактор материалов для страницы /news, детальных новостей и блока новостей на главной."
         action={
-          <button
-            type="button"
-            onClick={() => openNewsEditor(null)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
-          >
-            <Plus className="h-4 w-4" />
-            Добавить статью
-          </button>
+          <>
+            {/* {renderCategoryPageVisibilityAction('news')} */}
+            <button
+              type="button"
+              onClick={() => openNewsEditor(null)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+            >
+              <Plus className="h-4 w-4" />
+              Добавить статью
+            </button>
+          </>
         }
       >
         <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
@@ -7017,9 +7165,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                       {hasHiddenBlock(SITE_BLOCK_KEYS.news.item(article.slug)) ? 'Временно скрыто' : 'Показывается на сайте'}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <VisibilityActionButton
+                      hidden={hasHiddenBlock(SITE_BLOCK_KEYS.news.item(article.slug))}
+                      disabled={busyKey === 'config'}
                       onClick={() => {
                         void saveSiteVisibility(
                           mergeSiteCardsIntoExtra(config?.extra ?? {}, siteCardsDraft),
@@ -7027,17 +7176,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                           `Статья ${article.title}`,
                         );
                       }}
-                      disabled={busyKey === 'config'}
-                      className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-50"
-                    >
-                      {busyKey === 'config' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : hasHiddenBlock(SITE_BLOCK_KEYS.news.item(article.slug)) ? (
-                        <Eye className="h-4 w-4" />
-                      ) : (
-                        <EyeOff className="h-4 w-4" />
-                      )}
-                    </button>
+                    />
                     <button
                       type="button"
                       onClick={() => openNewsEditor(article)}
@@ -7086,6 +7225,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         <SectionCard
           title="Политика конфиденциальности"
           subtitle="Страница /privacy-policy, cookie-уведомление и тексты согласия на обработку данных теперь редактируются из одного места и публикуются сразу."
+          // action={renderCategoryPageVisibilityAction('legal')}
         >
           <div className="rounded-2xl border border-[#d6deea] bg-[#eff4fb] px-4 py-4 text-[14px] font-medium leading-relaxed text-[#39516d]">
             <span className="font-extrabold text-ink">Связка:</span>
