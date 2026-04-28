@@ -17,8 +17,8 @@ type PrimeSwitchProps = {
 
 const SIZE_STYLES: Record<PrimeSwitchSize, CSSProperties> = {
   sm: {
-    ['--mari-switch-width' as string]: '3rem',
-    ['--mari-switch-height' as string]: '1.75rem',
+    ['--mari-switch-width' as string]: '3.2rem',
+    ['--mari-switch-height' as string]: '1.8rem',
     ['--mari-switch-padding' as string]: '0.25rem',
     ['--mari-switch-thumb-size' as string]: '1.25rem',
     ['--mari-switch-translate' as string]: '1.5rem',

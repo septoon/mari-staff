@@ -1563,7 +1563,7 @@ function VisibilityActionButton({
   disabled?: boolean;
 }) {
   return (
-    <div className="inline-flex min-h-14 items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
+    <div className="inline-flex w-full min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
       <span>Отображать на сайте</span>
       <PrimeSwitch
         checked={!hidden}
