@@ -4,6 +4,7 @@ const SITE_VISIBILITY_KEY = 'siteVisibility';
 const HIDDEN_BLOCK_KEYS_KEY = 'hiddenBlockKeys';
 
 export const SITE_BLOCK_KEYS = {
+  page: (key: string) => `page:${key}`,
   pageHero: (key: SitePageHeroKey) => `pageHero:${key}`,
   homePage: {
     hero: 'homePage:hero',
@@ -27,6 +28,10 @@ export const SITE_BLOCK_KEYS = {
   },
   bookingPage: {
     connectivityNotice: 'bookingPage:connectivityNotice',
+  },
+  pricesPage: {
+    catalog: 'pricesPage:catalog',
+    bottomCta: 'pricesPage:bottomCta',
   },
   offers: {
     item: (slug: string) => `offers:item:${slug}`,

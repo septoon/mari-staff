@@ -122,6 +122,16 @@ const SEGMENT_LABELS: Record<ClientSegment, string> = {
 const DONUT_COLORS = ['#f4c900', '#222b33', '#4ba3ff', '#7bc8a4', '#f29f67', '#d4a8ff'];
 const CHART_COLORS = ['#f4c900', '#222b33', '#5aa8ff', '#9bd6af', '#f09b53', '#c0c8d6'];
 
+function imageExtensionFromMimeType(mimeType: string) {
+  if (mimeType === 'image/jpeg') {
+    return 'jpg';
+  }
+  if (mimeType.startsWith('image/')) {
+    return mimeType.slice('image/'.length);
+  }
+  return 'bin';
+}
+
 function createEmptyClientDraft(): ClientDraft {
   return {
     name: '',
@@ -1091,10 +1101,12 @@ export function ClientsScreen({
       previewUrlToRevoke = converted.previewUrl;
 
       const formData = new FormData();
+      const convertedMimeType = converted.blob.type || file.type || 'application/octet-stream';
+      const convertedExtension = imageExtensionFromMimeType(convertedMimeType);
       formData.append(
         'file',
-        new File([converted.blob], `${activeClient.id}.webp`, {
-          type: 'image/webp',
+        new File([converted.blob], `${activeClient.id}.${convertedExtension}`, {
+          type: convertedMimeType,
         }),
       );
 

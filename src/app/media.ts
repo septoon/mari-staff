@@ -36,19 +36,28 @@ function sanitizeSegment(value: string) {
 }
 
 function inferFileExtension(originalName: string, mimeType: string) {
-  const fromName = originalName.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
-  if (fromName) {
-    return fromName;
-  }
   const normalizedMime = mimeType.toLowerCase();
   if (normalizedMime === 'image/jpeg') {
     return 'jpg';
+  }
+  if (normalizedMime === 'image/png') {
+    return 'png';
+  }
+  if (normalizedMime === 'image/webp') {
+    return 'webp';
+  }
+  if (normalizedMime === 'image/avif') {
+    return 'avif';
   }
   if (normalizedMime === 'image/heic' || normalizedMime === 'image/heif') {
     return 'heic';
   }
   if (normalizedMime.startsWith('image/')) {
     return normalizedMime.slice('image/'.length);
+  }
+  const fromName = originalName.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+  if (fromName) {
+    return fromName;
   }
   return 'bin';
 }

@@ -872,7 +872,7 @@ export function useAppController(): AppController {
           name,
           count: 1,
           imageAssetId: null,
-          imageUrl: item.imageUrl || null,
+          imageUrl: null,
           sectionId: null,
           sectionName: null,
         });
@@ -880,9 +880,6 @@ export function useAppController(): AppController {
       }
       current.count += 1;
       current.name = name;
-      if (!current.imageUrl && item.imageUrl) {
-        current.imageUrl = item.imageUrl;
-      }
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }, [localServiceCategories, services]);
@@ -1821,7 +1818,16 @@ export function useAppController(): AppController {
       setPage('tabs');
       setTab(resolveDefaultTab(data));
     } catch (error) {
-      setAuthError(toErrorMessage(error));
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.code === 'AUTH_REQUIRED')
+      ) {
+        setAuthError('Неверный логин или пароль');
+      } else if (error instanceof TypeError) {
+        setAuthError('Не удалось подключиться к API. Проверьте CORS или сеть.');
+      } else {
+        setAuthError(toErrorMessage(error));
+      }
     } finally {
       setLoadingKey(setLoading, 'auth', false);
     }

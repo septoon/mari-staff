@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Button as PrimeButton } from 'primereact/button';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -57,6 +58,14 @@ import {
   type SiteServicesPageDraft,
 } from '../clientSiteServicesPage';
 import {
+  SITE_PRICES_PAGE_DEFAULTS,
+  SITE_PRICES_PAGE_SECTION_COUNT,
+  countConfiguredSitePricesPageSections,
+  createSitePricesPageDraft,
+  mergeSitePricesPageIntoExtra,
+  type SitePricesPageDraft,
+} from '../clientSitePricesPage';
+import {
   SITE_SPECIALISTS_PAGE_DEFAULTS,
   SITE_SPECIALISTS_PAGE_SECTION_COUNT,
   applySiteSpecialistsPageTemplate,
@@ -99,6 +108,7 @@ type CategoryKey =
   | 'home'
   | 'news'
   | 'services'
+  | 'prices'
   | 'specialists'
   | 'contacts'
   | 'page'
@@ -347,6 +357,7 @@ const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
   home: 'glavnaya',
   news: 'novosti',
   services: 'uslugi',
+  prices: 'tseny',
   specialists: 'specialisty',
   contacts: 'kontakty',
   page: 'stranica',
@@ -380,6 +391,12 @@ type HomePageObjectSectionKey =
   | 'bottomCta';
 
 type ServicesPageObjectSectionKey =
+  | 'seo'
+  | 'heroActions'
+  | 'catalog'
+  | 'bottomCta';
+
+type PricesPageObjectSectionKey =
   | 'seo'
   | 'heroActions'
   | 'catalog'
@@ -597,6 +614,14 @@ const categories: CategoryMeta[] = [
     note: 'Здесь видно, как услуги показаны клиенту. Полное редактирование самих услуг остаётся в разделе «Услуги».',
     tags: ['категории', 'название для клиента', 'цены', 'длительность'],
     icon: Wrench,
+  },
+  {
+    key: 'prices',
+    title: 'Цены',
+    description: 'Страница `/prices`: SEO, hero, вводный блок прайса и нижний CTA.',
+    note: 'Сами строки прайса берутся из опубликованных услуг. Здесь редактируются тексты страницы и видимость страницы/блоков.',
+    tags: ['страница /prices', 'seo', 'hero', 'прайс', 'cta'],
+    icon: FileText,
   },
   {
     key: 'specialists',
@@ -912,11 +937,51 @@ function supportsRootImage(blockType: BlockType) {
 }
 
 function slugify(value: string) {
+  const cyrillicMap: Record<string, string> = {
+    а: 'a',
+    б: 'b',
+    в: 'v',
+    г: 'g',
+    д: 'd',
+    е: 'e',
+    ё: 'e',
+    ж: 'zh',
+    з: 'z',
+    и: 'i',
+    й: 'y',
+    к: 'k',
+    л: 'l',
+    м: 'm',
+    н: 'n',
+    о: 'o',
+    п: 'p',
+    р: 'r',
+    с: 's',
+    т: 't',
+    у: 'u',
+    ф: 'f',
+    х: 'h',
+    ц: 'c',
+    ч: 'ch',
+    ш: 'sh',
+    щ: 'sch',
+    ъ: '',
+    ы: 'y',
+    ь: '',
+    э: 'e',
+    ю: 'yu',
+    я: 'ya',
+  };
+  const transliterated = value
+    .toLowerCase()
+    .split('')
+    .map((char) => cyrillicMap[char] ?? char)
+    .join('');
+
   return (
-    value
+    transliterated
       .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9а-я_-]+/gi, '-')
+      .replace(/[^a-z0-9_-]+/gi, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '') || 'item'
   );
@@ -1357,16 +1422,29 @@ function blockSubtitle(block: BlockRecord) {
 function CategorySummaryCard({
   item,
   onOpen,
+  pageVisibility,
 }: {
   item: CategorySnapshot;
   onOpen: () => void;
+  pageVisibility?: {
+    hidden: boolean;
+    disabled?: boolean;
+    onToggle: () => void;
+  };
 }) {
   const Icon = item.icon;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
       className="group h-full w-full rounded-[28px] border border-line bg-screen p-5 text-left shadow-[0_10px_24px_rgba(42,49,56,0.06)] transition md:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,253,0.98))] md:p-6 md:hover:-translate-y-0.5 md:hover:shadow-[0_18px_40px_rgba(42,49,56,0.12)] xl:rounded-[32px] xl:p-7"
     >
       <div className="flex h-full flex-col gap-5 xl:gap-6">
@@ -1424,8 +1502,29 @@ function CategorySummaryCard({
             {item.warning}
           </div>
         ) : null}
+
+        {pageVisibility ? (
+          <div
+            className="border-t border-[#e4e9f0] pt-4"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <PrimeButton
+              type="button"
+              label="Отображать на сайте"
+              aria-pressed={!pageVisibility.hidden}
+              disabled={pageVisibility.disabled}
+              onClick={pageVisibility.onToggle}
+              className={`w-full rounded-2xl border px-4 py-3 text-left text-[14px] font-extrabold transition disabled:opacity-50 ${
+                pageVisibility.hidden
+                  ? 'border-line bg-white text-[#7a8493]'
+                  : 'border-[#d5b100] bg-[#f4c900] text-ink'
+              }`}
+            />
+          </div>
+        ) : null}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -1464,15 +1563,16 @@ function VisibilityActionButton({
   disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[13px] font-extrabold text-[#5f6773] disabled:opacity-50"
-    >
-      {hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-      {hidden ? 'Показать' : 'Скрыть'}
-    </button>
+    <div className="inline-flex min-h-14 items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
+      <span>Отображать на сайте</span>
+      <PrimeSwitch
+        checked={!hidden}
+        onChange={onClick}
+        disabled={disabled}
+        size="sm"
+        ariaLabel={hidden ? 'Показать блок на сайте' : 'Скрыть блок на сайте'}
+      />
+    </div>
   );
 }
 
@@ -1658,6 +1758,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const [servicesPageDraft, setServicesPageDraft] = useState<SiteServicesPageDraft>(() =>
     createSiteServicesPageDraft({})
   );
+  const [pricesPageDraft, setPricesPageDraft] = useState<SitePricesPageDraft>(() =>
+    createSitePricesPageDraft({})
+  );
   const [specialistsPageDraft, setSpecialistsPageDraft] = useState<SiteSpecialistsPageDraft>(() =>
     createSiteSpecialistsPageDraft({})
   );
@@ -1783,6 +1886,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setBookingPageDraft(createSiteBookingPageDraft(config.extra ?? {}));
     setHomePageDraft(createSiteHomePageDraft(config.extra ?? {}));
     setServicesPageDraft(createSiteServicesPageDraft(config.extra ?? {}));
+    setPricesPageDraft(createSitePricesPageDraft(config.extra ?? {}));
     setSpecialistsPageDraft(createSiteSpecialistsPageDraft(config.extra ?? {}));
     setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
@@ -2004,6 +2108,19 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             ],
             warning: screenData.config.error || undefined,
           };
+        case 'prices':
+          return {
+            ...category,
+            stat: screenData.config.error
+              ? screenData.config.error
+              : `${countConfiguredSitePricesPageSections(config?.extra ?? {})}/${SITE_PRICES_PAGE_SECTION_COUNT}`,
+            details: [
+              'Редактирует страницу /prices: SEO, hero, вводный блок прайса и нижний CTA.',
+              `Страница: ${hasHiddenBlock(SITE_BLOCK_KEYS.page('prices')) ? 'скрыта' : 'показывается'}`,
+              `Категорий в прайсе: ${serviceCategories.length}`,
+            ],
+            warning: screenData.config.error || undefined,
+          };
         case 'specialists':
           return {
             ...category,
@@ -2121,7 +2238,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, pageHeroDraft.services.title, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
+  }, [blocks, config, hasHiddenBlock, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, pageHeroDraft.services.title, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -2431,6 +2548,48 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
+  const buildPricesExtra = useCallback(() => {
+    return mergeSitePageHeroesIntoExtra(
+      mergeSitePricesPageIntoExtra(config?.extra ?? {}, pricesPageDraft),
+      pageHeroDraft,
+    );
+  }, [config?.extra, pageHeroDraft, pricesPageDraft]);
+
+  const updatePricesPageField = <
+    TSection extends PricesPageObjectSectionKey,
+    TField extends keyof SitePricesPageDraft[TSection]
+  >(
+    section: TSection,
+    field: TField,
+    value: string,
+  ) => {
+    setPricesPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetPricesPageSection = (section: PricesPageObjectSectionKey) => {
+    setPricesPageDraft((prev) => ({
+      ...prev,
+      [section]: {
+        ...SITE_PRICES_PAGE_DEFAULTS[section],
+      },
+    }));
+  };
+
+  const savePricesPage = async () => {
+    await saveConfigPatch(
+      {
+        extra: buildPricesExtra(),
+      },
+      'Страница цен сохранена',
+    );
+  };
+
   const updateSpecialistsPageField = <
     TSection extends keyof SiteSpecialistsPageDraft,
     TField extends keyof SiteSpecialistsPageDraft[TSection]
@@ -2633,13 +2792,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       return;
     }
     const draft = offerEditor.draft;
-    if (!draft.slug.trim() || !draft.title.trim() || !draft.subtitle.trim() || !draft.description.trim() || !draft.badge.trim() || !draft.priceNote.trim() || !draft.ctaHref.trim()) {
-      setBanner('error', 'Для предложения заполните slug, title, subtitle, description, badge, priceNote и ctaHref');
+    if (!draft.title.trim() || !draft.subtitle.trim() || !draft.description.trim() || !draft.badge.trim() || !draft.priceNote.trim() || !draft.ctaHref.trim()) {
+      setBanner('error', 'Для предложения заполните название, подзаголовок, описание, бейдж, примечание к цене и ссылку кнопки');
       return;
     }
 
+    const stableSlug = offerEditor.sourceSlug || draft.slug || draft.title;
     const nextItem: SiteOfferRecord = {
-      slug: slugify(draft.slug),
+      slug: slugify(stableSlug),
       title: draft.title.trim(),
       subtitle: draft.subtitle.trim(),
       description: draft.description.trim(),
@@ -2698,13 +2858,14 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       .map((item) => item.trim())
       .filter(Boolean);
 
-    if (!draft.slug.trim() || !draft.title.trim() || !draft.category.trim() || !draft.publishedAt.trim() || !draft.excerpt.trim() || body.length === 0) {
-      setBanner('error', 'Для статьи заполните slug, title, category, publishedAt, excerpt и body');
+    if (!draft.title.trim() || !draft.category.trim() || !draft.publishedAt.trim() || !draft.excerpt.trim() || body.length === 0) {
+      setBanner('error', 'Для статьи заполните заголовок, категорию, дату публикации, краткое описание и текст статьи');
       return;
     }
 
+    const stableSlug = newsEditor.sourceSlug || draft.slug || draft.title;
     const nextItem: SiteNewsRecord = {
-      slug: slugify(draft.slug),
+      slug: slugify(stableSlug),
       title: draft.title.trim(),
       category: draft.category.trim(),
       publishedAt: draft.publishedAt.trim(),
@@ -2753,11 +2914,12 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     }
 
     const draft = locationEditor.draft;
-    if (!draft.slug.trim() || !draft.name.trim() || !draft.district.trim() || !draft.address.trim() || !draft.phone.trim() || !draft.workingHours.trim() || !draft.mapUrl.trim() || !draft.description.trim() || !draft.note.trim()) {
-      setBanner('error', 'Для локации заполните slug, name, district, address, phone, workingHours, mapUrl, description и note');
+    if (!draft.name.trim() || !draft.district.trim() || !draft.address.trim() || !draft.phone.trim() || !draft.workingHours.trim() || !draft.mapUrl.trim() || !draft.description.trim() || !draft.note.trim()) {
+      setBanner('error', 'Для локации заполните название, район, адрес, телефон, часы работы, ссылку на карту, описание и примечание');
       return;
     }
 
+    const stableSlug = locationEditor.sourceSlug || draft.slug || draft.name;
     const nextItem: SiteLocationRecord = {
       ...(locationEditor.source ?? {
         serviceSlugs: [],
@@ -2765,7 +2927,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         features: [],
         interiorMoments: [],
       }),
-      slug: slugify(draft.slug),
+      slug: slugify(stableSlug),
       name: draft.name.trim(),
       district: draft.district.trim(),
       address: draft.address.trim(),
@@ -4536,7 +4698,22 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
       <section className="mt-6 grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:gap-6 2xl:grid-cols-3">
         {categorySnapshots.map((item) => (
-          <CategorySummaryCard key={item.key} item={item} onOpen={() => openCategoryPage(item.key)} />
+          <CategorySummaryCard
+            key={item.key}
+            item={item}
+            onOpen={() => openCategoryPage(item.key)}
+            pageVisibility={
+              item.key === 'prices'
+                ? {
+                    hidden: hasHiddenBlock(SITE_BLOCK_KEYS.page('prices')),
+                    disabled: busyKey === 'config',
+                    onToggle: () => {
+                      void saveSiteVisibility(buildPricesExtra(), SITE_BLOCK_KEYS.page('prices'), 'Страница /prices');
+                    },
+                  }
+                : undefined
+            }
+          />
         ))}
       </section>
 
@@ -4582,30 +4759,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           title="Первый экран /"
           subtitle="Hero, кнопки и редакционный визуал в верхней части главной страницы сайта MARI."
           action={
-            <>
-              <VisibilityActionButton
-                hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.hero)}
-                disabled={busyKey === 'config'}
-                onClick={() => {
-                  void saveSiteVisibility(
-                    mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
-                    SITE_BLOCK_KEYS.homePage.hero,
-                    'Первый экран главной',
-                  );
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  void saveHomePage();
-                }}
-                disabled={busyKey === 'config'}
-                className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
-              >
-                {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Сохранить и опубликовать
-              </button>
-            </>
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.homePage.hero)}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(
+                  mergeSiteHomePageIntoExtra(config?.extra ?? {}, homePageDraft),
+                  SITE_BLOCK_KEYS.homePage.hero,
+                  'Первый экран главной',
+                );
+              }}
+            />
           }
         >
           <div className="rounded-2xl bg-[#f4f6f9] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">
@@ -4923,19 +5087,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                void saveHomePage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать секции
-            </button>
-          </div>
         </SectionCard>
 
         <SectionCard
@@ -5060,19 +5211,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                void saveHomePage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать блок
-            </button>
-          </div>
         </SectionCard>
 
         <SectionCard
@@ -5134,20 +5272,20 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
           </article>
 
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                void saveHomePage();
-              }}
-              disabled={busyKey === 'config'}
-              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
-            >
-              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Сохранить и опубликовать главную
-            </button>
-          </div>
         </SectionCard>
+
+        <PrimeButton
+          type="button"
+          aria-label="Сохранить и опубликовать главную"
+          title="Сохранить и опубликовать главную"
+          onClick={() => {
+            void saveHomePage();
+          }}
+          disabled={busyKey === 'config'}
+          className="fixed bottom-[calc(6.75rem+env(safe-area-inset-bottom))] right-5 z-[80] flex h-16 w-16 items-center justify-center rounded-full border border-[#d5b100] bg-[#f4c900] text-ink shadow-[0_18px_44px_rgba(36,43,52,0.24)] transition hover:scale-[1.03] disabled:opacity-50 md:bottom-6 md:right-6 md:h-20 md:w-20"
+        >
+          {busyKey === 'config' ? <Loader2 className="h-7 w-7 animate-spin" /> : <Save className="h-7 w-7 md:h-8 md:w-8" />}
+        </PrimeButton>
       </div>
     );
   };
@@ -5398,6 +5536,203 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           >
             {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Сохранить и опубликовать страницу услуг
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPricesDetail = () => {
+    const pricesHeroDefinition =
+      SITE_PAGE_HERO_DEFINITIONS.find((definition) => definition.key === 'prices') ?? null;
+    const heroPreview = pricesHeroDefinition
+      ? resolveSitePageHeroPreview(pricesHeroDefinition, pageHeroDraft.prices)
+      : null;
+
+    return (
+      <div className="space-y-5">
+        <SectionCard
+          title="Страница `/prices` на клиентском сайте"
+          subtitle="Здесь редактируется весь собственный контент страницы цен. Строки прайса берутся из опубликованных услуг."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                void savePricesPage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
+            </button>
+          }
+        >
+          <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
+            <span className="font-extrabold text-ink">Связка:</span>{' '}
+            форма пишет в `client-front.config.extra.siteContent.pricesPage`, `pageHero.prices` и `siteVisibility`.
+            Клиентский `mari` читает эти данные на `/prices`. Видимость всей страницы переключается на карточке «Цены» в общем списке разделов.
+          </div>
+        </SectionCard>
+
+        <SectionCard title="SEO и hero" subtitle="Заголовок браузера, описание для поиска, верхний экран, картинка и подпись кнопки записи.">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-3">
+              <TextField label="SEO-заголовок" value={pricesPageDraft.seo.title} onChange={(value) => updatePricesPageField('seo', 'title', value)} />
+              <TextAreaField label="SEO-описание" value={pricesPageDraft.seo.description} onChange={(value) => updatePricesPageField('seo', 'description', value)} rows={3} />
+              <TextField label="Подпись над заголовком" value={pageHeroDraft.prices.eyebrow} onChange={(value) => updatePageHeroField('prices', 'eyebrow', value)} />
+              <TextField label="Заголовок шапки" value={pageHeroDraft.prices.title} onChange={(value) => updatePageHeroField('prices', 'title', value)} />
+              <TextAreaField label="Описание шапки" value={pageHeroDraft.prices.description} onChange={(value) => updatePageHeroField('prices', 'description', value)} rows={4} />
+              <TextField label="Кнопка записи" value={pricesPageDraft.heroActions.primaryLabel} onChange={(value) => updatePricesPageField('heroActions', 'primaryLabel', value)} />
+              <InlineImageField
+                label="Изображение hero"
+                previewUrl={assetUrlMap[pageHeroDraft.prices.imageAssetId] ?? ''}
+                placeholder="Используется на верхнем экране страницы /prices."
+                busy={busyKey === 'page-hero-image:prices'}
+                onSelect={(file) => {
+                  void uploadPageHeroImage('prices', file);
+                }}
+                onClear={() => updatePageHeroField('prices', 'imageAssetId', '')}
+              />
+            </div>
+
+            <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">Preview</p>
+              <p className="mt-3 text-[13px] font-bold uppercase tracking-[0.18em] text-[#8d95a1]">{heroPreview?.eyebrow}</p>
+              <p className="mt-3 text-[30px] font-extrabold leading-tight text-ink">{heroPreview?.title}</p>
+              <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{heroPreview?.description}</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" className="rounded-2xl bg-ink px-4 py-3 text-[14px] font-extrabold text-white">
+                  {pricesPageDraft.heroActions.primaryLabel}
+                </button>
+              </div>
+              <div className="mt-5 flex h-44 items-center justify-center overflow-hidden rounded-[22px] bg-[#eef2f6]">
+                {assetUrlMap[pageHeroDraft.prices.imageAssetId] ? (
+                  <img src={assetUrlMap[pageHeroDraft.prices.imageAssetId]} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Image className="h-8 w-8 text-[#68768a]" />
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                resetPageHeroFields('prices');
+                resetPricesPageSection('seo');
+                resetPricesPageSection('heroActions');
+              }}
+              className="rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]"
+            >
+              Сбросить hero
+            </button>
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pageHero('prices'))}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(buildPricesExtra(), SITE_BLOCK_KEYS.pageHero('prices'), 'Hero страницы /prices');
+              }}
+            />
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Блок прайса"
+          subtitle="Вводный текст перед категориями и текст пустого состояния. Сами цены берутся из услуг."
+          action={
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pricesPage.catalog)}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(buildPricesExtra(), SITE_BLOCK_KEYS.pricesPage.catalog, 'Блок прайса /prices');
+              }}
+            />
+          }
+        >
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-3">
+              <TextField label="Подпись над заголовком" value={pricesPageDraft.catalog.eyebrow} onChange={(value) => updatePricesPageField('catalog', 'eyebrow', value)} />
+              <TextField label="Заголовок" value={pricesPageDraft.catalog.title} onChange={(value) => updatePricesPageField('catalog', 'title', value)} />
+              <TextAreaField label="Описание" value={pricesPageDraft.catalog.description} onChange={(value) => updatePricesPageField('catalog', 'description', value)} rows={4} />
+              <TextField label="Пустое состояние: заголовок" value={pricesPageDraft.catalog.emptyTitle} onChange={(value) => updatePricesPageField('catalog', 'emptyTitle', value)} />
+              <TextAreaField label="Пустое состояние: описание" value={pricesPageDraft.catalog.emptyDescription} onChange={(value) => updatePricesPageField('catalog', 'emptyDescription', value)} rows={3} />
+            </div>
+
+            <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#8d95a1]">{pricesPageDraft.catalog.eyebrow}</p>
+              <p className="mt-3 text-[28px] font-extrabold leading-tight text-ink">{pricesPageDraft.catalog.title}</p>
+              <p className="mt-3 text-[14px] font-medium leading-relaxed text-[#5f6773]">{pricesPageDraft.catalog.description}</p>
+              <div className="mt-5 rounded-[22px] border border-line bg-screen px-4 py-4">
+                <p className="text-[18px] font-extrabold text-ink">Пример категории</p>
+                <div className="mt-4 divide-y divide-line rounded-[18px] bg-white px-4">
+                  <div className="flex items-center justify-between gap-3 py-3 text-[14px]">
+                    <span className="font-extrabold text-ink">Услуга</span>
+                    <span className="font-bold text-[#5f6773]">60 мин / от 3000 ₽</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-3 text-[14px]">
+                    <span className="font-extrabold text-ink">{pricesPageDraft.catalog.emptyTitle}</span>
+                    <span className="font-bold text-[#5f6773]">empty</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" onClick={() => resetPricesPageSection('catalog')} className="mt-4 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
+            Сбросить блок прайса
+          </button>
+        </SectionCard>
+
+        <SectionCard
+          title="Финальный призыв"
+          subtitle="Нижний блок страницы /prices с переходом в каталог и запись."
+          action={
+            <VisibilityActionButton
+              hidden={hasHiddenBlock(SITE_BLOCK_KEYS.pricesPage.bottomCta)}
+              disabled={busyKey === 'config'}
+              onClick={() => {
+                void saveSiteVisibility(buildPricesExtra(), SITE_BLOCK_KEYS.pricesPage.bottomCta, 'CTA страницы /prices');
+              }}
+            />
+          }
+        >
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-3">
+              <TextField label="Подпись над заголовком" value={pricesPageDraft.bottomCta.eyebrow} onChange={(value) => updatePricesPageField('bottomCta', 'eyebrow', value)} />
+              <TextField label="Заголовок" value={pricesPageDraft.bottomCta.title} onChange={(value) => updatePricesPageField('bottomCta', 'title', value)} />
+              <TextAreaField label="Описание" value={pricesPageDraft.bottomCta.description} onChange={(value) => updatePricesPageField('bottomCta', 'description', value)} rows={4} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField label="Основная кнопка" value={pricesPageDraft.bottomCta.primaryCtaLabel} onChange={(value) => updatePricesPageField('bottomCta', 'primaryCtaLabel', value)} />
+                <TextField label="Дополнительная кнопка" value={pricesPageDraft.bottomCta.secondaryCtaLabel} onChange={(value) => updatePricesPageField('bottomCta', 'secondaryCtaLabel', value)} />
+              </div>
+            </div>
+
+            <div className="rounded-[24px] bg-[#1f2d39] px-4 py-4 text-white">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-white/62">{pricesPageDraft.bottomCta.eyebrow}</p>
+              <p className="mt-3 text-[28px] font-extrabold leading-tight">{pricesPageDraft.bottomCta.title}</p>
+              <p className="mt-3 text-[14px] font-medium leading-relaxed text-white/76">{pricesPageDraft.bottomCta.description}</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" className="rounded-2xl bg-white px-4 py-3 text-[14px] font-extrabold text-[#1f2d39]">{pricesPageDraft.bottomCta.primaryCtaLabel}</button>
+                <button type="button" className="rounded-2xl border border-white/24 bg-transparent px-4 py-3 text-[14px] font-extrabold text-white">{pricesPageDraft.bottomCta.secondaryCtaLabel}</button>
+              </div>
+            </div>
+          </div>
+          <button type="button" onClick={() => resetPricesPageSection('bottomCta')} className="mt-4 rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-extrabold text-[#5f6773]">
+            Сбросить CTA
+          </button>
+        </SectionCard>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              void savePricesPage();
+            }}
+            disabled={busyKey === 'config'}
+            className="inline-flex items-center gap-2 rounded-2xl border border-line bg-screen px-4 py-3 text-[15px] font-extrabold text-ink disabled:opacity-50"
+          >
+            {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Сохранить и опубликовать страницу цен
           </button>
         </div>
       </div>
@@ -6153,19 +6488,19 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
               <div className="grid gap-3">
                 <TextField
-                  label="Eyebrow / подпись"
+                  label="Подпись над заголовком"
                   value={bookingHeroDraft.eyebrow}
                   onChange={(value) => updatePageHeroField('booking', 'eyebrow', value)}
                   placeholder={bookingHeroDefinition.defaults.eyebrow || 'Пусто = текст по умолчанию'}
                 />
                 <TextField
-                  label="Title / заголовок"
+                  label="Заголовок"
                   value={bookingHeroDraft.title}
                   onChange={(value) => updatePageHeroField('booking', 'title', value)}
                   placeholder={bookingHeroDefinition.defaults.title}
                 />
                 <TextAreaField
-                  label="Description / описание"
+                  label="Описание"
                   value={bookingHeroDraft.description}
                   onChange={(value) => updatePageHeroField('booking', 'description', value)}
                   rows={4}
@@ -6497,13 +6832,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
 
                     <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
                       <div className="grid gap-3">
-                        <TextField label="Eyebrow / подпись" value={draft.eyebrow} onChange={(value) => updatePageHeroField(definition.key, 'eyebrow', value)} placeholder={definition.defaults.eyebrow || 'Пусто = текст по умолчанию'} />
-                        <TextField label="Title / заголовок" value={draft.title} onChange={(value) => updatePageHeroField(definition.key, 'title', value)} placeholder={definition.defaults.title} />
-                        <TextAreaField label="Description / описание" value={draft.description} onChange={(value) => updatePageHeroField(definition.key, 'description', value)} rows={4} placeholder={definition.defaults.description} />
+                        <TextField label="Подпись над заголовком" value={draft.eyebrow} onChange={(value) => updatePageHeroField(definition.key, 'eyebrow', value)} placeholder={definition.defaults.eyebrow || 'Пусто = текст по умолчанию'} />
+                        <TextField label="Заголовок" value={draft.title} onChange={(value) => updatePageHeroField(definition.key, 'title', value)} placeholder={definition.defaults.title} />
+                        <TextAreaField label="Описание" value={draft.description} onChange={(value) => updatePageHeroField(definition.key, 'description', value)} rows={4} placeholder={definition.defaults.description} />
                         <InlineImageField
                           label="Фото шапки"
                           previewUrl={assetUrlMap[draft.imageAssetId] ?? ''}
-                          placeholder="Этот блок отображается справа в PageHero на клиентском сайте."
+                          placeholder="Это фото отображается справа в шапке страницы на клиентском сайте."
                           busy={busyKey === `page-hero-image:${definition.key}`}
                           onSelect={(file) => {
                             void uploadPageHeroImage(definition.key, file);
@@ -6557,7 +6892,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     <div className="space-y-5">
       <SectionCard
         title="Карточки предложений"
-        subtitle="Редактор OfferCard в блоке акций на главной странице и в связанных переходах на запись."
+        subtitle="Редактор карточек предложений в блоке акций на главной странице и в связанных переходах на запись."
         action={
           <button
             type="button"
@@ -7747,6 +8082,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         {activeCategory === 'home' ? renderHomeDetail() : null}
         {activeCategory === 'news' ? renderNewsDetail() : null}
         {activeCategory === 'services' ? renderServicesDetail() : null}
+        {activeCategory === 'prices' ? renderPricesDetail() : null}
         {activeCategory === 'specialists' ? renderSpecialistsDetail() : null}
         {activeCategory === 'contacts' ? renderContactsDetail() : null}
         {activeCategory === 'page' ? renderPageBlocksDetail() : null}
@@ -7765,6 +8101,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     const configuredClientSiteContentCount =
       countConfiguredSiteHomePageSections(config?.extra ?? {}) +
       countConfiguredSiteServicesPageSections(config?.extra ?? {}) +
+      countConfiguredSitePricesPageSections(config?.extra ?? {}) +
       countConfiguredSiteSpecialistsPageSections(config?.extra ?? {}) +
       countConfiguredSiteBookingPageSections(config?.extra ?? {}) +
       countConfiguredSitePageHeroes(config?.extra ?? {}) +
@@ -7916,6 +8253,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   <p className="mt-1 text-[22px] font-extrabold text-ink">
                     {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSiteServicesPageSections(previewState.data.config.extra ?? {}) +
+                      countConfiguredSitePricesPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSiteSpecialistsPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) +
                       countConfiguredSitePageHeroes(previewState.data.config.extra ?? {})}
@@ -7936,10 +8274,11 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#5f6773]">
                   {countConfiguredSiteHomePageSections(previewState.data.config.extra ?? {}) > 0 ||
                   countConfiguredSiteServicesPageSections(previewState.data.config.extra ?? {}) > 0 ||
+                  countConfiguredSitePricesPageSections(previewState.data.config.extra ?? {}) > 0 ||
                   countConfiguredSiteSpecialistsPageSections(previewState.data.config.extra ?? {}) > 0 ||
                   countConfiguredSiteBookingPageSections(previewState.data.config.extra ?? {}) > 0
-                    ? 'Проверка собрана по тем же настройкам главной страницы, специалистов и страницы записи, которые использует сайт mari.'
-                    : 'Главная страница, специалисты и страница записи пока в дефолтном состоянии. Можно перейти в нужный раздел и настроить тексты точечно.'}
+                    ? 'Проверка собрана по тем же настройкам главной страницы, услуг, цен, специалистов и записи, которые использует сайт mari.'
+                    : 'Главная страница, услуги, цены, специалисты и страница записи пока в дефолтном состоянии. Можно перейти в нужный раздел и настроить тексты точечно.'}
                 </p>
                 <button
                   type="button"
@@ -8587,7 +8926,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <h3 className="text-[20px] font-extrabold text-ink">
                   {serviceEditor.mode === 'create' ? 'Новая услуга' : 'Редактировать услугу'}
                 </h3>
-                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют ServiceCard на клиентском сайте.</p>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют карточкой услуги на клиентском сайте.</p>
               </div>
               <button type="button" onClick={() => setServiceEditor(null)} className="rounded-lg p-2 text-ink">
                 <X className="h-5 w-5" />
@@ -8714,7 +9053,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <h3 className="text-[20px] font-extrabold text-ink">
                   {offerEditor.mode === 'create' ? 'Новое предложение' : 'Редактировать предложение'}
                 </h3>
-                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют OfferCard на клиентском сайте.</p>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют карточкой предложения на клиентском сайте.</p>
               </div>
               <button type="button" onClick={() => setOfferEditor(null)} className="rounded-lg p-2 text-ink">
                 <X className="h-5 w-5" />
@@ -8722,10 +9061,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
 
             <div className="space-y-4">
-              <TextField label="Slug" value={offerEditor.draft.slug} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, slug: value } } : prev))} />
-              <TextField label="Title" value={offerEditor.draft.title} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
-              <TextField label="Subtitle" value={offerEditor.draft.subtitle} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, subtitle: value } } : prev))} />
-              <TextAreaField label="Description" value={offerEditor.draft.description} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))} rows={4} />
+              <TextField label="Название" value={offerEditor.draft.title} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
+              <TextField label="Подзаголовок" value={offerEditor.draft.subtitle} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, subtitle: value } } : prev))} />
+              <TextAreaField label="Описание" value={offerEditor.draft.description} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, description: value } } : prev))} rows={4} />
               <InlineImageField
                 label="Фото предложения"
                 previewUrl={assetUrlMap[offerEditor.draft.imageAssetId] ?? ''}
@@ -8749,10 +9087,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 }
               />
               <div className="grid gap-3 sm:grid-cols-2">
-                <TextField label="Badge" value={offerEditor.draft.badge} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, badge: value } } : prev))} />
-                <TextField label="CTA href" value={offerEditor.draft.ctaHref} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, ctaHref: value } } : prev))} />
+                <TextField label="Бейдж" value={offerEditor.draft.badge} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, badge: value } } : prev))} />
+                <TextField label="Ссылка кнопки" value={offerEditor.draft.ctaHref} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, ctaHref: value } } : prev))} />
               </div>
-              <TextField label="Price note" value={offerEditor.draft.priceNote} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, priceNote: value } } : prev))} />
+              <TextField label="Примечание к цене" value={offerEditor.draft.priceNote} onChange={(value) => setOfferEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, priceNote: value } } : prev))} />
             </div>
 
             <button
@@ -8783,7 +9121,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <h3 className="text-[20px] font-extrabold text-ink">
                   {newsEditor.mode === 'create' ? 'Новая статья' : 'Редактировать статью'}
                 </h3>
-                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют ArticleCard и детальной страницей новости.</p>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Данные этой формы управляют карточкой статьи и детальной страницей новости.</p>
               </div>
               <button type="button" onClick={() => setNewsEditor(null)} className="rounded-lg p-2 text-ink">
                 <X className="h-5 w-5" />
@@ -8791,11 +9129,10 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
 
             <div className="space-y-4">
-              <TextField label="Slug" value={newsEditor.draft.slug} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, slug: value } } : prev))} />
-              <TextField label="Title" value={newsEditor.draft.title} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
+              <TextField label="Заголовок" value={newsEditor.draft.title} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, title: value } } : prev))} />
               <div className="grid gap-3 sm:grid-cols-2">
-                <TextField label="Category" value={newsEditor.draft.category} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, category: value } } : prev))} />
-                <TextField label="Published at" value={newsEditor.draft.publishedAt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, publishedAt: value } } : prev))} placeholder="2026-03-15" />
+                <TextField label="Категория" value={newsEditor.draft.category} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, category: value } } : prev))} />
+                <TextField label="Дата публикации" value={newsEditor.draft.publishedAt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, publishedAt: value } } : prev))} placeholder="2026-03-15" />
               </div>
               <InlineImageField
                 label="Фото статьи"
@@ -8819,9 +9156,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                   )
                 }
               />
-              <TextAreaField label="Excerpt" value={newsEditor.draft.excerpt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, excerpt: value } } : prev))} rows={4} />
+              <TextAreaField label="Краткое описание" value={newsEditor.draft.excerpt} onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, excerpt: value } } : prev))} rows={4} />
               <TextAreaField
-                label="Body"
+                label="Текст статьи"
                 value={newsEditor.draft.bodyText}
                 onChange={(value) => setNewsEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, bodyText: value } } : prev))}
                 rows={10}
@@ -8857,7 +9194,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 <h3 className="text-[20px] font-extrabold text-ink">
                   {locationEditor.mode === 'create' ? 'Новая локация' : 'Редактировать локацию'}
                 </h3>
-                <p className="mt-1 text-[14px] font-semibold text-muted">Базовые данные для LocationCard и связанных сценариев клиентского сайта.</p>
+                <p className="mt-1 text-[14px] font-semibold text-muted">Базовые данные для карточки локации и связанных сценариев клиентского сайта.</p>
               </div>
               <button type="button" onClick={() => setLocationEditor(null)} className="rounded-lg p-2 text-ink">
                 <X className="h-5 w-5" />
@@ -8865,7 +9202,6 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
             </div>
 
             <div className="space-y-4">
-              <TextField label="Slug" value={locationEditor.draft.slug} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, slug: value } } : prev))} />
               <TextField label="Название" value={locationEditor.draft.name} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, name: value } } : prev))} />
               <TextField label="Район / формат" value={locationEditor.draft.district} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, district: value } } : prev))} />
               <TextField label="Адрес" value={locationEditor.draft.address} onChange={(value) => setLocationEditor((prev) => (prev ? { ...prev, draft: { ...prev.draft, address: value } } : prev))} />

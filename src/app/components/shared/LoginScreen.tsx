@@ -29,7 +29,7 @@ export function LoginScreen({
   const isPhoneValid = phoneDigits.length === 11 && phoneDigits.startsWith('7');
   const isPinValid = /^\d{4,8}$/.test(pin.trim());
   const isFormValid = isPhoneValid && isPinValid;
-  const errorMessage = localError || (error ? 'Неверный логин или пароль' : '');
+  const errorMessage = localError || error;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

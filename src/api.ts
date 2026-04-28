@@ -106,14 +106,18 @@ export class ApiError extends Error {
   }
 }
 
+const CONFIGURED_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://api.maribeauty.ru';
 const DEFAULT_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL || 'https://api.maribeauty.ru';
+  process.env.NODE_ENV === 'development' && CONFIGURED_BASE_URL === 'https://api.maribeauty.ru'
+    ? ''
+    : CONFIGURED_BASE_URL;
 const SESSION_STORAGE_KEY = 'mari.staff.session.v1';
 
 class ApiClient {
   private baseUrl: string;
   private accessToken = '';
   private refreshToken = '';
+  private refreshPromise: Promise<StaffSession> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
@@ -189,16 +193,12 @@ class ApiClient {
     if (!this.refreshToken) {
       throw new ApiError('Нет refresh token', 401, 'AUTH_REQUIRED');
     }
-    const data = await this.request<StaffSession>(
-      '/auth/staff/refresh',
-      {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken: this.refreshToken }),
-      },
-      { auth: false, allowRefresh: false },
-    );
-    this.setSession(data);
-    return data;
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.performRefresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    return this.refreshPromise;
   }
 
   async logout() {
@@ -394,7 +394,12 @@ class ApiClient {
     const parsed = await response.json().catch(() => null);
     const envelope = parsed as ApiEnvelope<T> | null;
     if (response.status === 401 && allowRefresh && this.refreshToken && auth) {
-      await this.refresh();
+      try {
+        await this.refresh();
+      } catch (error) {
+        this.clearSession();
+        throw error;
+      }
       return this.request<T>(path, init, { ...options, allowRefresh: false });
     }
     if (response.status === 401 && auth && !this.refreshToken) {
@@ -425,6 +430,19 @@ class ApiClient {
     }
 
     return parsed as T;
+  }
+
+  private async performRefresh() {
+    const data = await this.request<StaffSession>(
+      '/auth/staff/refresh',
+      {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: this.refreshToken }),
+      },
+      { auth: false, allowRefresh: false },
+    );
+    this.setSession(data);
+    return data;
   }
 
   private persistSession(session: StaffSession | null) {

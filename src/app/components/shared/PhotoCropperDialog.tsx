@@ -49,7 +49,17 @@ function loadImageFromFile(file: File) {
   });
 }
 
-function canvasToWebpBlob(canvas: HTMLCanvasElement) {
+function imageExtensionFromMimeType(mimeType: string) {
+  if (mimeType === 'image/jpeg') {
+    return 'jpg';
+  }
+  if (mimeType.startsWith('image/')) {
+    return mimeType.slice('image/'.length);
+  }
+  return 'bin';
+}
+
+function canvasToPreferredImageBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -97,8 +107,10 @@ async function cropImageFile(file: File, aspect: PhotoCropAspect, settings: Crop
 
   context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, outputWidth, outputHeight);
 
-  const blob = await canvasToWebpBlob(canvas);
-  return new File([blob], `${baseFileName(file.name)}.webp`, { type: 'image/webp' });
+  const blob = await canvasToPreferredImageBlob(canvas);
+  const mimeType = blob.type || 'image/png';
+  const extension = imageExtensionFromMimeType(mimeType);
+  return new File([blob], `${baseFileName(file.name)}.${extension}`, { type: mimeType });
 }
 
 function PhotoCropperDialog({
