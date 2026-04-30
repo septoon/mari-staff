@@ -10,6 +10,7 @@ type JournalDatePickerSheetProps = {
   selectedDate: Date;
   markedDates: string[];
   allowPastDates?: boolean;
+  minDate?: Date | null;
   onClose: () => void;
   onSelectDate: (value: Date) => void;
   initialMonthMode?: 'selected' | 'today';
@@ -78,6 +79,7 @@ export function JournalDatePickerSheet({
   selectedDate,
   markedDates,
   allowPastDates = true,
+  minDate = null,
   onClose,
   onSelectDate,
   initialMonthMode = 'selected',
@@ -85,6 +87,7 @@ export function JournalDatePickerSheet({
   const [infoOpen, setInfoOpen] = useState(false);
   const selectedIso = toISODate(selectedDate);
   const todayIso = toISODate(new Date());
+  const minIso = minDate ? toISODate(minDate) : null;
   const markedSet = new Set(markedDates);
   const focusedMonthRef = useRef<HTMLElement | null>(null);
   const focusDate = useMemo(
@@ -226,7 +229,8 @@ export function JournalDatePickerSheet({
                       const isToday = iso === todayIso;
                       const hasAppointments = markedSet.has(iso);
                       const isPast = iso < todayIso;
-                      const disabled = !allowPastDates && isPast;
+                      const disabled =
+                        (!allowPastDates && isPast) || Boolean(minIso && iso < minIso);
 
                       return (
                         <div key={iso} className="flex justify-center">

@@ -332,12 +332,37 @@ export function AppView({ controller }: AppViewProps) {
         ? state.journalMarkedDates
         : [];
   const journalMobileStaff = useMemo(
-    () =>
-      state.journalStaff.filter((item) => {
+    () => {
+      const appointmentStaffIds = new Set<string>();
+      const appointmentStaffNames = new Set<string>();
+      state.appointments.forEach((item) => {
+        if (toISODate(item.startAt) !== selectedDateIso) {
+          return;
+        }
+        if (item.staffId) {
+          appointmentStaffIds.add(item.staffId);
+        }
+        const staffName = item.staffName.trim().toLowerCase();
+        if (staffName) {
+          appointmentStaffNames.add(staffName);
+        }
+      });
+
+      const visibleByScheduleOrAppointments = state.journalStaff.filter((item) => {
         const intervals = state.workingHoursByStaff[item.id]?.[selectedDateIso] ?? [];
-        return intervals.length > 0;
-      }),
-    [selectedDateIso, state.journalStaff, state.workingHoursByStaff],
+        return (
+          intervals.length > 0 ||
+          appointmentStaffIds.has(item.id) ||
+          appointmentStaffNames.has(item.name.trim().toLowerCase())
+        );
+      });
+
+      if (visibleByScheduleOrAppointments.length > 0) {
+        return visibleByScheduleOrAppointments;
+      }
+      return state.journalStaff.length <= 1 ? state.journalStaff : [];
+    },
+    [selectedDateIso, state.appointments, state.journalStaff, state.workingHoursByStaff],
   );
   const timetableStaff = useMemo(() => {
     const baseStaff = state.canViewSchedule ? state.visibleStaff : state.journalStaff;
@@ -744,6 +769,7 @@ export function AppView({ controller }: AppViewProps) {
             canCreate={state.canCreateJournalAppointments}
             canOpenSettings={!state.session || state.session.staff.role !== 'MASTER' || state.canEditJournal}
             canSelectPastDates={state.canSelectPastJournalDates}
+            minSelectableDate={state.journalMinSelectableDate}
             onSetDate={actions.handleSetDate}
             onCloseDatePicker={actions.closeJournalDatePicker}
             onSelectDate={actions.selectJournalDate}
@@ -784,6 +810,7 @@ export function AppView({ controller }: AppViewProps) {
               canCreate={state.canCreateJournalAppointments}
               canOpenSettings={!state.session || state.session.staff.role !== 'MASTER' || state.canEditJournal}
               canSelectPastDates={state.canSelectPastJournalDates}
+              minSelectableDate={state.journalMinSelectableDate}
               onSetDate={actions.handleSetDate}
               onCloseDatePicker={actions.closeJournalDatePicker}
               onSelectDate={actions.selectJournalDate}

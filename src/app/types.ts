@@ -425,6 +425,7 @@ export type ControllerState = {
   canEditJournal: boolean;
   canViewSchedule: boolean;
   canSelectPastJournalDates: boolean;
+  journalMinSelectableDate: Date | null;
   canEditPrivacyPolicy: boolean;
   canEditSettings: boolean;
   settingsClientCancelMinNoticeMinutes: number | null;

@@ -49,6 +49,7 @@ type JournalTabScreenProps = {
   canCreate: boolean;
   canOpenSettings: boolean;
   canSelectPastDates: boolean;
+  minSelectableDate: Date | null;
   onSetDate: () => void;
   onCloseDatePicker: () => void;
   onSelectDate: (value: Date) => void;
@@ -210,6 +211,7 @@ export function JournalTabScreen({
   canCreate,
   canOpenSettings,
   canSelectPastDates,
+  minSelectableDate,
   onSetDate,
   onCloseDatePicker,
   onSelectDate,
@@ -885,6 +887,7 @@ export function JournalTabScreen({
         selectedDate={selectedDate}
         markedDates={markedDates}
         allowPastDates={canSelectPastDates}
+        minDate={minSelectableDate}
         onClose={onCloseDatePicker}
         onSelectDate={onSelectDate}
       />

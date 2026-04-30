@@ -31,6 +31,7 @@ export const JOURNAL_END_HOUR = 18;
 export const JOURNAL_TIME_COLUMN_WIDTH = 72;
 export const JOURNAL_CARD_COLUMN_WIDTH = 130;
 export const JOURNAL_GRID_GAP = 8;
+export const JOURNAL_RESTRICTED_HISTORY_MONTHS = 2;
 
 export const DAY_NAMES = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'] as const;
 

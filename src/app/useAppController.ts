@@ -12,6 +12,7 @@ import {
   JOURNAL_CARD_COLUMN_WIDTH,
   JOURNAL_GRID_GAP,
   JOURNAL_END_HOUR,
+  JOURNAL_RESTRICTED_HISTORY_MONTHS,
   JOURNAL_SETTINGS_STORAGE_KEY,
   JOURNAL_START_HOUR,
   JOURNAL_TIME_COLUMN_WIDTH,
@@ -265,6 +266,40 @@ function buildJournalCreateDraft(
     staffId: selectedStaff?.id || '',
     serviceIds: [],
   };
+}
+
+function buildSessionStaffItem(sessionData: StaffSession): StaffItem {
+  return {
+    id: sessionData.staff.id,
+    name: sessionData.staff.name,
+    role: sessionData.staff.role,
+    phoneE164: sessionData.staff.phoneE164,
+    email: sessionData.staff.email,
+    receivesAllAppointmentNotifications: sessionData.staff.role === 'OWNER',
+    avatarUrl: null,
+    avatarAssetId: null,
+    isActive: true,
+    hiredAt: null,
+    firedAt: null,
+    deletedAt: null,
+    positionName: null,
+    ratingAverage: null,
+    ratingsCount: 0,
+    appointmentsCount: 0,
+  };
+}
+
+function startOfLocalDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function subtractCalendarMonthsStartOfDay(value: Date, months: number) {
+  const originalDay = value.getDate();
+  const target = new Date(value.getFullYear(), value.getMonth(), 1);
+  target.setMonth(target.getMonth() - months);
+  const daysInTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(originalDay, daysInTargetMonth));
+  return startOfLocalDay(target);
 }
 
 export function useAppController(): AppController {
@@ -569,8 +604,15 @@ export function useAppController(): AppController {
     }),
     [canViewFullJournal, session],
   );
+  const hasUnrestrictedPastJournalAccess = Boolean(
+    session && (!isMaster || canViewFullJournal || canEdit(EDIT_PERMISSION.journal)),
+  );
+  const journalMinSelectableDate =
+    session && canViewJournal && !hasUnrestrictedPastJournalAccess
+      ? subtractCalendarMonthsStartOfDay(new Date(), JOURNAL_RESTRICTED_HISTORY_MONTHS)
+      : null;
   const canSelectPastJournalDates =
-    !isMaster || canViewFullJournal || canEdit(EDIT_PERMISSION.journal);
+    hasUnrestrictedPastJournalAccess || Boolean(journalMinSelectableDate);
   const canEditOwnProfile = useMemo(() => Boolean(session), [session]);
   const visibleTabKeys = useMemo(
     () => (session ? resolveAllowedTabKeys(session) : []),
@@ -717,8 +759,14 @@ export function useAppController(): AppController {
     if (scoped.length > 0) {
       return scoped;
     }
-    return filterStaffByJournalScope(staff, journalAccessScope);
-  }, [journalAccessScope, staff, visibleStaff]);
+    const fallback = filterStaffByJournalScope(staff, journalAccessScope);
+    if (fallback.length > 0) {
+      return fallback;
+    }
+    return session && !journalAccessScope.hasFullAccess
+      ? filterStaffByJournalScope([buildSessionStaffItem(session)], journalAccessScope)
+      : [];
+  }, [journalAccessScope, session, staff, visibleStaff]);
   const journalCreateBaseStaff = useMemo(
     () =>
       journalStaff.filter(
@@ -1686,11 +1734,12 @@ export function useAppController(): AppController {
   useEffect(() => {
     const shouldLoadWorkingHours =
       (page === 'tabs' && (tab === 'schedule' || tab === 'journal')) || page === 'timetable';
-    if (!isAuthorized || !shouldLoadWorkingHours || staff.length === 0) {
+    const workingHoursStaff = staff.length > 0 ? staff : journalStaff;
+    if (!isAuthorized || !shouldLoadWorkingHours || workingHoursStaff.length === 0) {
       return;
     }
-    void loadWorkingHours(staff);
-  }, [isAuthorized, loadWorkingHours, page, staff, tab]);
+    void loadWorkingHours(workingHoursStaff);
+  }, [isAuthorized, journalStaff, loadWorkingHours, page, staff, tab]);
 
   const syncLiveData = useCallback(
     async ({ includeHistory = false }: { includeHistory?: boolean } = {}) => {
@@ -3144,9 +3193,15 @@ export function useAppController(): AppController {
   };
 
   const selectJournalDate = (value: Date) => {
-    const today = new Date();
     const nextDate = new Date(value.getFullYear(), value.getMonth(), value.getDate());
-    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (
+      journalMinSelectableDate &&
+      nextDate.getTime() < journalMinSelectableDate.getTime()
+    ) {
+      setToast('Доступны свои записи за последние 2 месяца');
+      return;
+    }
+    const todayDate = startOfLocalDay(new Date());
     if (!canSelectPastJournalDates && nextDate.getTime() < todayDate.getTime()) {
       setToast('Нет доступа к прошлым дням журнала');
       setJournalDatePickerOpen(false);
@@ -5921,6 +5976,7 @@ export function useAppController(): AppController {
       canEditJournal: canEditAppointments,
       canViewSchedule,
       canSelectPastJournalDates,
+      journalMinSelectableDate,
       canEditPrivacyPolicy,
       canEditSettings,
       settingsClientCancelMinNoticeMinutes,
