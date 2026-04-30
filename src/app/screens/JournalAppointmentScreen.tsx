@@ -47,6 +47,7 @@ type JournalAppointmentScreenProps = {
   appointment: AppointmentItem | null;
   client: ClientItem | null;
   clientDraft: JournalClientDraft;
+  clients: ClientItem[];
   staff: StaffItem[];
   services: ServiceItem[];
   history: AppointmentItem[];
@@ -181,6 +182,14 @@ function appointmentPaidValue(appointment: AppointmentItem) {
 
 function formatOptionalRub(value: number | null) {
   return value === null ? '—' : formatRub(value);
+}
+
+function normalizeClientSearch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizePhoneSearch(value: string) {
+  return value.replace(/\D/g, '');
 }
 
 function daysLabel(value: number) {
@@ -340,6 +349,7 @@ export function JournalAppointmentScreen({
   appointment,
   client,
   clientDraft,
+  clients,
   staff,
   services,
   history,
@@ -363,6 +373,7 @@ export function JournalAppointmentScreen({
   onDelete,
 }: JournalAppointmentScreenProps) {
   const [desktopEditing, setDesktopEditing] = useState(false);
+  const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false);
   const [desktopDraft, setDesktopDraft] = useState<DesktopAppointmentDraft>(() =>
     appointment ? buildDesktopDraft(appointment) : EMPTY_DESKTOP_DRAFT,
   );
@@ -599,6 +610,29 @@ export function JournalAppointmentScreen({
     (sum, item) => sum + Math.max(item.priceMax || item.priceMin, 0),
     0,
   );
+  const clientNameQuery = normalizeClientSearch(desktopDraft.clientName);
+  const clientPhoneQuery = normalizePhoneSearch(desktopDraft.clientName);
+  const clientSuggestions =
+    clientNameQuery.length >= 2 || clientPhoneQuery.length >= 2
+      ? clients
+          .filter((item) => {
+            const name = normalizeClientSearch(item.name);
+            const phone = normalizePhoneSearch(item.phone);
+            return (
+              (clientNameQuery.length >= 2 && name.includes(clientNameQuery)) ||
+              (clientPhoneQuery.length >= 2 && phone.includes(clientPhoneQuery))
+            );
+          })
+          .slice(0, 6)
+      : [];
+  const selectClientSuggestion = (item: ClientItem) => {
+    setDesktopDraft((prev) => ({
+      ...prev,
+      clientName: item.name,
+      clientPhone: item.phone,
+    }));
+    setClientSuggestionsOpen(false);
+  };
   const historyGroups = sortedHistory.reduce<Array<{ day: string; date: Date; items: AppointmentItem[] }>>(
     (accumulator, item) => {
       const day = formatHistoryDate(item.startAt);
@@ -730,14 +764,39 @@ export function JournalAppointmentScreen({
 
             <div className="mt-4 space-y-4">
               <LeftPanelField label="Клиент">
-                <input
-                  value={desktopDraft.clientName}
-                  onChange={(event) =>
-                    setDesktopDraft((prev) => ({ ...prev, clientName: event.target.value }))
-                  }
-                  placeholder="Имя клиента"
-                  className={LEFT_PANEL_CONTROL_CLASS}
-                />
+                <div className="relative">
+                  <input
+                    value={desktopDraft.clientName}
+                    onFocus={() => setClientSuggestionsOpen(true)}
+                    onBlur={() => setClientSuggestionsOpen(false)}
+                    onChange={(event) => {
+                      setDesktopDraft((prev) => ({ ...prev, clientName: event.target.value }));
+                      setClientSuggestionsOpen(true);
+                    }}
+                    placeholder="Имя клиента"
+                    className={LEFT_PANEL_CONTROL_CLASS}
+                  />
+                  {clientSuggestionsOpen && clientSuggestions.length > 0 ? (
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-[20px] border border-[#d7dde6] bg-white shadow-[0_18px_42px_rgba(42,49,56,0.16)]">
+                      {clientSuggestions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            selectClientSuggestion(item);
+                          }}
+                          className="w-full border-b border-[#eef1f5] px-4 py-3 text-left last:border-b-0"
+                        >
+                          <span className="block text-[16px] font-extrabold text-ink">{item.name}</span>
+                          <span className="mt-1 block text-sm font-semibold text-[#7b8491]">
+                            {item.phone || 'нет телефона'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 {canViewClientPhone ? (
                   <input
                     value={desktopDraft.clientPhone}

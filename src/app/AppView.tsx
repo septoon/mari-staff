@@ -867,6 +867,7 @@ export function AppView({ controller }: AppViewProps) {
               appointment={state.journalAppointmentTarget}
               client={state.journalClientTarget}
               clientDraft={state.journalClientDraft}
+              clients={state.clients}
               staff={state.staff}
               services={state.services}
               history={activeJournalHistory}
