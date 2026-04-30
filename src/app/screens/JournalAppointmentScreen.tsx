@@ -686,9 +686,6 @@ export function JournalAppointmentScreen({
                   <span className="inline-flex rounded-xl bg-[#eef4ff] px-3 py-2 text-xs font-bold text-[#305fd0]">
                     {previousVisit ? 'Постоянный клиент' : 'Новый клиент'}
                   </span>
-                  <span className="inline-flex rounded-xl bg-[#fff4d8] px-3 py-2 text-xs font-bold text-[#986f00]">
-                    {statusLabel(activeStatus)}
-                  </span>
                 </div>
               </div>
           </div>
@@ -941,7 +938,6 @@ export function JournalAppointmentScreen({
                 <div className="space-y-3">
                   {group.items.map((item) => {
                     const rowAmount = appointmentAmountValue(item);
-                    const paidAmount = appointmentPaidValue(item);
                     const activeRow = item.id === appointment.id;
                     return (
                       <button
@@ -962,21 +958,12 @@ export function JournalAppointmentScreen({
                               {`${formatTime(item.startAt)}-${formatTime(item.endAt)}`}
                             </p>
                           </div>
-                          <span
-                            className={clsx(
-                              'shrink-0 rounded-full px-3 py-1 text-xs font-extrabold',
-                              historyStatusClass(getActiveStatus(item.status)),
-                            )}
-                          >
-                            {statusLabel(item.status)}
-                          </span>
                         </div>
                         <p className="mt-3 text-[16px] font-bold leading-tight text-ink">
                           {item.serviceName || 'Без услуги'}
                         </p>
-                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm font-semibold text-[#68717f]">
+                        <div className="mt-3 text-sm font-semibold text-[#68717f]">
                           <span>Стоимость: {formatOptionalRub(rowAmount)}</span>
-                          <span>Оплачено: {formatOptionalRub(paidAmount)}</span>
                         </div>
                       </button>
                     );
