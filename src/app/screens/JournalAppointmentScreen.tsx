@@ -572,6 +572,14 @@ export function JournalAppointmentScreen({
   const displayClientPhone = canViewClientPhone
     ? clientDraft.phone.trim() || client?.phone || appointment.clientPhone || ''
     : '';
+  const displayClientAvatarUrl = client?.avatarUrl || null;
+  const displayClientInitials = displayClientName
+    .split(/\s+/)
+    .map((part) => part.trim().charAt(0))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'К';
   const daysSincePreviousVisit = previousVisit
     ? Math.max(
         0,
@@ -630,52 +638,62 @@ export function JournalAppointmentScreen({
             <ArrowLeft className="h-6 w-6" />
           </button>
           <h1 className="text-[26px] font-extrabold text-ink">{title}</h1>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={() => setDesktopEditing((value) => !value)}
+              disabled={loading}
+              className="ml-auto inline-flex h-10 items-center gap-2 rounded-2xl bg-[#222b33] px-4 text-sm font-extrabold text-white disabled:opacity-50"
+            >
+              <Pencil className="h-4 w-4" />
+              {desktopEditing ? 'Закрыть' : 'Редактировать'}
+            </button>
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#e6e9ef] p-1">
-          {STATUS_ITEMS.map((item) => {
-            const active = item.value === activeStatus;
-            return (
-              <button
-                key={item.value}
-                type="button"
-                disabled={loading || !canEdit}
-                onClick={() => onStatusChange(item.value)}
-                className={
-                  active
-                    ? 'rounded-xl bg-[#222b33] px-3 py-2 text-[16px] font-semibold text-[#f6c400]'
-                    : 'rounded-xl px-3 py-2 text-[16px] font-semibold text-ink disabled:opacity-60'
-                }
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-5 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+        <section className="mt-5 rounded-3xl border border-line bg-screen p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#e8edf4] text-[22px] font-extrabold text-[#626b78]">
+                {displayClientAvatarUrl ? (
+                  <img
+                    src={displayClientAvatarUrl}
+                    alt={displayClientName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  displayClientInitials
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
             {canOpenClient ? (
               <button
                 type="button"
                 onClick={openClientDetails}
-                className="text-left text-[42px] font-extrabold leading-none text-ink"
+                    className="text-left text-[26px] font-extrabold leading-tight text-ink"
               >
-                <span className="text-[52%]">{appointment.clientName || 'Клиент'}</span>
+                    {displayClientName}
               </button>
             ) : (
-              <p className="text-[42px] font-extrabold leading-none text-ink">
-                <span className="text-[52%]">{appointment.clientName || 'Клиент'}</span>
-              </p>
+                  <p className="text-[26px] font-extrabold leading-tight text-ink">{displayClientName}</p>
             )}
             {canViewClientPhone ? (
-              <p className="mt-1 text-[20px] font-medium text-muted">
-                {appointment.clientPhone || 'нет телефона'}
+                  <p className="mt-1 text-[18px] font-medium text-muted">
+                    {displayClientPhone || 'нет телефона'}
               </p>
             ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex rounded-xl bg-[#eef4ff] px-3 py-2 text-xs font-bold text-[#305fd0]">
+                    {previousVisit ? 'Постоянный клиент' : 'Новый клиент'}
+                  </span>
+                  <span className="inline-flex rounded-xl bg-[#fff4d8] px-3 py-2 text-xs font-bold text-[#986f00]">
+                    {statusLabel(activeStatus)}
+                  </span>
+                </div>
+              </div>
           </div>
           {canViewClientPhone ? (
-            <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
               <button type="button" onClick={onCall} className="rounded-xl bg-[#e6e9ef] p-3 text-ink">
                 <PhoneCall className="h-6 w-6" />
               </button>
@@ -691,11 +709,169 @@ export function JournalAppointmentScreen({
               </button>
             </div>
           ) : null}
-        </div>
+          </div>
 
-        <p className="mt-5 text-[20px] font-medium text-ink">{`Визитов: ${visitsCount} (${noShowCount} неявок)`}</p>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            {infoTileTitle('Визитов', String(visitsCount))}
+            {infoTileTitle('Неявок', String(noShowCount))}
+            {infoTileTitle(
+              'Последний визит',
+              previousVisit
+                ? `${formatHistoryDate(previousVisit.startAt)} ${formatTime(previousVisit.startAt)}`
+                : 'Нет данных',
+            )}
+            {infoTileTitle('Продано', formatOptionalRub(totalSold || 0))}
+          </div>
+        </section>
 
-        <div className="mt-4 rounded-3xl border border-line bg-screen p-4">
+        {desktopEditing ? (
+          <section className="mt-5 rounded-3xl border border-line bg-[#f7f9fc] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[24px] font-extrabold text-ink">Редактирование</h2>
+              {loading ? <Loader2 className="h-5 w-5 animate-spin text-muted" /> : null}
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <LeftPanelField label="Клиент">
+                <input
+                  value={desktopDraft.clientName}
+                  onChange={(event) =>
+                    setDesktopDraft((prev) => ({ ...prev, clientName: event.target.value }))
+                  }
+                  placeholder="Имя клиента"
+                  className={LEFT_PANEL_CONTROL_CLASS}
+                />
+                {canViewClientPhone ? (
+                  <input
+                    value={desktopDraft.clientPhone}
+                    onChange={(event) =>
+                      setDesktopDraft((prev) => ({ ...prev, clientPhone: event.target.value }))
+                    }
+                    placeholder="Телефон"
+                    className={`${LEFT_PANEL_CONTROL_CLASS} mt-3`}
+                  />
+                ) : null}
+              </LeftPanelField>
+
+              <LeftPanelField label="Сотрудник">
+                <select
+                  value={desktopDraft.staffId}
+                  onChange={(event) =>
+                    setDesktopDraft((prev) => ({ ...prev, staffId: event.target.value }))
+                  }
+                  className={LEFT_PANEL_CONTROL_CLASS}
+                >
+                  {availableStaff.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </LeftPanelField>
+
+              <LeftPanelField label="Дата и время">
+                <input
+                  value={desktopDraft.dateValue}
+                  onChange={(event) =>
+                    setDesktopDraft((prev) => ({ ...prev, dateValue: event.target.value }))
+                  }
+                  placeholder="ДД.ММ.ГГГГ"
+                  className={LEFT_PANEL_CONTROL_CLASS}
+                />
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <input
+                    value={desktopDraft.startTime}
+                    onChange={(event) => handleStartTimeChange(event.target.value)}
+                    type="time"
+                    step={1800}
+                    className={LEFT_PANEL_CONTROL_CLASS}
+                  />
+                  <input
+                    value={desktopDraft.endTime}
+                    onChange={(event) => handleEndTimeChange(event.target.value)}
+                    type="time"
+                    step={1800}
+                    className={LEFT_PANEL_CONTROL_CLASS}
+                  />
+                </div>
+                <select
+                  value={desktopDraft.durationMin}
+                  onChange={(event) => handleDurationChange(Number(event.target.value))}
+                  className={`${LEFT_PANEL_CONTROL_CLASS} mt-3`}
+                >
+                  {durationOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {formatDurationWords(value)}
+                    </option>
+                  ))}
+                </select>
+              </LeftPanelField>
+
+              <LeftPanelField label="Услуги">
+                <div className="max-h-[280px] space-y-2 overflow-y-auto rounded-[22px] border border-[#d7dde6] bg-white p-2">
+                  {services.length > 0 ? (
+                    services.map((item) => {
+                      const active = desktopDraft.serviceIds.includes(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleServiceToggle(item.id)}
+                          className={clsx(
+                            'w-full rounded-[16px] border px-3 py-3 text-left transition',
+                            active
+                              ? 'border-[#222b33] bg-[#222b33] text-white'
+                              : 'border-[#dde3eb] bg-[#f8fafc] text-ink',
+                          )}
+                        >
+                          <p className="text-[15px] font-extrabold leading-tight">{item.name}</p>
+                          <p className={clsx('mt-1 text-[13px] font-semibold', active ? 'text-white/70' : 'text-[#818997]')}>
+                            {Math.max(15, Math.round(item.durationSec / 60))} мин ·{' '}
+                            {formatRub(item.priceMax || item.priceMin)}
+                          </p>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="px-2 py-3 text-sm font-semibold text-[#818997]">
+                      Список услуг недоступен.
+                    </p>
+                  )}
+                </div>
+              </LeftPanelField>
+
+              <LeftPanelField label="Комментарий к записи">
+                <textarea
+                  value={desktopDraft.comment}
+                  onChange={(event) =>
+                    setDesktopDraft((prev) => ({ ...prev, comment: event.target.value }))
+                  }
+                  className="h-[120px] w-full resize-none rounded-[18px] border border-[#d7dde6] bg-white px-4 py-3 text-[17px] font-medium text-ink outline-none"
+                />
+              </LeftPanelField>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={resetDesktopDraft}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#d2d8e2] bg-white text-sm font-semibold text-[#58606d]"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={saveDesktopDraft}
+                  disabled={loading}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#222b33] text-sm font-extrabold text-white disabled:opacity-50"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        <div className="mt-5 rounded-3xl border border-line bg-screen p-4">
           <p className="text-[16px] font-medium text-muted">Примечание о клиенте</p>
           <p className="mt-2 text-[18px] font-medium text-[#8f97a5]">
             Добавьте примечание в карточке клиента
@@ -735,6 +911,81 @@ export function JournalAppointmentScreen({
             <AppointmentAmount appointment={appointment} className="text-[40px]" />
           </div>
         </div>
+
+        <section className="mt-5 rounded-3xl border border-line bg-screen p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[24px] font-extrabold text-ink">История клиента</p>
+              <p className="mt-1 text-sm font-semibold text-muted">Все записи по клиенту</p>
+            </div>
+            <History className="h-6 w-6 text-[#68717f]" />
+          </div>
+
+          {historyLoading ? (
+            <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Загружаю историю...
+            </div>
+          ) : null}
+
+          {!historyLoading && historyGroups.length === 0 ? (
+            <p className="mt-4 text-base font-semibold text-muted">Нет посещений</p>
+          ) : null}
+
+          <div className="mt-4 space-y-5">
+            {historyGroups.map((group) => (
+              <section key={group.day}>
+                <p className="mb-3 text-sm font-bold uppercase tracking-[0.14em] text-[#98a1ae]">
+                  {formatDesktopHistoryDay(group.date)}
+                </p>
+                <div className="space-y-3">
+                  {group.items.map((item) => {
+                    const rowAmount = appointmentAmountValue(item);
+                    const paidAmount = appointmentPaidValue(item);
+                    const activeRow = item.id === appointment.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onOpenAppointment(item)}
+                        className={clsx(
+                          'w-full rounded-[20px] border px-4 py-4 text-left transition',
+                          activeRow
+                            ? 'border-[#d9e2f1] bg-[#f8fafd]'
+                            : 'border-[#e4e8ef] bg-white',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[17px] font-extrabold text-ink">{item.staffName}</p>
+                            <p className="mt-1 text-sm font-semibold text-[#818997]">
+                              {`${formatTime(item.startAt)}-${formatTime(item.endAt)}`}
+                            </p>
+                          </div>
+                          <span
+                            className={clsx(
+                              'shrink-0 rounded-full px-3 py-1 text-xs font-extrabold',
+                              historyStatusClass(getActiveStatus(item.status)),
+                            )}
+                          >
+                            {statusLabel(item.status)}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-[16px] font-bold leading-tight text-ink">
+                          {item.serviceName || 'Без услуги'}
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm font-semibold text-[#68717f]">
+                          <span>Стоимость: {formatOptionalRub(rowAmount)}</span>
+                          <span>Оплачено: {formatOptionalRub(paidAmount)}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        </section>
 
         {loading ? (
           <p className="mt-3 text-[15px] font-semibold text-muted">Сохраняю изменения...</p>

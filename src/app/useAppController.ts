@@ -47,6 +47,7 @@ import {
   clientFromAppointment,
   extractItems,
   parseAppointment,
+  parseClient,
   parseStaff,
   parseScheduleCalendar,
   parseWorkingHours,
@@ -2646,6 +2647,23 @@ export function useAppController(): AppController {
     setTab('journal');
     void (async () => {
       try {
+        if (fallbackClient.id && canViewClients) {
+          try {
+            const detailsData = await api.get<unknown>(`/clients/${fallbackClient.id}`);
+            const parsedClient = parseClient(detailsData);
+            if (parsedClient) {
+              setJournalClientTarget(parsedClient);
+              setJournalClientDraft({
+                name: parsedClient.name,
+                phone: parsedClient.phone,
+                email: parsedClient.email || '',
+                comment: parsedClient.comment || '',
+              });
+            }
+          } catch {
+            // Details are optional here: appointment and history should still open.
+          }
+        }
         const history = await fetchClientHistoryFromAppointments(fallbackClient);
         setJournalClientHistory(history);
       } catch {
