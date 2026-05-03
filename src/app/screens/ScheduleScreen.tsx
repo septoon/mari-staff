@@ -70,6 +70,7 @@ type ScheduleScreenProps = {
   onResetOnlineSlots: () => void;
   onSaveOnlineSlots: () => void;
   onSaveBreak: (input: { staffId: string; date: Date; start: string; end: string }) => Promise<boolean>;
+  onRemoveBreak: (input: { staffId: string; date: Date; start: string; end: string }) => Promise<boolean>;
   onPasteScheduleDay: (item: StaffItem, date: Date, intervals: ScheduleInterval[]) => void;
   onPasteScheduleDate: (
     date: Date,
@@ -190,6 +191,25 @@ function cloneScheduleIntervals(intervals: ScheduleInterval[]) {
 
 function getIntervalsForDate(hoursByStaff: WorkingHoursMap, staffId: string, date: Date) {
   return hoursByStaff[staffId]?.[toISODate(date)] ?? [];
+}
+
+function hasBreakRange(intervals: ScheduleInterval[], start: string, end: string) {
+  return intervals.some((interval) => interval.end === start) && intervals.some((interval) => interval.start === end);
+}
+
+function getFirstBreakRange(intervals: ScheduleInterval[]) {
+  const sorted = [...intervals].sort((left, right) => left.start.localeCompare(right.start));
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    if (previous && current && previous.end < current.start) {
+      return {
+        start: previous.end,
+        end: current.start,
+      };
+    }
+  }
+  return null;
 }
 
 function countMonthHours(hoursByStaff: WorkingHoursMap, staffId: string, monthDates: Date[]) {
@@ -578,7 +598,7 @@ function OnlineSlotsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:px-3 md:py-6"
+      className="fixed inset-0 z-[160] flex items-end justify-stretch bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:justify-center md:px-4 md:py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -744,30 +764,36 @@ function OnlineSlotsModal({
 function BreakModal({
   draft,
   staff,
+  isBreakActive,
   loading,
   onChange,
   onClose,
   onSave,
+  onRemove,
 }: {
   draft: NonNullable<BreakDraft>;
   staff: StaffItem[];
+  isBreakActive: boolean;
   loading: boolean;
   onChange: (patch: Partial<NonNullable<BreakDraft>>) => void;
   onClose: () => void;
   onSave: () => void;
+  onRemove: () => void;
 }) {
   const selectedStaff = staff.find((item) => item.id === draft.staffId) ?? staff[0] ?? null;
+  const selectedDate = parseDateValue(draft.dateValue);
+  const dateLabel = selectedDate ? formatLongDateLabel(selectedDate) : draft.dateValue;
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:px-3 md:py-6"
+      className="fixed inset-0 z-[160] flex items-end justify-stretch bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:justify-center md:px-4 md:py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-[520px] rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:rounded-[32px]">
+      <div className="max-h-[calc(100dvh-12px)] min-w-full max-w-none overflow-y-auto rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-[calc(100dvh-48px)] md:min-w-0 md:w-full md:max-w-[680px] md:rounded-[32px]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5">
           <div className="min-w-0 flex-1">
             <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
@@ -787,7 +813,23 @@ function BreakModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-5">
+        <div className="space-y-4 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+156px)] pt-5 md:px-6 md:pb-6">
+          <div
+            className={clsx(
+              'flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-extrabold',
+              isBreakActive
+                ? 'border-[#d6ead8] bg-[#edf8ef] text-[#2d6b3b]'
+                : 'border-[#efe0b4] bg-[#fff9df] text-[#6f5a12]',
+            )}
+          >
+            <Coffee className="h-4 w-4" />
+            <span>
+              {isBreakActive ? 'Перерыв уже выставлен' : 'Перерыв будет выставлен'}:
+              {' '}
+              {selectedStaff?.name || 'Сотрудник'} · {dateLabel} · {draft.start}-{draft.end}
+            </span>
+          </div>
+
           <label className="block rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
             <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">
               Сотрудник
@@ -842,6 +884,14 @@ function BreakModal({
             </label>
           </div>
 
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={loading || !selectedStaff}
+            className="inline-flex h-12 w-full items-center justify-center rounded-2xl border border-[#f0d3cf] bg-white px-5 text-sm font-extrabold text-[#a24f45] disabled:opacity-60"
+          >
+            Убрать перерыв
+          </button>
           <button
             type="button"
             onClick={onSave}
@@ -1391,6 +1441,7 @@ export function ScheduleScreen({
   onResetOnlineSlots,
   onSaveOnlineSlots,
   onSaveBreak,
+  onRemoveBreak,
   onPasteScheduleDay,
   onPasteScheduleDate,
   onSelectDate,
@@ -1572,12 +1623,13 @@ export function ScheduleScreen({
   };
 
   const openBreakModal = (staffItem: StaffItem, date: Date) => {
+    const existingBreak = getFirstBreakRange(getIntervalsForDate(hoursByStaff, staffItem.id, date));
     closeFloatingMenus();
     setBreakDraft({
       staffId: staffItem.id,
       dateValue: toISODate(date),
-      start: '13:00',
-      end: '14:00',
+      start: existingBreak?.start ?? '13:00',
+      end: existingBreak?.end ?? '14:00',
     });
   };
 
@@ -1596,6 +1648,25 @@ export function ScheduleScreen({
       end: breakDraft.end,
     });
     if (saved) {
+      setBreakDraft(null);
+    }
+  };
+
+  const removeBreak = async () => {
+    if (!breakDraft) {
+      return;
+    }
+    const date = parseDateValue(breakDraft.dateValue);
+    if (!date) {
+      return;
+    }
+    const removed = await onRemoveBreak({
+      staffId: breakDraft.staffId,
+      date,
+      start: breakDraft.start,
+      end: breakDraft.end,
+    });
+    if (removed) {
       setBreakDraft(null);
     }
   };
@@ -1678,6 +1749,16 @@ export function ScheduleScreen({
 
     strip.scrollLeft = Math.max(0, selectedNode.offsetLeft - MOBILE_DATE_STRIP_START_OFFSET);
   }, [monthDates, selectedIso]);
+
+  const breakDraftDate = breakDraft ? parseDateValue(breakDraft.dateValue) : null;
+  const breakDraftActive =
+    breakDraft && breakDraftDate
+      ? hasBreakRange(
+          getIntervalsForDate(hoursByStaff, breakDraft.staffId, breakDraftDate),
+          breakDraft.start,
+          breakDraft.end,
+        )
+      : false;
 
   return (
     <>
@@ -2320,11 +2401,15 @@ export function ScheduleScreen({
         <BreakModal
           draft={breakDraft}
           staff={staff}
+          isBreakActive={Boolean(breakDraftActive)}
           loading={loading}
           onChange={(patch) => setBreakDraft((current) => (current ? { ...current, ...patch } : current))}
           onClose={() => setBreakDraft(null)}
           onSave={() => {
             void saveBreak();
+          }}
+          onRemove={() => {
+            void removeBreak();
           }}
         />
       ) : null}

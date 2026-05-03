@@ -271,3 +271,84 @@ export function subtractBreakFromScheduleIntervals(
 
   return changed ? next : null;
 }
+
+function isOnlineOpen(interval: ScheduleInterval) {
+  return interval.bookingSlots == null || interval.bookingSlots.length > 0;
+}
+
+function explicitSlotTimesForInterval(interval: ScheduleInterval) {
+  if (interval.bookingSlots != null) {
+    return interval.bookingSlots;
+  }
+  return buildBookingSlotTimes(interval.bookingStart, interval.bookingEnd);
+}
+
+function mergeBookingSlots(
+  left: ScheduleInterval,
+  right: ScheduleInterval,
+  bookingStart: string,
+  bookingEnd: string,
+  breakStart: string,
+  breakEnd: string,
+) {
+  if (left.bookingSlots == null && right.bookingSlots == null) {
+    return null;
+  }
+
+  const slots = new Set<string>();
+  explicitSlotTimesForInterval(left).forEach((slot) => slots.add(slot));
+  explicitSlotTimesForInterval(right).forEach((slot) => slots.add(slot));
+
+  if (isOnlineOpen(left) && isOnlineOpen(right)) {
+    buildBookingSlotTimes(
+      breakStart > bookingStart ? breakStart : bookingStart,
+      breakEnd < bookingEnd ? breakEnd : bookingEnd,
+    ).forEach((slot) => slots.add(slot));
+  }
+
+  return Array.from(slots).sort((leftSlot, rightSlot) => leftSlot.localeCompare(rightSlot));
+}
+
+export function restoreBreakInScheduleIntervals(
+  intervals: ScheduleInterval[],
+  breakStart: string,
+  breakEnd: string,
+) {
+  if (!isValidTime(breakStart) || !isValidTime(breakEnd)) {
+    return null;
+  }
+  if (timeValueToMinutes(breakEnd) <= timeValueToMinutes(breakStart)) {
+    return null;
+  }
+
+  const leftIndex = intervals.findIndex((interval) => interval.end === breakStart);
+  const rightIndex = intervals.findIndex((interval) => interval.start === breakEnd);
+  if (leftIndex < 0 || rightIndex < 0 || leftIndex === rightIndex) {
+    return null;
+  }
+
+  const left = intervals[leftIndex]!;
+  const right = intervals[rightIndex]!;
+  const activeBookingStarts = [left, right]
+    .filter(isOnlineOpen)
+    .map((interval) => interval.bookingStart)
+    .sort((leftTime, rightTime) => leftTime.localeCompare(rightTime));
+  const activeBookingEnds = [left, right]
+    .filter(isOnlineOpen)
+    .map((interval) => interval.bookingEnd)
+    .sort((leftTime, rightTime) => rightTime.localeCompare(leftTime));
+  const bookingStart = activeBookingStarts[0] ?? left.start;
+  const bookingEnd = activeBookingEnds[0] ?? right.end;
+  const bookingSlots =
+    activeBookingStarts.length === 0
+      ? []
+      : mergeBookingSlots(left, right, bookingStart, bookingEnd, breakStart, breakEnd);
+
+  const merged = createScheduleInterval(left.start, right.end, bookingStart, bookingEnd, bookingSlots);
+  const next = intervals
+    .filter((_, index) => index !== leftIndex && index !== rightIndex)
+    .concat(merged)
+    .sort((leftInterval, rightInterval) => leftInterval.start.localeCompare(rightInterval.start));
+
+  return next;
+}

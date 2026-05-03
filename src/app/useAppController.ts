@@ -72,6 +72,7 @@ import {
   isScheduleIntervalValid,
   isValidTime,
   parseSlot,
+  restoreBreakInScheduleIntervals,
   subtractBreakFromScheduleIntervals,
   timeValueToMinutes,
   toFlatWorkingHours,
@@ -5485,6 +5486,64 @@ export function useAppController(): AppController {
     }
   };
 
+  const removeScheduleBreakForStaff = async ({
+    staffId,
+    date,
+    start,
+    end,
+  }: ScheduleBreakSaveInput) => {
+    if (!canEdit(EDIT_PERMISSION.schedule)) {
+      setToast('Нет прав на редактирование графика');
+      return false;
+    }
+    if (!staffId) {
+      setToast('Выберите сотрудника');
+      return false;
+    }
+    if (!isValidTime(start) || !isValidTime(end)) {
+      setToast('Время в формате HH:mm');
+      return false;
+    }
+    if (timeValueToMinutes(end) <= timeValueToMinutes(start)) {
+      setToast('Конец перерыва должен быть позже начала');
+      return false;
+    }
+
+    const targetStaff = staff.find((item) => item.id === staffId) ?? null;
+    if (!targetStaff) {
+      setToast('Сотрудник не найден');
+      return false;
+    }
+
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      const isoDate = toISODate(date);
+      const dailyIntervals = await fetchStaffDailySchedule(staffId, date);
+      const fallbackIntervals = workingHoursByStaff[staffId]?.[isoDate] ?? [];
+      const intervals = dailyIntervals.length > 0 ? dailyIntervals : fallbackIntervals;
+      const nextIntervals = restoreBreakInScheduleIntervals(intervals, start, end);
+
+      if (!nextIntervals) {
+        setToast('Перерыв с таким диапазоном не найден');
+        return false;
+      }
+      if (nextIntervals.some((interval) => !isScheduleIntervalValid(interval))) {
+        setToast('Не удалось убрать перерыв из этого графика');
+        return false;
+      }
+
+      await putStaffDailySchedule(staffId, date, nextIntervals);
+      await loadWorkingHours(staff);
+      setToast(`Перерыв убран для ${targetStaff.name}`);
+      return true;
+    } catch (error) {
+      setToast(toErrorMessage(error));
+      return false;
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const toggleScheduleEditorDay = (day: number) => {
     if (page === 'tabs') {
       return;
@@ -6167,6 +6226,7 @@ export function useAppController(): AppController {
       resetScheduleOnlineSlots,
       saveScheduleOnlineSlots,
       saveScheduleBreakForStaff,
+      removeScheduleBreakForStaff,
       handleMoreAction,
       saveNotificationMinNoticeMinutes,
       toggleNotificationSetting,

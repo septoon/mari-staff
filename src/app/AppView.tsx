@@ -1009,6 +1009,7 @@ export function AppView({ controller }: AppViewProps) {
               void actions.saveScheduleOnlineSlots();
             }}
             onSaveBreak={actions.saveScheduleBreakForStaff}
+            onRemoveBreak={actions.removeScheduleBreakForStaff}
             onPasteScheduleDay={(item: StaffItem, date: Date, intervals) => {
               void actions.pasteScheduleDayForStaff(item, date, intervals);
             }}

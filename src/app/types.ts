@@ -551,6 +551,7 @@ export type ControllerActions = {
   resetScheduleOnlineSlots: () => Promise<void>;
   saveScheduleOnlineSlots: () => Promise<void>;
   saveScheduleBreakForStaff: (input: ScheduleBreakSaveInput) => Promise<boolean>;
+  removeScheduleBreakForStaff: (input: ScheduleBreakSaveInput) => Promise<boolean>;
   handleMoreAction: (title: string) => Promise<void>;
   saveNotificationMinNoticeMinutes: (value: number) => Promise<boolean>;
   toggleNotificationSetting: (id: string, enabled: boolean) => Promise<void>;
