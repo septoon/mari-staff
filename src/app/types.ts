@@ -82,6 +82,13 @@ export type ScheduleEditorOpenOptions = {
   focusDate?: Date;
 };
 
+export type ScheduleBreakSaveInput = {
+  staffId: string;
+  date: Date;
+  start: string;
+  end: string;
+};
+
 export type JournalCreateOpenOptions = {
   staffId?: string;
   startTime?: string;
@@ -543,6 +550,7 @@ export type ControllerActions = {
   toggleScheduleOnlineSlotTimeGroup: (values: string[]) => void;
   resetScheduleOnlineSlots: () => Promise<void>;
   saveScheduleOnlineSlots: () => Promise<void>;
+  saveScheduleBreakForStaff: (input: ScheduleBreakSaveInput) => Promise<boolean>;
   handleMoreAction: (title: string) => Promise<void>;
   saveNotificationMinNoticeMinutes: (value: number) => Promise<boolean>;
   toggleNotificationSetting: (id: string, enabled: boolean) => Promise<void>;

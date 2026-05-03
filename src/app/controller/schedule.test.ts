@@ -1,4 +1,4 @@
-import { toFlatWorkingHours } from './schedule';
+import { subtractBreakFromScheduleIntervals, toFlatWorkingHours } from './schedule';
 
 test('toFlatWorkingHours keeps weekdays and normalizes sunday to backend format', () => {
   expect(
@@ -21,5 +21,39 @@ test('toFlatWorkingHours keeps weekdays and normalizes sunday to backend format'
       bookingStartTime: '11:00',
       bookingEndTime: '16:00',
     },
+  ]);
+});
+
+test('subtractBreakFromScheduleIntervals splits shift around break', () => {
+  expect(
+    subtractBreakFromScheduleIntervals(
+      [{ start: '10:00', end: '19:00', bookingStart: '10:00', bookingEnd: '19:00', bookingSlots: null }],
+      '13:00',
+      '14:00',
+    ),
+  ).toEqual([
+    { start: '10:00', end: '13:00', bookingStart: '10:00', bookingEnd: '13:00', bookingSlots: null },
+    { start: '14:00', end: '19:00', bookingStart: '14:00', bookingEnd: '19:00', bookingSlots: null },
+  ]);
+});
+
+test('subtractBreakFromScheduleIntervals removes explicit online slots inside break', () => {
+  expect(
+    subtractBreakFromScheduleIntervals(
+      [
+        {
+          start: '10:00',
+          end: '15:00',
+          bookingStart: '10:00',
+          bookingEnd: '15:00',
+          bookingSlots: ['10:00', '12:00', '14:00'],
+        },
+      ],
+      '11:00',
+      '13:00',
+    ),
+  ).toEqual([
+    { start: '10:00', end: '11:00', bookingStart: '10:00', bookingEnd: '11:00', bookingSlots: ['10:00'] },
+    { start: '13:00', end: '15:00', bookingStart: '13:00', bookingEnd: '15:00', bookingSlots: ['14:00'] },
   ]);
 });

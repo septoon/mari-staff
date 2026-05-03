@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ClipboardPaste,
   Clock3,
+  Coffee,
   Copy,
   MonitorSmartphone,
   MoreHorizontal,
@@ -68,6 +69,7 @@ type ScheduleScreenProps = {
   onToggleOnlineSlotGroup: (values: string[]) => void;
   onResetOnlineSlots: () => void;
   onSaveOnlineSlots: () => void;
+  onSaveBreak: (input: { staffId: string; date: Date; start: string; end: string }) => Promise<boolean>;
   onPasteScheduleDay: (item: StaffItem, date: Date, intervals: ScheduleInterval[]) => void;
   onPasteScheduleDate: (
     date: Date,
@@ -128,6 +130,13 @@ type ScheduleDateContextMenuState = {
   coverage: number;
 };
 
+type BreakDraft = {
+  staffId: string;
+  dateValue: string;
+  start: string;
+  end: string;
+} | null;
+
 const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
 const STAFF_COLUMN_WIDTH = 344;
 const TOTAL_COLUMN_WIDTH = 128;
@@ -153,6 +162,15 @@ function formatWeekdayShort(date: Date) {
 
 function formatLongDateLabel(date: Date) {
   return `${date.getDate()} ${MONTHS_RU_GENITIVE[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function parseDateValue(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (![year, month, day].every(Number.isFinite)) {
+    return null;
+  }
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatShortMonthLabel(date: Date) {
@@ -723,6 +741,121 @@ function OnlineSlotsModal({
   );
 }
 
+function BreakModal({
+  draft,
+  staff,
+  loading,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  draft: NonNullable<BreakDraft>;
+  staff: StaffItem[];
+  loading: boolean;
+  onChange: (patch: Partial<NonNullable<BreakDraft>>) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const selectedStaff = staff.find((item) => item.id === draft.staffId) ?? staff[0] ?? null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:px-3 md:py-6"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="w-full max-w-[520px] rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:rounded-[32px]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
+              Перерыв
+            </p>
+            <h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.05em] text-[#28313b]">
+              Назначить перерыв
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dce2ea] bg-white text-[#39424d]"
+            aria-label="Закрыть перерыв"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <label className="block rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
+            <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">
+              Сотрудник
+            </span>
+            <select
+              value={selectedStaff?.id ?? ''}
+              onChange={(event) => onChange({ staffId: event.target.value })}
+              className="mt-3 w-full bg-transparent text-[24px] font-extrabold tracking-[-0.04em] text-[#28313b] outline-none"
+            >
+              {staff.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
+            <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">
+              Дата
+            </span>
+            <input
+              type="date"
+              value={draft.dateValue}
+              onChange={(event) => onChange({ dateValue: event.target.value })}
+              className="mt-3 w-full bg-transparent text-[24px] font-extrabold tracking-[-0.04em] text-[#28313b] outline-none"
+            />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
+              <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">
+                Начало
+              </span>
+              <input
+                type="time"
+                value={draft.start}
+                onChange={(event) => onChange({ start: event.target.value })}
+                className="mt-3 w-full bg-transparent text-[24px] font-extrabold tracking-[-0.04em] text-[#28313b] outline-none"
+              />
+            </label>
+            <label className="block rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
+              <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">
+                Конец
+              </span>
+              <input
+                type="time"
+                value={draft.end}
+                onChange={(event) => onChange({ end: event.target.value })}
+                className="mt-3 w-full bg-transparent text-[24px] font-extrabold tracking-[-0.04em] text-[#28313b] outline-none"
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading || !selectedStaff}
+            className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#2c3540] shadow-[0_14px_30px_rgba(244,201,0,0.28)] disabled:opacity-60"
+          >
+            {loading ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FilterPanel({
   search,
   onSearchChange,
@@ -898,6 +1031,7 @@ function StaffMenu({
   onClose,
   onEditDay,
   onOpenOnlineSlots,
+  onOpenBreak,
   onEditTemplate,
 }: {
   staff: StaffItem;
@@ -906,6 +1040,7 @@ function StaffMenu({
   onClose: () => void;
   onEditDay: () => void;
   onOpenOnlineSlots: () => void;
+  onOpenBreak: () => void;
   onEditTemplate: () => void;
 }) {
   const actions = [
@@ -920,6 +1055,12 @@ function StaffMenu({
       icon: MonitorSmartphone,
       onClick: onOpenOnlineSlots,
       disabled: !hasOnlineSlotEditor,
+    },
+    {
+      label: 'Перерыв',
+      icon: Coffee,
+      onClick: onOpenBreak,
+      disabled: false,
     },
     {
       label: 'Настроить шаблон',
@@ -1113,6 +1254,7 @@ function MobileStaffCard({
   onOpenMenu,
   onOpenDay,
   onOpenOnlineSlots,
+  onOpenBreak,
   onEditTemplate,
 }: {
   row: ScheduleRow;
@@ -1120,6 +1262,7 @@ function MobileStaffCard({
   onOpenMenu: () => void;
   onOpenDay: () => void;
   onOpenOnlineSlots: () => void;
+  onOpenBreak: () => void;
   onEditTemplate: () => void;
 }) {
   const dayInterval = row.selectedDayIntervals[0];
@@ -1196,6 +1339,14 @@ function MobileStaffCard({
           Онлайн
         </button>
       </div>
+      <button
+        type="button"
+        onClick={onOpenBreak}
+        className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-[#fff9df] px-3 text-sm font-bold text-[#2f3843]"
+      >
+        <Coffee className="h-4 w-4" />
+        Перерыв
+      </button>
     </section>
   );
 }
@@ -1239,6 +1390,7 @@ export function ScheduleScreen({
   onToggleOnlineSlotGroup,
   onResetOnlineSlots,
   onSaveOnlineSlots,
+  onSaveBreak,
   onPasteScheduleDay,
   onPasteScheduleDate,
   onSelectDate,
@@ -1259,6 +1411,7 @@ export function ScheduleScreen({
   const [dateClipboard, setDateClipboard] = useState<ScheduleDateClipboard | null>(null);
   const [cellContextMenu, setCellContextMenu] = useState<ScheduleCellContextMenuState | null>(null);
   const [dateContextMenu, setDateContextMenu] = useState<ScheduleDateContextMenuState | null>(null);
+  const [breakDraft, setBreakDraft] = useState<BreakDraft>(null);
 
   const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
   const visibleDates = useMemo(() => getVisibleScheduleDates(selectedDate), [selectedDate]);
@@ -1416,6 +1569,35 @@ export function ScheduleScreen({
     setStaffMenuId(null);
     setCellContextMenu(null);
     setDateContextMenu(null);
+  };
+
+  const openBreakModal = (staffItem: StaffItem, date: Date) => {
+    closeFloatingMenus();
+    setBreakDraft({
+      staffId: staffItem.id,
+      dateValue: toISODate(date),
+      start: '13:00',
+      end: '14:00',
+    });
+  };
+
+  const saveBreak = async () => {
+    if (!breakDraft) {
+      return;
+    }
+    const date = parseDateValue(breakDraft.dateValue);
+    if (!date) {
+      return;
+    }
+    const saved = await onSaveBreak({
+      staffId: breakDraft.staffId,
+      date,
+      start: breakDraft.start,
+      end: breakDraft.end,
+    });
+    if (saved) {
+      setBreakDraft(null);
+    }
   };
 
   useEffect(() => {
@@ -1933,6 +2115,7 @@ export function ScheduleScreen({
                     }}
                     onOpenDay={() => onOpenDesktopEditor(row.staff, selectedDate)}
                     onOpenOnlineSlots={() => onOpenOnlineSlots(row.staff, selectedDate)}
+                    onOpenBreak={() => openBreakModal(row.staff, selectedDate)}
                     onEditTemplate={() => onEditStaff(row.staff)}
                   />
                 ))}
@@ -1993,6 +2176,7 @@ export function ScheduleScreen({
                                   onClose={() => setStaffMenuId(null)}
                                   onEditDay={() => onOpenDesktopEditor(row.staff, selectedDate)}
                                   onOpenOnlineSlots={() => onOpenOnlineSlots(row.staff, selectedDate)}
+                                  onOpenBreak={() => openBreakModal(row.staff, selectedDate)}
                                   onEditTemplate={() => onEditStaff(row.staff)}
                                 />
                               </div>
@@ -2073,6 +2257,7 @@ export function ScheduleScreen({
             onClose={() => setStaffMenuId(null)}
             onEditDay={() => onOpenDesktopEditor(openMenuRow.staff, selectedDate)}
             onOpenOnlineSlots={() => onOpenOnlineSlots(openMenuRow.staff, selectedDate)}
+            onOpenBreak={() => openBreakModal(openMenuRow.staff, selectedDate)}
             onEditTemplate={() => onEditStaff(openMenuRow.staff)}
           />
         </div>
@@ -2128,6 +2313,19 @@ export function ScheduleScreen({
           onToggleGroup={onToggleOnlineSlotGroup}
           onReset={onResetOnlineSlots}
           onSave={onSaveOnlineSlots}
+        />
+      ) : null}
+
+      {breakDraft ? (
+        <BreakModal
+          draft={breakDraft}
+          staff={staff}
+          loading={loading}
+          onChange={(patch) => setBreakDraft((current) => (current ? { ...current, ...patch } : current))}
+          onClose={() => setBreakDraft(null)}
+          onSave={() => {
+            void saveBreak();
+          }}
         />
       ) : null}
     </>

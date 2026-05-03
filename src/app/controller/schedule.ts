@@ -177,3 +177,97 @@ export function calculateScheduleIntervalHours(interval: ScheduleInterval) {
   }
   return durationMin / 60;
 }
+
+function clampTimeRange(start: number, end: number, min: number, max: number) {
+  return {
+    start: Math.max(start, min),
+    end: Math.min(end, max),
+  };
+}
+
+function buildSegmentFromInterval(
+  interval: ScheduleInterval,
+  segmentStart: number,
+  segmentEnd: number,
+): ScheduleInterval | null {
+  if (segmentEnd <= segmentStart) {
+    return null;
+  }
+
+  const bookingRange = clampTimeRange(
+    timeValueToMinutes(interval.bookingStart),
+    timeValueToMinutes(interval.bookingEnd),
+    segmentStart,
+    segmentEnd,
+  );
+  const start = minutesToTimeValue(segmentStart);
+  const end = minutesToTimeValue(segmentEnd);
+
+  if (bookingRange.end <= bookingRange.start) {
+    return createScheduleInterval(start, end, start, end, []);
+  }
+
+  const bookingStart = minutesToTimeValue(bookingRange.start);
+  const bookingEnd = minutesToTimeValue(bookingRange.end);
+  const bookingSlots = interval.bookingSlots
+    ? interval.bookingSlots.filter((slot) => {
+        const minutes = timeValueToMinutes(slot);
+        return minutes >= bookingRange.start && minutes < bookingRange.end;
+      })
+    : null;
+
+  return createScheduleInterval(start, end, bookingStart, bookingEnd, bookingSlots);
+}
+
+export function subtractBreakFromScheduleIntervals(
+  intervals: ScheduleInterval[],
+  breakStart: string,
+  breakEnd: string,
+) {
+  if (!isValidTime(breakStart) || !isValidTime(breakEnd)) {
+    return null;
+  }
+
+  const breakStartMinutes = timeValueToMinutes(breakStart);
+  const breakEndMinutes = timeValueToMinutes(breakEnd);
+  if (breakEndMinutes <= breakStartMinutes) {
+    return null;
+  }
+
+  const next: ScheduleInterval[] = [];
+  let changed = false;
+
+  intervals.forEach((interval) => {
+    const intervalStart = timeValueToMinutes(interval.start);
+    const intervalEnd = timeValueToMinutes(interval.end);
+    if (!Number.isFinite(intervalStart) || !Number.isFinite(intervalEnd)) {
+      return;
+    }
+
+    if (breakEndMinutes <= intervalStart || breakStartMinutes >= intervalEnd) {
+      next.push(interval);
+      return;
+    }
+
+    changed = true;
+    const before = buildSegmentFromInterval(
+      interval,
+      intervalStart,
+      Math.min(breakStartMinutes, intervalEnd),
+    );
+    const after = buildSegmentFromInterval(
+      interval,
+      Math.max(breakEndMinutes, intervalStart),
+      intervalEnd,
+    );
+
+    if (before) {
+      next.push(before);
+    }
+    if (after) {
+      next.push(after);
+    }
+  });
+
+  return changed ? next : null;
+}
