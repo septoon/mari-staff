@@ -492,7 +492,7 @@ function DayEditorModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[80] bg-[rgba(34,43,51,0.48)]"
+      className="fixed inset-0 z-[160] overscroll-contain bg-[rgba(34,43,51,0.48)]"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -525,8 +525,8 @@ function DayEditorModal({
         </div>
       </div>
 
-      <div className="flex h-full items-end md:hidden">
-        <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[34px] bg-white shadow-[0_-24px_64px_rgba(41,49,58,0.24)]">
+      <div className="flex h-full items-end overscroll-contain md:hidden">
+        <div className="max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-[34px] bg-white shadow-[0_-24px_64px_rgba(41,49,58,0.24)]">
           <DayEditorPanel
             staff={staff}
             date={date}
@@ -598,14 +598,14 @@ function OnlineSlotsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[160] flex items-end justify-stretch bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:justify-center md:px-4 md:py-6"
+      className="fixed inset-0 z-[160] flex items-end justify-stretch overscroll-contain bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:justify-center md:px-4 md:py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-full md:max-w-[980px] md:rounded-[32px]">
+      <div className="flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden overscroll-contain rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-full md:max-w-[980px] md:rounded-[32px]">
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5 sm:px-6">
           <div className="min-w-0 flex-1">
             <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
@@ -628,7 +628,7 @@ function OnlineSlotsModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+96px)] pt-5 sm:px-6 md:pb-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(env(safe-area-inset-bottom,0px)+96px)] pt-5 sm:px-6 md:pb-5">
           <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="space-y-4">
               <div className="rounded-[28px] border border-[#e1e6ee] bg-white px-4 py-4">
@@ -786,14 +786,14 @@ function BreakModal({
 
   return (
     <div
-      className="fixed inset-0 z-[160] flex items-end justify-stretch bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:justify-center md:px-4 md:py-6"
+      className="fixed inset-0 z-[160] flex items-end justify-stretch overscroll-contain bg-[rgba(34,43,51,0.48)] px-0 py-0 md:items-center md:justify-center md:px-4 md:py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="max-h-[calc(100dvh-12px)] min-w-full max-w-none overflow-y-auto rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-[calc(100dvh-48px)] md:min-w-0 md:w-full md:max-w-[680px] md:rounded-[32px]">
+      <div className="max-h-[calc(100dvh-12px)] min-w-full max-w-none overflow-y-auto overscroll-contain rounded-t-[34px] bg-[#fbfcfe] shadow-[0_32px_72px_rgba(34,43,51,0.26)] md:max-h-[calc(100dvh-48px)] md:min-w-0 md:w-full md:max-w-[680px] md:rounded-[32px]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5eaf1] px-5 py-5">
           <div className="min-w-0 flex-1">
             <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">
@@ -1170,7 +1170,7 @@ function ScheduleCellContextMenu({
 
   return (
     <div
-      className="fixed z-[80] w-[240px] rounded-[22px] border border-[#e2e8f0] bg-white p-2 shadow-[0_24px_60px_rgba(31,39,50,0.18)]"
+      className="fixed z-[160] w-[240px] rounded-[22px] border border-[#e2e8f0] bg-white p-2 shadow-[0_24px_60px_rgba(31,39,50,0.18)]"
       style={{ left: state.x, top: state.y }}
     >
       <div className="px-3 py-2">
@@ -1224,7 +1224,7 @@ function ScheduleDateContextMenu({
 
   return (
     <div
-      className="fixed z-[80] w-[260px] rounded-[22px] border border-[#e2e8f0] bg-white p-2 shadow-[0_24px_60px_rgba(31,39,50,0.18)]"
+      className="fixed z-[160] w-[260px] rounded-[22px] border border-[#e2e8f0] bg-white p-2 shadow-[0_24px_60px_rgba(31,39,50,0.18)]"
       style={{ left: state.x, top: state.y }}
     >
       <div className="px-3 py-2">
@@ -1552,6 +1552,15 @@ export function ScheduleScreen({
     bookingEnd: editorBookingEnd,
     bookingSlots: null,
   };
+  const hasMobileOverlay =
+    Boolean(editorStaff) ||
+    Boolean(onlineSlotsStaff && onlineSlotsDate) ||
+    Boolean(breakDraft) ||
+    Boolean(staffMenuId && openMenuRow) ||
+    filtersOpen ||
+    settingsOpen ||
+    Boolean(cellContextMenu) ||
+    Boolean(dateContextMenu);
 
   const resetFilters = () => {
     setSearchValue('');
@@ -1749,6 +1758,34 @@ export function ScheduleScreen({
 
     strip.scrollLeft = Math.max(0, selectedNode.offsetLeft - MOBILE_DATE_STRIP_START_OFFSET);
   }, [monthDates, selectedIso]);
+
+  useEffect(() => {
+    if (!hasMobileOverlay || !window.matchMedia('(max-width: 1279px)').matches) {
+      return;
+    }
+
+    const main = document.querySelector<HTMLElement>('.app-main-scroll');
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousMainOverflow = main?.style.overflow;
+    const previousMainOverscroll = main?.style.overscrollBehavior;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+    if (main) {
+      main.style.overflow = 'hidden';
+      main.style.overscrollBehavior = 'contain';
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      if (main) {
+        main.style.overflow = previousMainOverflow ?? '';
+        main.style.overscrollBehavior = previousMainOverscroll ?? '';
+      }
+    };
+  }, [hasMobileOverlay]);
 
   const breakDraftDate = breakDraft ? parseDateValue(breakDraft.dateValue) : null;
   const breakDraftActive =
@@ -2066,7 +2103,7 @@ export function ScheduleScreen({
           <div className="relative">
             {filtersOpen || settingsOpen || openMenuRow || cellContextMenu || dateContextMenu ? (
               <div
-                className="fixed inset-0 z-40 bg-transparent"
+                className="fixed inset-0 z-[150] bg-transparent"
                 onClick={closeFloatingMenus}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -2076,7 +2113,7 @@ export function ScheduleScreen({
             ) : null}
 
             {filtersOpen ? (
-              <div className="absolute left-4 top-4 z-50 md:left-6">
+              <div className="absolute left-4 top-4 z-[160] md:left-6">
                 <FilterPanel
                   search={searchValue}
                   onSearchChange={setSearchValue}
@@ -2092,7 +2129,7 @@ export function ScheduleScreen({
             ) : null}
 
             {settingsOpen ? (
-              <div className="absolute right-4 top-4 z-50 md:right-6">
+              <div className="absolute right-4 top-4 z-[160] md:right-6">
                 <SettingsMenu
                   showEmployeeTotals={showEmployeeTotals}
                   showDayTotals={showDayTotals}
@@ -2249,7 +2286,7 @@ export function ScheduleScreen({
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                             {staffMenuId === row.staff.id ? (
-                              <div className="absolute right-0 top-[calc(100%-4px)] z-[70]">
+                              <div className="absolute right-0 top-[calc(100%-4px)] z-[160]">
                                 <StaffMenu
                                   staff={row.staff}
                                   selectedDate={selectedDate}
@@ -2330,7 +2367,7 @@ export function ScheduleScreen({
       </div>
 
       {staffMenuId && openMenuRow ? (
-        <div className="fixed inset-x-4 bottom-4 z-[70] xl:hidden">
+        <div className="fixed inset-x-4 bottom-4 z-[160] xl:hidden">
           <StaffMenu
             staff={openMenuRow.staff}
             selectedDate={selectedDate}
