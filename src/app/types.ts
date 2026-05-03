@@ -317,6 +317,7 @@ export type ControllerState = {
   weekDates: Date[];
   staff: StaffItem[];
   visibleStaff: StaffItem[];
+  scheduleStaff: StaffItem[];
   journalStaff: StaffItem[];
   journalCreateStaff: StaffItem[];
   filteredStaff: StaffItem[];
@@ -431,6 +432,7 @@ export type ControllerState = {
   canEditClients: boolean;
   canEditJournal: boolean;
   canViewSchedule: boolean;
+  canViewAllSchedule: boolean;
   canSelectPastJournalDates: boolean;
   journalMinSelectableDate: Date | null;
   canEditPrivacyPolicy: boolean;

@@ -21,7 +21,11 @@ import {
   parseService,
   parseStaff,
 } from '../parsers';
-import { filterAppointmentsByJournalScope, type JournalAccessScope } from '../journalScope';
+import {
+  filterAppointmentsByJournalScope,
+  filterStaffByJournalScope,
+  type JournalAccessScope,
+} from '../journalScope';
 import type {
   AppointmentItem,
   ClientItem,
@@ -46,6 +50,8 @@ type UseDataLoadersParams = {
   canViewClients: boolean;
   canViewJournal: boolean;
   canViewSchedule: boolean;
+  canViewAllSchedule: boolean;
+  scheduleAccessScope: JournalAccessScope;
   canViewReports: boolean;
   journalVisibleStaffIdsKey: string;
   selectedDate: Date;
@@ -88,6 +94,8 @@ export function useDataLoaders({
   canViewClients,
   canViewJournal,
   canViewSchedule,
+  canViewAllSchedule,
+  scheduleAccessScope,
   canViewReports,
   journalVisibleStaffIdsKey,
   selectedDate,
@@ -583,17 +591,26 @@ export function useDataLoaders({
         setWorkingHoursByStaff({});
         return;
       }
-      let scheduleStaff = staffRows.filter(
+      const scopedStaffRows = canViewAllSchedule
+        ? staffRows
+        : filterStaffByJournalScope(staffRows, scheduleAccessScope);
+      let scheduleStaff = scopedStaffRows.filter(
         (item) => item.role === 'MASTER' && item.isActive && !isDeletedStaff(item),
       );
+      if (scheduleStaff.length === 0 && scopedStaffRows.length > 0) {
+        scheduleStaff = scopedStaffRows.filter((item) => item.isActive && !isDeletedStaff(item));
+      }
       if (scheduleStaff.length === 0) {
         try {
           const data = await api.get<unknown>('/staff?page=1&limit=200&role=MASTER&isActive=true');
           const parsed = extractItems(data)
             .map(parseStaff)
             .filter((item): item is StaffItem => item !== null && !isDeletedStaff(item));
-          if (parsed.length > 0) {
-            scheduleStaff = parsed;
+          const scopedParsed = canViewAllSchedule
+            ? parsed
+            : filterStaffByJournalScope(parsed, scheduleAccessScope);
+          if (scopedParsed.length > 0) {
+            scheduleStaff = scopedParsed;
           }
         } catch {
           // fallback на уже загруженный список staff
@@ -631,7 +648,15 @@ export function useDataLoaders({
         setLoadingKey(setLoading, 'schedule', false);
       }
     },
-    [canLoadWorkingHours, isAuthorized, selectedDate, setLoading, setWorkingHoursByStaff],
+    [
+      canLoadWorkingHours,
+      canViewAllSchedule,
+      isAuthorized,
+      scheduleAccessScope,
+      selectedDate,
+      setLoading,
+      setWorkingHoursByStaff,
+    ],
   );
 
   const refreshStaffAndMeta = useCallback(async () => {

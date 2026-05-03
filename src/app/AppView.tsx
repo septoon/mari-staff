@@ -125,14 +125,22 @@ export function AppView({ controller }: AppViewProps) {
 
     if (!isPublicAuthRoute) {
       root.style.removeProperty('--ui-scale');
+      root.style.removeProperty('--app-scale-size');
+      root.style.removeProperty('--app-min-height');
       root.style.removeProperty('--sheet-ui-scale');
       return;
     }
 
+    const fullViewportHeight =
+      typeof CSS !== 'undefined' && CSS.supports?.('height: 100dvh') ? '100dvh' : '100vh';
     root.style.setProperty('--ui-scale', '1');
+    root.style.setProperty('--app-scale-size', '100%');
+    root.style.setProperty('--app-min-height', fullViewportHeight);
     root.style.setProperty('--sheet-ui-scale', '1');
     return () => {
       root.style.removeProperty('--ui-scale');
+      root.style.removeProperty('--app-scale-size');
+      root.style.removeProperty('--app-min-height');
       root.style.removeProperty('--sheet-ui-scale');
     };
   }, [isPublicAuthRoute]);
@@ -268,6 +276,10 @@ export function AppView({ controller }: AppViewProps) {
     Boolean(state.canEditClients) || sessionPermissions.includes('MANAGE_CLIENT_AVATARS');
   const canManagePromocodes =
     state.session?.staff.role === 'OWNER' || sessionPermissions.includes('MANAGE_PROMOCODES');
+  const canEditSchedule =
+    state.session?.staff.role === 'OWNER' ||
+    sessionPermissions.includes('EDIT_SCHEDULE') ||
+    sessionPermissions.includes('ACCESS_SCHEDULE');
   const visibleClients =
     normalizedClientsQuery.length === 0
       ? state.clients
@@ -365,7 +377,7 @@ export function AppView({ controller }: AppViewProps) {
     [selectedDateIso, state.appointments, state.journalStaff, state.workingHoursByStaff],
   );
   const timetableStaff = useMemo(() => {
-    const baseStaff = state.canViewSchedule ? state.visibleStaff : state.journalStaff;
+    const baseStaff = state.canViewSchedule ? state.scheduleStaff : state.journalStaff;
     return baseStaff.filter((item) => {
       const intervals = state.workingHoursByStaff[item.id]?.[selectedDateIso] ?? [];
       return intervals.length > 0;
@@ -374,7 +386,7 @@ export function AppView({ controller }: AppViewProps) {
     selectedDateIso,
     state.canViewSchedule,
     state.journalStaff,
-    state.visibleStaff,
+    state.scheduleStaff,
     state.workingHoursByStaff,
   ]);
   const currentStaff = state.session
@@ -947,8 +959,10 @@ export function AppView({ controller }: AppViewProps) {
         {state.page === 'tabs' && state.tab === 'schedule' ? (
           <ScheduleScreen
             selectedDate={state.selectedDate}
-            staff={state.visibleStaff}
+            staff={state.scheduleStaff}
             hoursByStaff={state.workingHoursByStaff}
+            canViewAllSchedule={state.canViewAllSchedule}
+            canEditSchedule={canEditSchedule}
             editorStaff={state.scheduleEditorStaff}
             editorSelectedDays={state.scheduleEditorDays}
             editorStart={state.scheduleEditorStart}

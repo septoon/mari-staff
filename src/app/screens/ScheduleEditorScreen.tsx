@@ -287,7 +287,7 @@ export function ScheduleEditorScreen({
         </section>
       </div>
 
-      <div className="pb-8 pt-4 md:hidden">
+      <div className="fixed inset-0 z-[70] overflow-y-auto bg-screen px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-4 md:hidden">
         <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
           <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
             <ArrowLeft className="h-7 w-7" />

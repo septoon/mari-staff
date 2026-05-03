@@ -22,12 +22,14 @@ html {
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-safe-left: env(safe-area-inset-left, 0px);
   --ui-scale: 0.8;
+  --app-scale-size: 125%;
   --sheet-ui-scale: var(--ui-scale);
-  --app-min-height: calc(100vh / var(--ui-scale));
+  --app-min-height: 125vh;
 }
 
 html[data-ios-standalone-pwa='true'] {
   --ui-scale: 1;
+  --app-scale-size: 100%;
   --sheet-ui-scale: 1;
   --app-min-height: 100vh;
 }
@@ -35,18 +37,34 @@ html[data-ios-standalone-pwa='true'] {
 @media (max-width: 480px) {
   :root {
     --ui-scale: 0.72;
+    --app-scale-size: 138.8889%;
+    --app-min-height: 138.8889vh;
   }
 }
 
 @media (max-width: 390px) {
   :root {
     --ui-scale: 0.68;
+    --app-scale-size: 147.0589%;
+    --app-min-height: 147.0589vh;
   }
 }
 
 @supports (height: 100dvh) {
   :root {
-    --app-min-height: calc(100dvh / var(--ui-scale));
+    --app-min-height: 125dvh;
+  }
+
+  @media (max-width: 480px) {
+    :root {
+      --app-min-height: 138.8889dvh;
+    }
+  }
+
+  @media (max-width: 390px) {
+    :root {
+      --app-min-height: 147.0589dvh;
+    }
   }
 
   html[data-ios-standalone-pwa='true'] {
@@ -84,7 +102,7 @@ body {
   #root {
     transform: scale(var(--ui-scale));
     transform-origin: top left;
-    width: calc(100% / var(--ui-scale));
+    width: var(--app-scale-size);
     min-height: var(--app-min-height);
   }
 }
@@ -187,7 +205,7 @@ body {
       zoom: 1;
       transform: scale(var(--ui-scale));
       transform-origin: top left;
-      width: calc(100% / var(--ui-scale));
+      width: var(--app-scale-size);
       min-height: var(--app-min-height);
       overflow-x: clip;
     }

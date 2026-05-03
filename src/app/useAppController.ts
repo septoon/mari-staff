@@ -171,6 +171,7 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
     'ACCESS_JOURNAL',
   ],
   VIEW_SCHEDULE: ['VIEW_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
+  VIEW_ALL_SCHEDULE: ['VIEW_ALL_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   EDIT_SCHEDULE: ['EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   VIEW_CLIENTS: ['VIEW_CLIENTS', 'EDIT_CLIENTS', 'ACCESS_CLIENTS'],
   EDIT_CLIENTS: ['EDIT_CLIENTS', 'ACCESS_CLIENTS'],
@@ -586,6 +587,7 @@ export function useAppController(): AppController {
   const canViewJournal = hasPermissionAccess('VIEW_JOURNAL');
   const canViewFullJournal = hasPermissionAccess('VIEW_ALL_JOURNAL_APPOINTMENTS');
   const canViewSchedule = hasPermissionAccess('VIEW_SCHEDULE');
+  const canViewAllSchedule = hasPermissionAccess('VIEW_ALL_SCHEDULE');
   const canViewClients = hasPermissionAccess('VIEW_CLIENTS');
   const canViewClientPhone = hasPermissionAccess('VIEW_CLIENT_PHONE');
   const canEditAppointments = hasPermissionAccess('EDIT_APPOINTMENTS');
@@ -607,6 +609,14 @@ export function useAppController(): AppController {
       hasFullAccess: Boolean(session && (session.staff.role === 'OWNER' || canViewFullJournal)),
     }),
     [canViewFullJournal, session],
+  );
+  const scheduleAccessScope = useMemo(
+    () => ({
+      currentStaffId: session?.staff.id ?? null,
+      currentStaffName: session?.staff.name ?? null,
+      hasFullAccess: Boolean(session && (session.staff.role === 'OWNER' || canViewAllSchedule)),
+    }),
+    [canViewAllSchedule, session],
   );
   const hasUnrestrictedPastJournalAccess = Boolean(
     session && (!isMaster || canViewFullJournal || canEdit(EDIT_PERMISSION.journal)),
@@ -758,6 +768,20 @@ export function useAppController(): AppController {
     }
     return staffWithServices;
   }, [staffWithServices]);
+  const scheduleStaff = useMemo(() => {
+    if (scheduleAccessScope.hasFullAccess) {
+      return visibleStaff;
+    }
+    const scoped = filterStaffByJournalScope(visibleStaff, scheduleAccessScope);
+    if (scoped.length > 0) {
+      return scoped;
+    }
+    const fallback = filterStaffByJournalScope(staff, scheduleAccessScope);
+    if (fallback.length > 0) {
+      return fallback;
+    }
+    return session ? filterStaffByJournalScope([buildSessionStaffItem(session)], scheduleAccessScope) : [];
+  }, [scheduleAccessScope, session, staff, visibleStaff]);
   const journalStaff = useMemo(() => {
     const scoped = filterStaffByJournalScope(visibleStaff, journalAccessScope);
     if (scoped.length > 0) {
@@ -1224,6 +1248,8 @@ export function useAppController(): AppController {
     canViewClients,
     canViewJournal,
     canViewSchedule,
+    canViewAllSchedule,
+    scheduleAccessScope,
     canViewReports,
     journalVisibleStaffIdsKey,
     selectedDate,
@@ -1269,9 +1295,9 @@ export function useAppController(): AppController {
     if (!isAuthorized || !canViewSchedule) {
       return;
     }
-    const rows = staff.length > 0 ? staff : canViewStaff ? await loadStaff() : [];
+    const rows = scheduleStaff.length > 0 ? scheduleStaff : canViewStaff ? await loadStaff() : [];
     await loadWorkingHours(rows);
-  }, [canViewSchedule, canViewStaff, isAuthorized, loadStaff, loadWorkingHours, staff]);
+  }, [canViewSchedule, canViewStaff, isAuthorized, loadStaff, loadWorkingHours, scheduleStaff]);
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedClientsQuery(clientsQuery), 350);
@@ -1738,12 +1764,12 @@ export function useAppController(): AppController {
   useEffect(() => {
     const shouldLoadWorkingHours =
       (page === 'tabs' && (tab === 'schedule' || tab === 'journal')) || page === 'timetable';
-    const workingHoursStaff = staff.length > 0 ? staff : journalStaff;
+    const workingHoursStaff = tab === 'schedule' ? scheduleStaff : staff.length > 0 ? staff : journalStaff;
     if (!isAuthorized || !shouldLoadWorkingHours || workingHoursStaff.length === 0) {
       return;
     }
     void loadWorkingHours(workingHoursStaff);
-  }, [isAuthorized, journalStaff, loadWorkingHours, page, staff, tab]);
+  }, [isAuthorized, journalStaff, loadWorkingHours, page, scheduleStaff, staff, tab]);
 
   const syncLiveData = useCallback(
     async ({ includeHistory = false }: { includeHistory?: boolean } = {}) => {
@@ -1762,7 +1788,7 @@ export function useAppController(): AppController {
           page === 'journalDayRemove');
       const shouldSyncSchedule =
         canViewSchedule &&
-        staff.length > 0 &&
+        scheduleStaff.length > 0 &&
         (page === 'journalDayEdit' || page === 'journalDayRemove');
 
       const tasks: Promise<unknown>[] = [];
@@ -1776,7 +1802,7 @@ export function useAppController(): AppController {
       }
 
       if (shouldSyncSchedule) {
-        tasks.push(loadWorkingHours(staff));
+        tasks.push(loadWorkingHours(scheduleStaff));
       }
 
       if (tasks.length > 0) {
@@ -1792,8 +1818,8 @@ export function useAppController(): AppController {
       loadJournalMarkedDates,
       loadWorkingHours,
       page,
+      scheduleStaff,
       selectedDate,
-      staff,
       tab,
     ],
   );
@@ -6001,6 +6027,7 @@ export function useAppController(): AppController {
       weekDates,
       staff,
       visibleStaff,
+      scheduleStaff,
       journalStaff,
       journalCreateStaff,
       filteredStaff,
@@ -6116,6 +6143,7 @@ export function useAppController(): AppController {
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEditAppointments,
       canViewSchedule,
+      canViewAllSchedule,
       canSelectPastJournalDates,
       journalMinSelectableDate,
       canEditPrivacyPolicy,

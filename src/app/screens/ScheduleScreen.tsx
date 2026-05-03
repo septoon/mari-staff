@@ -32,6 +32,8 @@ type ScheduleScreenProps = {
   selectedDate: Date;
   staff: StaffItem[];
   hoursByStaff: WorkingHoursMap;
+  canViewAllSchedule: boolean;
+  canEditSchedule: boolean;
   editorStaff: StaffItem | null;
   editorSelectedDays: number[];
   editorStart: string;
@@ -157,6 +159,16 @@ function getVisibleScheduleDates(date: Date) {
   return [...currentMonthDates, ...nextMonthDates];
 }
 
+function getMonthCalendarCells(date: Date) {
+  const monthDates = getMonthDates(date);
+  const firstDay = monthDates[0]?.getDay() ?? 1;
+  const leadingEmptyCells = (firstDay + 6) % 7;
+  return [
+    ...Array.from({ length: leadingEmptyCells }, () => null),
+    ...monthDates,
+  ];
+}
+
 function formatWeekdayShort(date: Date) {
   return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][date.getDay()] || '';
 }
@@ -180,6 +192,19 @@ function formatShortMonthLabel(date: Date) {
 
 function formatRange(start: string, end: string) {
   return `${start} - ${end}`;
+}
+
+function buildBreakRanges(intervals: ScheduleInterval[]) {
+  const sorted = [...intervals].sort((left, right) => left.start.localeCompare(right.start));
+  const ranges: Array<{ start: string; end: string }> = [];
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    if (previous && current && previous.end < current.start) {
+      ranges.push({ start: previous.end, end: current.start });
+    }
+  }
+  return ranges;
 }
 
 function cloneScheduleIntervals(intervals: ScheduleInterval[]) {
@@ -271,6 +296,253 @@ function buildOnlineSlotGroups(shiftStart: string, shiftEnd: string): OnlineSlot
   ];
 
   return orderedGroups.filter((group) => group.times.length > 0);
+}
+
+function PersonalScheduleCalendar({
+  selectedDate,
+  staff,
+  hoursByStaff,
+  loading,
+  onSelectDate,
+  onReload,
+}: {
+  selectedDate: Date;
+  staff: StaffItem[];
+  hoursByStaff: WorkingHoursMap;
+  loading: boolean;
+  onSelectDate: (value: Date) => void;
+  onReload: () => void;
+}) {
+  const [detailsDate, setDetailsDate] = useState<Date | null>(null);
+  const currentStaff = staff[0] ?? null;
+  const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
+  const calendarCells = useMemo(() => getMonthCalendarCells(selectedDate), [selectedDate]);
+  const monthLabel = `${MONTHS_RU[selectedDate.getMonth()][0]?.toUpperCase() || ''}${MONTHS_RU[
+    selectedDate.getMonth()
+  ].slice(1)} ${selectedDate.getFullYear()}`;
+  const monthDays = currentStaff ? countMonthDays(hoursByStaff, currentStaff.id, monthDates) : 0;
+  const monthHours = currentStaff ? countMonthHours(hoursByStaff, currentStaff.id, monthDates) : 0;
+  const detailsIntervals =
+    currentStaff && detailsDate ? getIntervalsForDate(hoursByStaff, currentStaff.id, detailsDate) : [];
+  const detailsBreaks = buildBreakRanges(detailsIntervals);
+
+  useEffect(() => {
+    if (!detailsDate || !currentStaff) {
+      return;
+    }
+    if (getIntervalsForDate(hoursByStaff, currentStaff.id, detailsDate).length === 0) {
+      setDetailsDate(null);
+    }
+  }, [currentStaff, detailsDate, hoursByStaff]);
+
+  return (
+    <>
+      <div className="pb-6 pt-4 md:pt-6">
+        <section className="overflow-hidden rounded-[34px] border border-[#dfe6ee] bg-white shadow-[0_24px_60px_rgba(31,39,50,0.08)]">
+          <div className="border-b border-[#e7edf4] px-4 py-4 md:px-6 md:py-5">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => onSelectDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d8e0ea] bg-white text-[#2f3843]"
+                aria-label="Предыдущий месяц"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="min-w-0 text-center">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">Мой график</p>
+                <h1 className="mt-1 truncate text-[24px] font-extrabold text-[#2f3843] md:text-[30px]">
+                  {monthLabel}
+                </h1>
+                {currentStaff ? (
+                  <p className="mt-1 truncate text-sm font-semibold text-[#7d8693]">{currentStaff.name}</p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => onSelectDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d8e0ea] bg-white text-[#2f3843]"
+                aria-label="Следующий месяц"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 md:mx-auto md:max-w-[560px]">
+              <div className="rounded-2xl bg-[#f5f8fb] px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">Рабочих дней</p>
+                <p className="mt-1 text-[20px] font-extrabold text-[#232c36]">{monthDays}</p>
+              </div>
+              <div className="rounded-2xl bg-[#f5f8fb] px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">Часов</p>
+                <p className="mt-1 text-[20px] font-extrabold text-[#232c36]">{formatHours(monthHours)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onReload}
+                className="inline-flex flex-col items-start justify-center rounded-2xl bg-[#f5f8fb] px-3 py-3 text-left text-[#2f3843]"
+              >
+                <RefreshCw className={clsx('h-4 w-4', loading ? 'animate-spin' : undefined)} />
+                <span className="mt-1 text-[12px] font-extrabold">Обновить</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="px-3 py-4 md:px-6 md:py-6">
+            <div className="mx-auto max-w-[860px]">
+              <div className="grid grid-cols-7 gap-1.5 md:gap-2">
+                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((label, index) => (
+                  <div
+                    key={label}
+                    className={clsx(
+                      'px-1 py-2 text-center text-[11px] font-bold uppercase tracking-[0.14em]',
+                      index >= 5 ? 'text-[#c95555]' : 'text-[#8f98a6]',
+                    )}
+                  >
+                    {label}
+                  </div>
+                ))}
+
+                {calendarCells.map((date, index) => {
+                  if (!date || !currentStaff) {
+                    return <div key={`empty-${index}`} className="aspect-square rounded-2xl bg-transparent" />;
+                  }
+                  const iso = toISODate(date);
+                  const intervals = getIntervalsForDate(hoursByStaff, currentStaff.id, date);
+                  const isWorking = intervals.length > 0;
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  const isToday = iso === toISODate(new Date());
+                  const isSelected = iso === toISODate(selectedDate);
+
+                  return (
+                    <button
+                      key={iso}
+                      type="button"
+                      onClick={() => {
+                        onSelectDate(date);
+                        if (isWorking) {
+                          setDetailsDate(date);
+                        }
+                      }}
+                      className={clsx(
+                        'aspect-square rounded-2xl border p-2 text-left transition md:rounded-[22px] md:p-3',
+                        isWorking
+                          ? 'border-[#f0c64d] bg-[#fff4bf] text-[#232c36] shadow-[0_10px_24px_rgba(244,201,0,0.16)]'
+                          : isWeekend
+                            ? 'border-[#f1d9d9] bg-[#fff7f7] text-[#b95555]'
+                            : 'border-[#e2e8f0] bg-[#fbfcfe] text-[#8a94a1]',
+                        isSelected ? 'ring-2 ring-[#232427]/10' : undefined,
+                      )}
+                    >
+                      <span className="flex items-center justify-between gap-1">
+                        <span
+                          className={clsx(
+                            'text-[18px] font-extrabold leading-none md:text-[22px]',
+                            isWeekend && !isWorking ? 'text-[#c95555]' : undefined,
+                          )}
+                        >
+                          {date.getDate()}
+                        </span>
+                        {isToday ? <span className="h-2 w-2 rounded-full bg-[#232427]" /> : null}
+                      </span>
+                      {isWorking ? (
+                        <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.08em] text-[#7b6410] md:text-[12px]">
+                          {intervals.map((item) => formatRange(item.start, item.end)).join(', ')}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {detailsDate && currentStaff ? (
+        <div
+          className="fixed inset-0 z-[160] overscroll-contain bg-[rgba(34,43,51,0.48)] px-4 py-6"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setDetailsDate(null);
+            }
+          }}
+        >
+          <div className="mx-auto flex min-h-full max-w-[560px] items-center">
+            <section className="w-full rounded-[32px] border border-[#e0e5ed] bg-[#fbfcfe] p-5 shadow-[0_20px_48px_rgba(41,49,58,0.18)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#8e97a4]">Детали смены</p>
+                  <h2 className="mt-2 text-[26px] font-extrabold tracking-[-0.04em] text-[#28313b]">
+                    {formatLongDateLabel(detailsDate)}
+                  </h2>
+                  <p className="mt-2 text-[15px] font-semibold text-[#66707d]">{currentStaff.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailsDate(null)}
+                  className="inline-flex h-11 items-center rounded-2xl border border-[#dce2ea] bg-white px-4 text-sm font-semibold text-[#39424d]"
+                >
+                  Закрыть
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {detailsIntervals.map((interval, index) => {
+                  const selectedSlots =
+                    Array.isArray(interval.bookingSlots) && interval.bookingSlots.length > 0
+                      ? interval.bookingSlots
+                      : [];
+                  return (
+                    <div key={`${interval.start}-${interval.end}-${index}`} className="rounded-[24px] border border-[#e1e6ee] bg-white p-4">
+                      <div className="flex items-center gap-2 text-[#28313b]">
+                        <Clock3 className="h-4 w-4 text-[#946d00]" />
+                        <p className="text-[18px] font-extrabold tracking-[-0.03em]">
+                          {formatRange(interval.start, interval.end)}
+                        </p>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-[#66707d]">
+                        Рабочие часы: {formatRange(interval.bookingStart, interval.bookingEnd)}
+                      </p>
+                      {selectedSlots.length > 0 ? (
+                        <div className="mt-4">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8e97a4]">
+                            Доступное время
+                          </p>
+                          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                            {selectedSlots.map((slot) => (
+                              <span
+                                key={slot}
+                                className="inline-flex h-12 items-center justify-center rounded-[20px] border border-[#f0c64d] bg-[#fff4bf] px-3 text-[17px] font-extrabold text-[#28313b]"
+                              >
+                                {slot}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+
+                <div className="rounded-[24px] border border-[#e1e6ee] bg-white p-4">
+                  <div className="flex items-center gap-2 text-[#28313b]">
+                    <Coffee className="h-4 w-4 text-[#946d00]" />
+                    <p className="text-[18px] font-extrabold tracking-[-0.03em]">Перерыв</p>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-[#66707d]">
+                    {detailsBreaks.length > 0
+                      ? detailsBreaks.map((item) => formatRange(item.start, item.end)).join(', ')
+                      : 'Не указан'}
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function TimeField({
@@ -736,7 +1008,7 @@ function OnlineSlotsModal({
                 )}
               </div>
 
-              <div className="sticky bottom-0 -mx-5 flex flex-wrap gap-3 border-t border-[#e5eaf1] bg-[#fbfcfe]/95 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:border-t-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:backdrop-blur-0">
+              <div className="fixed inset-x-0 bottom-0 z-[170] flex flex-wrap gap-3 border-t border-[#e5eaf1] bg-[#fbfcfe]/95 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] pt-4 backdrop-blur sm:px-6 md:static md:inset-auto md:z-auto md:border-t-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:backdrop-blur-0">
                 <button
                   type="button"
                   onClick={onSave}
@@ -813,7 +1085,7 @@ function BreakModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+156px)] pt-5 md:px-6 md:pb-6">
+        <div className="space-y-4 px-5 pb-8 pt-5 md:px-6 md:pb-6">
           <div
             className={clsx(
               'flex flex-wrap items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-extrabold',
@@ -1405,6 +1677,8 @@ export function ScheduleScreen({
   selectedDate,
   staff,
   hoursByStaff,
+  canViewAllSchedule,
+  canEditSchedule,
   editorStaff,
   editorStart,
   editorEnd,
@@ -1797,6 +2071,19 @@ export function ScheduleScreen({
         )
       : false;
 
+  if (!canViewAllSchedule) {
+    return (
+      <PersonalScheduleCalendar
+        selectedDate={selectedDate}
+        staff={staff}
+        hoursByStaff={hoursByStaff}
+        loading={loading}
+        onSelectDate={onSelectDate}
+        onReload={onReload}
+      />
+    );
+  }
+
   return (
     <>
       <div className="pb-6 pt-4 md:pt-6">
@@ -1858,6 +2145,7 @@ export function ScheduleScreen({
                   <button
                     type="button"
                     onClick={onEdit}
+                    disabled={!canEditSchedule}
                     className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#232427] px-3 text-sm font-bold text-white"
                   >
                     <Settings2 className="h-4 w-4" />
@@ -2280,6 +2568,7 @@ export function ScheduleScreen({
                                 setFiltersOpen(false);
                                 setSettingsOpen(false);
                               }}
+                              disabled={!canEditSchedule}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#9099a6] transition hover:bg-[#f3f6fa]"
                               aria-label={`Открыть действия для ${row.staff.name}`}
                             >
@@ -2329,7 +2618,11 @@ export function ScheduleScreen({
                               isSelected={iso === selectedIso}
                               onClick={() => {
                                 setCellContextMenu(null);
-                                onOpenDesktopEditor(row.staff, date);
+                                if (canEditSchedule) {
+                                  onOpenDesktopEditor(row.staff, date);
+                                } else {
+                                  onSelectDate(date);
+                                }
                               }}
                               onContextMenu={(event) => {
                                 event.preventDefault();
