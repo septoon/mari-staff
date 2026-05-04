@@ -2544,7 +2544,7 @@ export function ScheduleScreen({
                           key={`${row.staff.id}-meta`}
                           className={clsx(
                             'sticky left-0 flex items-center gap-3 border-r border-b border-[#e7edf4] bg-white px-5 py-4',
-                            staffMenuId === row.staff.id ? 'z-[60]' : 'z-10',
+                            staffMenuId === row.staff.id ? 'z-[170]' : 'z-10',
                           )}
                         >
                           <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#f1f4f8] text-[#8b94a1]">

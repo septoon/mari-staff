@@ -119,6 +119,7 @@ function buildEmptyJournalCreateDraft(): JournalCreateDraft {
     dateValue: '',
     startTime: '10:00',
     durationMin: 60,
+    durationManuallyChanged: false,
     staffId: '',
     serviceIds: [],
   };

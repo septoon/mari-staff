@@ -259,6 +259,7 @@ export function AppView({ controller }: AppViewProps) {
     (state.page === 'journalCreate' ||
       state.page === 'journalAppointment' ||
       state.page === 'journalSettings');
+  const shouldRaiseMobilePageAboveNav = state.page === 'journalCreate';
   const showGlobalLoader =
     state.clientHistoryLoading ||
     Object.entries(state.loading).some(
@@ -635,6 +636,7 @@ export function AppView({ controller }: AppViewProps) {
         ref={mainScrollRef}
         className={clsx(
           'app-main-scroll scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6',
+          shouldRaiseMobilePageAboveNav ? 'relative z-[60] bg-screen md:z-auto' : undefined,
           showDesktopRail ? 'md:pl-[444px] md:pr-6' : undefined,
           isJournalMainPage
             ? 'pb-[calc(env(safe-area-inset-bottom)+220px)] md:pb-6'

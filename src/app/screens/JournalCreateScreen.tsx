@@ -233,7 +233,7 @@ function Content({
 
     onDraftChange({
       serviceIds: nextIds,
-      durationMin: nextDurationMin,
+      durationMin: draft.durationManuallyChanged ? draft.durationMin : nextDurationMin,
     });
   };
 
@@ -250,7 +250,7 @@ function Content({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-[calc(env(safe-area-inset-bottom)+112px)] md:pb-0">
       <Section
         eyebrow="Клиент"
         title="Контакт для записи"
@@ -351,7 +351,12 @@ function Content({
             label="Длительность"
             value={String(draft.durationMin)}
             options={durationOptions}
-            onChange={(value) => onDraftChange({ durationMin: Number(value) || 60 })}
+            onChange={(value) =>
+              onDraftChange({
+                durationMin: Number(value) || 60,
+                durationManuallyChanged: true,
+              })
+            }
           />
         </div>
       </Section>
@@ -517,7 +522,7 @@ function Content({
         </div>
       </Section>
 
-      <div className="sticky bottom-0 z-10 -mx-1 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd]/95 px-5 py-4 shadow-[0_16px_34px_rgba(42,49,56,0.08)] backdrop-blur">
+      <div className="fixed inset-x-6 bottom-[calc(env(safe-area-inset-bottom)+20px)] z-[70] rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd]/95 px-4 py-4 shadow-[0_16px_34px_rgba(42,49,56,0.08)] backdrop-blur md:sticky md:bottom-0 md:left-auto md:right-auto md:z-10 md:-mx-1 md:px-5">
         <button
           type="button"
           disabled={createDisabled}

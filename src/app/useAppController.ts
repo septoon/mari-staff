@@ -268,6 +268,7 @@ function buildJournalCreateDraft(
     dateValue: formatJournalCreateDateValue(selectedDate),
     startTime: options?.startTime || '10:00',
     durationMin: 60,
+    durationManuallyChanged: false,
     staffId: selectedStaff?.id || '',
     serviceIds: [],
   };
@@ -1685,7 +1686,10 @@ export function useAppController(): AppController {
     setJournalCreateDraft((current) => ({
       ...current,
       serviceIds: resolvedServiceIds,
-      durationMin: totalDurationMin > 0 ? totalDurationMin : current.durationMin,
+      durationMin:
+        !current.durationManuallyChanged && totalDurationMin > 0
+          ? totalDurationMin
+          : current.durationMin,
     }));
   }, [
     journalCreateDraft.serviceIds,

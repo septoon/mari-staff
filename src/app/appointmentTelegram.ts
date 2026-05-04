@@ -164,6 +164,16 @@ function buildTelegramAppointmentMessage({
     toString(appointmentRecord?.startAt) ||
     toString(appointmentRecord?.startsAt) ||
     new Date(`${draft.dateValue}T${draft.startTime}:00`).toISOString();
+  const endAt = toString(appointmentRecord?.endAt) || toString(appointmentRecord?.endsAt) || '';
+  const startDate = new Date(startAt);
+  const endDate = endAt ? new Date(endAt) : null;
+  const durationSecFromInterval =
+    endDate &&
+    Number.isFinite(startDate.getTime()) &&
+    Number.isFinite(endDate.getTime()) &&
+    endDate.getTime() > startDate.getTime()
+      ? Math.round((endDate.getTime() - startDate.getTime()) / 1000)
+      : 0;
 
   const durationSecFromServices = asArray(appointmentRecord?.services).reduce<number>(
     (total, item) => {
@@ -173,6 +183,8 @@ function buildTelegramAppointmentMessage({
     0,
   );
   const durationSec =
+    durationSecFromInterval ||
+    (draft.durationManuallyChanged ? Math.max(60, Math.round(draft.durationMin * 60)) : 0) ||
     durationSecFromServices ||
     services.reduce((total, service) => total + Math.max(60, Math.round(service.durationSec)), 0) ||
     Math.max(60, Math.round(draft.durationMin * 60));

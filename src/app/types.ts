@@ -224,6 +224,7 @@ export type JournalCreateDraft = {
   dateValue: string;
   startTime: string;
   durationMin: number;
+  durationManuallyChanged: boolean;
   staffId: string;
   serviceIds: string[];
 };
