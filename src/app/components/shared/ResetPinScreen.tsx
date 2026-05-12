@@ -49,7 +49,9 @@ export function ResetPinScreen({
       setPinConfirm('');
       return;
     }
-    void onConfirm(token, pin);
+    void onConfirm(token, pin).catch(() => {
+      // API error is already reflected through the shared authError state.
+    });
   };
 
   const appendDigit = (digit: string) => {

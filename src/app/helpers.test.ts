@@ -1,4 +1,5 @@
-import { appointmentMatchesClient } from './helpers';
+import { ApiError } from '../api';
+import { appointmentMatchesClient, toErrorMessage } from './helpers';
 import type { AppointmentItem } from './types';
 
 function makeAppointment(overrides: Partial<AppointmentItem> = {}): AppointmentItem {
@@ -47,4 +48,10 @@ test('appointmentMatchesClient matches by phone when client phone is stored as 1
       phone: '9784733940',
     }),
   ).toBe(true);
+});
+
+test('toErrorMessage explains expired reset pin token', () => {
+  expect(
+    toErrorMessage(new ApiError('Token not found or expired', 404, 'NOT_FOUND')),
+  ).toBe('Ссылка для сброса код-пароля недействительна или истекла. Запросите новую ссылку.');
 });

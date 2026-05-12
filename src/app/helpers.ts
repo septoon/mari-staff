@@ -311,6 +311,13 @@ export function toErrorMessage(error: unknown): string {
     if (error.code === 'AUTH_REQUIRED' || error.status === 401) {
       return '';
     }
+    if (
+      error.status === 404 &&
+      error.code === 'NOT_FOUND' &&
+      error.message === 'Token not found or expired'
+    ) {
+      return 'Ссылка для сброса код-пароля недействительна или истекла. Запросите новую ссылку.';
+    }
     if (error.code) {
       return `${error.code}: ${error.message}`;
     }
