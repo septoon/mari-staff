@@ -4,6 +4,8 @@ import { Button as PrimeButton } from 'primereact/button';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   BadgePercent,
   ChevronRight,
   FileText,
@@ -82,6 +84,14 @@ import {
   type SitePolicyRecord,
 } from '../clientSiteCards';
 import {
+  SITE_GALLERY_CATALOGS,
+  countSiteGalleryPhotos,
+  createSiteGalleryDraft,
+  mergeSiteGalleryIntoExtra,
+  type SiteGalleryCatalogKey,
+  type SiteGalleryDraft,
+} from '../clientSiteGallery';
+import {
   SITE_PAGE_HERO_DEFINITIONS,
   countConfiguredSitePageHeroes,
   createSitePageHeroDraft,
@@ -108,6 +118,7 @@ type CategoryKey =
   | 'services'
   | 'prices'
   | 'specialists'
+  | 'gallery'
   | 'contacts'
   | 'page'
   | 'promo'
@@ -133,6 +144,7 @@ const CLIENT_SITE_PAGE_KEYS_BY_CATEGORY: Partial<Record<CategoryKey, string>> = 
   services: 'services',
   prices: 'prices',
   specialists: 'masters',
+  gallery: 'gallery',
   contacts: 'contacts',
   page: 'booking',
   promo: 'offers',
@@ -145,6 +157,7 @@ const CLIENT_SITE_PAGE_LABELS_BY_CATEGORY: Partial<Record<CategoryKey, string>> 
   services: 'Страница /services',
   prices: 'Страница /prices',
   specialists: 'Страница /masters',
+  gallery: 'Страница /gallery',
   contacts: 'Страница /contacts',
   page: 'Страница /booking',
   promo: 'Страница /offers',
@@ -323,10 +336,12 @@ type MediaAssetRecord = {
 
 type MediaPickerState = {
   entity: 'specialists' | 'client-front';
-  target: 'specialist-photo' | 'block-image' | 'offer-image';
+  target: 'specialist-photo' | 'block-image' | 'offer-image' | 'gallery-photo';
   title: string;
   currentAssetId?: string | null;
   offerIndex?: number;
+  galleryCatalog?: SiteGalleryCatalogKey;
+  galleryPhotoId?: string;
   search: string;
   items: MediaAssetRecord[];
   loading: boolean;
@@ -381,6 +396,7 @@ const CATEGORY_ROUTE_SEGMENTS: Record<CategoryKey, string> = {
   services: 'uslugi',
   prices: 'tseny',
   specialists: 'specialisty',
+  gallery: 'galereya',
   contacts: 'kontakty',
   page: 'stranica',
   promo: 'akcii',
@@ -652,6 +668,14 @@ const categories: CategoryMeta[] = [
     note: 'Фото, специализация, текст кнопки записи, видимость, порядок карточек и контент страниц специалистов для клиента.',
     tags: ['фото', 'специализация', 'видимость', 'страница /masters'],
     icon: Users,
+  },
+  {
+    key: 'gallery',
+    title: 'Галерея',
+    description: 'Фотографии страницы `/gallery`: отдельные каталоги экстерьера и интерьера.',
+    note: 'Фото загружаются в общую медиатеку, сервер делает webp-варианты, а порядок управляется здесь.',
+    tags: ['страница /gallery', 'экстерьер', 'интерьер', 'порядок фото'],
+    icon: Image,
   },
   {
     key: 'contacts',
@@ -1793,6 +1817,9 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
   const [specialistsPageDraft, setSpecialistsPageDraft] = useState<SiteSpecialistsPageDraft>(() =>
     createSiteSpecialistsPageDraft({})
   );
+  const [siteGalleryDraft, setSiteGalleryDraft] = useState<SiteGalleryDraft>(() =>
+    createSiteGalleryDraft({})
+  );
   const [siteCardsDraft, setSiteCardsDraft] = useState<SiteCardsDraft>(() => createSiteCardsDraft({}));
   const [advancedDraft, setAdvancedDraft] = useState<AdvancedDraft>({
     featureFlagsJson: '{}',
@@ -1917,6 +1944,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     setServicesPageDraft(createSiteServicesPageDraft(config.extra ?? {}));
     setPricesPageDraft(createSitePricesPageDraft(config.extra ?? {}));
     setSpecialistsPageDraft(createSiteSpecialistsPageDraft(config.extra ?? {}));
+    setSiteGalleryDraft(createSiteGalleryDraft(config.extra ?? {}));
     setSiteCardsDraft(createSiteCardsDraft(config.extra ?? {}));
     setAdvancedDraft({
       featureFlagsJson: toJsonText(config.featureFlags ?? {}),
@@ -2014,6 +2042,13 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     if (homePageDraft.hero.visualImageAssetId) {
       ids.add(homePageDraft.hero.visualImageAssetId);
     }
+    SITE_GALLERY_CATALOGS.forEach((catalog) => {
+      siteGalleryDraft[catalog.key].forEach((item) => {
+        if (item.imageAssetId) {
+          ids.add(item.imageAssetId);
+        }
+      });
+    });
     siteCardsDraft.offers.forEach((item) => {
       if (item.imageAssetId) {
         ids.add(item.imageAssetId);
@@ -2077,6 +2112,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     pageHeroDraft,
     previewState.data,
     serviceEditor?.draft.imageAssetId,
+    siteGalleryDraft,
     siteCardsDraft.locations,
     siteCardsDraft.news,
     siteCardsDraft.offers,
@@ -2163,6 +2199,17 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
                 ]
               : ['Карточки специалистов пока не загружены.'],
             warning: screenData.specialists.error || undefined,
+          };
+        case 'gallery':
+          return {
+            ...category,
+            stat: screenData.config.error ? screenData.config.error : `${siteGalleryDraft.exterior.length + siteGalleryDraft.interior.length}`,
+            details: [
+              `Экстерьер: ${siteGalleryDraft.exterior.length}`,
+              `Интерьер: ${siteGalleryDraft.interior.length}`,
+              `В конфигурации: ${countSiteGalleryPhotos(config?.extra ?? {})}`,
+            ],
+            warning: screenData.config.error || undefined,
           };
         case 'contacts':
           {
@@ -2267,7 +2314,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           };
       }
     });
-  }, [blocks, config, hasHiddenBlock, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, pageHeroDraft.services.title, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.services.error, screenData.specialists.error, serviceCategories.length, services, siteCardsDraft.news.length, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, specialists]);
+  }, [blocks, config, hasHiddenBlock, homePageDraft.highlights.length, homePageDraft.news.itemsLimit, homePageDraft.valuePillars.items.length, pageHeroDraft.services.title, primaryContact, releases, screenData.blocks.error, screenData.config.error, screenData.releases.error, screenData.specialists.error, serviceCategories.length, siteCardsDraft.news, siteCardsDraft.offers.length, siteCardsDraft.policy.accountConsentLabel, siteCardsDraft.policy.bookingConsentLabel, siteCardsDraft.policy.cookieBannerTitle, siteCardsDraft.policy.sections.length, siteGalleryDraft, specialists]);
 
   const activeMeta = useMemo(
     () => categories.find((item) => item.key === activeCategory) ?? null,
@@ -2342,7 +2389,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         setBusyKey(null);
       }
     },
-    [activeCategory, loadData, previewState.data, previewState.error],
+    [activeCategory, loadData, previewState.data, previewState.error, setBanner],
   );
 
   const saveSiteVisibility = useCallback(
@@ -2654,6 +2701,49 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
+  const saveGalleryPage = async () => {
+    await saveConfigPatch(
+      {
+        extra: mergeSiteGalleryIntoExtra(config?.extra ?? {}, siteGalleryDraft),
+      },
+      'Галерея сохранена',
+    );
+  };
+
+  const updateGalleryPhoto = (
+    catalog: SiteGalleryCatalogKey,
+    id: string,
+    updater: (photo: SiteGalleryDraft[SiteGalleryCatalogKey][number]) => SiteGalleryDraft[SiteGalleryCatalogKey][number],
+  ) => {
+    setSiteGalleryDraft((prev) => ({
+      ...prev,
+      [catalog]: prev[catalog].map((item) => (item.id === id ? updater(item) : item)),
+    }));
+  };
+
+  const removeGalleryPhoto = (catalog: SiteGalleryCatalogKey, id: string) => {
+    setSiteGalleryDraft((prev) => ({
+      ...prev,
+      [catalog]: prev[catalog].filter((item) => item.id !== id),
+    }));
+  };
+
+  const moveGalleryPhoto = (catalog: SiteGalleryCatalogKey, index: number, direction: -1 | 1) => {
+    setSiteGalleryDraft((prev) => {
+      const nextItems = [...prev[catalog]];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= nextItems.length) {
+        return prev;
+      }
+      const [item] = nextItems.splice(index, 1);
+      nextItems.splice(targetIndex, 0, item);
+      return {
+        ...prev,
+        [catalog]: nextItems,
+      };
+    });
+  };
+
   const updateBookingPageField = <
     TSectionKey extends BookingPageSectionKey,
     TFieldKey extends keyof SiteBookingPageDraft[TSectionKey]
@@ -2705,6 +2795,8 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           return buildPricesExtra();
         case 'specialists':
           return buildSpecialistsExtra();
+        case 'gallery':
+          return mergeSiteGalleryIntoExtra(config?.extra ?? {}, siteGalleryDraft);
         case 'page':
           return buildBookingExtra();
         case 'contacts':
@@ -2719,6 +2811,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       buildSpecialistsExtra,
       config?.extra,
       homePageDraft,
+      siteGalleryDraft,
       siteCardsDraft,
     ],
   );
@@ -3473,6 +3566,31 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
       return;
     }
 
+    if (mediaPicker.target === 'gallery-photo') {
+      const catalog = mediaPicker.galleryCatalog ?? 'exterior';
+      if (mediaPicker.galleryPhotoId) {
+        updateGalleryPhoto(catalog, mediaPicker.galleryPhotoId, (photo) => ({
+          ...photo,
+          imageAssetId: asset.id,
+        }));
+      } else {
+        setSiteGalleryDraft((prev) => ({
+          ...prev,
+          [catalog]: [
+            ...prev[catalog],
+            {
+              id: `${catalog}-${Date.now()}`,
+              imageAssetId: asset.id,
+              alt: '',
+            },
+          ],
+        }));
+      }
+      setBanner('success', 'Фото выбрано. Не забудьте сохранить галерею.');
+      setMediaPicker(null);
+      return;
+    }
+
     updateBlockPayload((payload) => {
       const items = asRecordArray(payload.items);
       const offerIndex = mediaPicker.offerIndex ?? 0;
@@ -3759,6 +3877,47 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         },
       }));
       setBanner('success', 'Изображение визуала подготовлено. Не забудьте сохранить главную страницу.');
+    } catch (error) {
+      setBanner('error', getErrorMessage(error));
+    }
+  };
+
+  const uploadGalleryImage = async (
+    catalog: SiteGalleryCatalogKey,
+    file: File,
+    replacePhotoId?: string,
+  ) => {
+    try {
+      const uploaded = await uploadManagedImage({
+        file,
+        busyState: `gallery-image:${catalog}`,
+        scope: 'client-content',
+        entityId: `gallery-${catalog}`,
+      });
+      if (!uploaded.assetId) {
+        throw new Error('Сервер не вернул assetId изображения');
+      }
+
+      if (replacePhotoId) {
+        updateGalleryPhoto(catalog, replacePhotoId, (photo) => ({
+          ...photo,
+          imageAssetId: uploaded.assetId ?? '',
+        }));
+      } else {
+        setSiteGalleryDraft((prev) => ({
+          ...prev,
+          [catalog]: [
+            ...prev[catalog],
+            {
+              id: `${catalog}-${Date.now()}`,
+              imageAssetId: uploaded.assetId ?? '',
+              alt: '',
+            },
+          ],
+        }));
+      }
+
+      setBanner('success', 'Фото галереи подготовлено. Не забудьте сохранить галерею.');
     } catch (error) {
       setBanner('error', getErrorMessage(error));
     }
@@ -6376,6 +6535,199 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
     );
   };
 
+  const renderGalleryDetail = () => (
+    <div className="space-y-5">
+      <SectionCard
+        title="Страница `/gallery` на клиентском сайте"
+        subtitle="Два каталога фотографий: экстерьер и интерьер. Клиентский сайт показывает их как полноэкранную карусель."
+        action={
+          <>
+            {/* {renderCategoryPageVisibilityAction('gallery')} */}
+            <button
+              type="button"
+              onClick={() => {
+                void saveGalleryPage();
+              }}
+              disabled={busyKey === 'config'}
+              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink disabled:opacity-50"
+            >
+              {busyKey === 'config' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Сохранить и опубликовать
+            </button>
+          </>
+        }
+      >
+        <div className="rounded-2xl border border-[#d8e3ef] bg-[#f4f8fc] px-4 py-3 text-[14px] font-medium leading-relaxed text-[#4f5b6b]">
+          Загрузка идёт через общую медиатеку `client-front`: сервер сохраняет оригинал и создаёт webp-варианты.
+          После изменения порядка или замены фото нужно сохранить галерею.
+        </div>
+      </SectionCard>
+
+      {SITE_GALLERY_CATALOGS.map((catalog) => {
+        const items = siteGalleryDraft[catalog.key];
+        return (
+          <SectionCard
+            key={catalog.key}
+            title={catalog.title}
+            subtitle={catalog.description}
+            action={
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openMediaPicker({
+                      entity: 'client-front',
+                      target: 'gallery-photo',
+                      title: `Фото каталога: ${catalog.title}`,
+                      galleryCatalog: catalog.key,
+                    })
+                  }
+                  className="inline-flex items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink"
+                >
+                  <Image className="h-4 w-4" />
+                  Медиатека
+                </button>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2 text-[14px] font-extrabold text-ink">
+                  {busyKey === `gallery-image:${catalog.key}` ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Загрузить
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) {
+                        void uploadGalleryImage(catalog.key, file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            }
+          >
+            <div className="space-y-3">
+              {items.length === 0 ? (
+                <div className="rounded-2xl bg-white px-4 py-4 text-[15px] font-semibold text-[#5f6773]">
+                  В каталоге пока нет фотографий.
+                </div>
+              ) : (
+                items.map((item, index) => {
+                  const previewUrl = assetUrlMap[item.imageAssetId] ?? '';
+                  return (
+                    <div key={item.id} className="rounded-2xl bg-white px-4 py-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex aspect-[4/3] w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f6f9]">
+                          {previewUrl ? (
+                            <img src={previewUrl} alt={item.alt || catalog.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <Image className="h-8 w-8 text-[#68768a]" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[17px] font-extrabold text-ink">Фото {index + 1}</p>
+                              <p className="mt-1 break-all text-[12px] font-semibold text-[#8590a0]">
+                                assetId: {item.imageAssetId}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => moveGalleryPhoto(catalog.key, index, -1)}
+                                disabled={index === 0}
+                                className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-40"
+                                aria-label="Поднять фото"
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveGalleryPhoto(catalog.key, index, 1)}
+                                disabled={index === items.length - 1}
+                                className="rounded-2xl border border-line p-3 text-[#6c7685] disabled:opacity-40"
+                                aria-label="Опустить фото"
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-3">
+                            <TextField
+                              label="Alt-текст"
+                              value={item.alt}
+                              onChange={(value) =>
+                                updateGalleryPhoto(catalog.key, item.id, (photo) => ({
+                                  ...photo,
+                                  alt: value,
+                                }))
+                              }
+                              placeholder={catalog.title}
+                            />
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openMediaPicker({
+                                  entity: 'client-front',
+                                  target: 'gallery-photo',
+                                  title: `Заменить фото ${index + 1}`,
+                                  currentAssetId: item.imageAssetId,
+                                  galleryCatalog: catalog.key,
+                                  galleryPhotoId: item.id,
+                                })
+                              }
+                              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-[#f4f6f9] px-3 py-2 text-[13px] font-extrabold text-ink"
+                            >
+                              <Image className="h-4 w-4" />
+                              Медиатека
+                            </button>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-line bg-[#f4f6f9] px-3 py-2 text-[13px] font-extrabold text-ink">
+                              <Upload className="h-4 w-4" />
+                              Заменить
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  event.target.value = '';
+                                  if (file) {
+                                    void uploadGalleryImage(catalog.key, file, item.id);
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeGalleryPhoto(catalog.key, item.id)}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-line bg-[#f4f6f9] px-3 py-2 text-[13px] font-extrabold text-ink"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Убрать
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </SectionCard>
+        );
+      })}
+    </div>
+  );
+
   const renderContactsDetail = () => {
     const primaryDisplayPhone = getContactPhoneInputValue(primaryContactDraft);
 
@@ -8224,6 +8576,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
         {activeCategory === 'services' ? renderServicesDetail() : null}
         {activeCategory === 'prices' ? renderPricesDetail() : null}
         {activeCategory === 'specialists' ? renderSpecialistsDetail() : null}
+        {activeCategory === 'gallery' ? renderGalleryDetail() : null}
         {activeCategory === 'contacts' ? renderContactsDetail() : null}
         {activeCategory === 'page' ? renderPageBlocksDetail() : null}
         {activeCategory === 'promo' ? renderPromoDetail() : null}
