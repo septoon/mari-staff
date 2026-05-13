@@ -4745,7 +4745,7 @@ export function ClientSiteEditorScreen({ onBack, onOpenServices }: ClientSiteEdi
           <ArrowLeft className="h-6 w-6" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-[26px] font-extrabold text-ink">Онлайн-запись</h1>
+          <h1 className="text-[26px] font-extrabold text-ink">Оформление страницы</h1>
           <p className="mt-1 text-[14px] font-semibold text-muted">Главная страница управления клиентским сайтом и онлайн-записью</p>
         </div>
         <button

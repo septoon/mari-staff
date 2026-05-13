@@ -144,7 +144,8 @@ const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as 
 const STAFF_COLUMN_WIDTH = 344;
 const TOTAL_COLUMN_WIDTH = 128;
 const DAY_COLUMN_WIDTH = 56;
-const MOBILE_DATE_STRIP_START_OFFSET = 20;
+const MOBILE_STAFF_COLUMN_WIDTH = 190;
+const MOBILE_DAY_COLUMN_WIDTH = 54;
 
 function getMonthDates(date: Date) {
   const year = date.getFullYear();
@@ -184,10 +185,6 @@ function parseDateValue(value: string) {
   }
   const date = new Date(year, month - 1, day);
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatShortMonthLabel(date: Date) {
-  return MONTHS_RU[date.getMonth()].slice(0, 3);
 }
 
 function formatRange(start: string, end: string) {
@@ -576,15 +573,22 @@ function DayEditorPanel({
   end,
   bookingStart,
   bookingEnd,
+  breakStart,
+  breakEnd,
+  isBreakActive,
   loading,
   onClose,
   onStartChange,
   onEndChange,
   onBookingStartChange,
   onBookingEndChange,
+  onBreakStartChange,
+  onBreakEndChange,
   onPresetSelect,
   onSave,
   onClear,
+  onSaveBreak,
+  onRemoveBreak,
   onCopy,
   onPaste,
   canPaste,
@@ -597,15 +601,22 @@ function DayEditorPanel({
   end: string;
   bookingStart: string;
   bookingEnd: string;
+  breakStart: string;
+  breakEnd: string;
+  isBreakActive: boolean;
   loading: boolean;
   onClose: () => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
   onBookingStartChange: (value: string) => void;
   onBookingEndChange: (value: string) => void;
+  onBreakStartChange: (value: string) => void;
+  onBreakEndChange: (value: string) => void;
   onPresetSelect: (value: string) => void;
   onSave: () => void;
   onClear: () => void;
+  onSaveBreak: () => void;
+  onRemoveBreak: () => void;
   onCopy: () => void;
   onPaste: () => void;
   canPaste: boolean;
@@ -677,6 +688,45 @@ function DayEditorPanel({
             <TimeField label="Закрыть онлайн" value={bookingEnd} onChange={onBookingEndChange} />
           </div>
         </div>
+
+        <div className="rounded-[28px] border border-[#e1e6ee] bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[#28313b]">
+              <Coffee className="h-4 w-4 text-[#946d00]" />
+              <h3 className="text-[18px] font-extrabold tracking-[-0.03em]">Перерыв</h3>
+            </div>
+            <span
+              className={clsx(
+                'inline-flex h-9 items-center rounded-2xl px-3 text-xs font-extrabold',
+                isBreakActive ? 'bg-[#edf8ef] text-[#2d6b3b]' : 'bg-[#fff9df] text-[#6f5a12]',
+              )}
+            >
+              {isBreakActive ? 'Выставлен' : 'Не выставлен'}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <TimeField label="Начало перерыва" value={breakStart} onChange={onBreakStartChange} />
+            <TimeField label="Конец перерыва" value={breakEnd} onChange={onBreakEndChange} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onSaveBreak}
+              disabled={loading}
+              className="inline-flex h-12 items-center rounded-2xl bg-[#f4c900] px-5 text-sm font-extrabold text-[#2c3540] shadow-[0_14px_30px_rgba(244,201,0,0.22)] disabled:opacity-60"
+            >
+              {loading ? 'Сохранение...' : 'Сохранить перерыв'}
+            </button>
+            <button
+              type="button"
+              onClick={onRemoveBreak}
+              disabled={loading || !isBreakActive}
+              className="inline-flex h-12 items-center rounded-2xl border border-[#f0d3cf] bg-white px-5 text-sm font-semibold text-[#a24f45] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Убрать перерыв
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
@@ -728,15 +778,22 @@ function DayEditorModal({
   end,
   bookingStart,
   bookingEnd,
+  breakStart,
+  breakEnd,
+  isBreakActive,
   loading,
   onClose,
   onStartChange,
   onEndChange,
   onBookingStartChange,
   onBookingEndChange,
+  onBreakStartChange,
+  onBreakEndChange,
   onPresetSelect,
   onSave,
   onClear,
+  onSaveBreak,
+  onRemoveBreak,
   onCopy,
   onPaste,
   canPaste,
@@ -748,15 +805,22 @@ function DayEditorModal({
   end: string;
   bookingStart: string;
   bookingEnd: string;
+  breakStart: string;
+  breakEnd: string;
+  isBreakActive: boolean;
   loading: boolean;
   onClose: () => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
   onBookingStartChange: (value: string) => void;
   onBookingEndChange: (value: string) => void;
+  onBreakStartChange: (value: string) => void;
+  onBreakEndChange: (value: string) => void;
   onPresetSelect: (value: string) => void;
   onSave: () => void;
   onClear: () => void;
+  onSaveBreak: () => void;
+  onRemoveBreak: () => void;
   onCopy: () => void;
   onPaste: () => void;
   canPaste: boolean;
@@ -780,15 +844,22 @@ function DayEditorModal({
             end={end}
             bookingStart={bookingStart}
             bookingEnd={bookingEnd}
+            breakStart={breakStart}
+            breakEnd={breakEnd}
+            isBreakActive={isBreakActive}
             loading={loading}
             onClose={onClose}
             onStartChange={onStartChange}
             onEndChange={onEndChange}
             onBookingStartChange={onBookingStartChange}
             onBookingEndChange={onBookingEndChange}
+            onBreakStartChange={onBreakStartChange}
+            onBreakEndChange={onBreakEndChange}
             onPresetSelect={onPresetSelect}
             onSave={onSave}
             onClear={onClear}
+            onSaveBreak={onSaveBreak}
+            onRemoveBreak={onRemoveBreak}
             onCopy={onCopy}
             onPaste={onPaste}
             canPaste={canPaste}
@@ -806,15 +877,22 @@ function DayEditorModal({
             end={end}
             bookingStart={bookingStart}
             bookingEnd={bookingEnd}
+            breakStart={breakStart}
+            breakEnd={breakEnd}
+            isBreakActive={isBreakActive}
             loading={loading}
             onClose={onClose}
             onStartChange={onStartChange}
             onEndChange={onEndChange}
             onBookingStartChange={onBookingStartChange}
             onBookingEndChange={onBookingEndChange}
+            onBreakStartChange={onBreakStartChange}
+            onBreakEndChange={onBreakEndChange}
             onPresetSelect={onPresetSelect}
             onSave={onSave}
             onClear={onClear}
+            onSaveBreak={onSaveBreak}
+            onRemoveBreak={onRemoveBreak}
             onCopy={onCopy}
             onPaste={onPaste}
             canPaste={canPaste}
@@ -1535,11 +1613,13 @@ function ScheduleDateContextMenu({
 function ScheduleCell({
   intervals,
   isSelected,
+  compact = false,
   onClick,
   onContextMenu,
 }: {
   intervals: ScheduleInterval[];
   isSelected: boolean;
+  compact?: boolean;
   onClick: () => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -1553,12 +1633,18 @@ function ScheduleCell({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={clsx(
-        'group relative flex min-h-[92px] w-full items-stretch border-r border-b border-[#e7edf4] bg-white p-[3px] text-left transition',
+        'group relative flex w-full items-stretch border-r border-b border-[#e7edf4] bg-white p-[3px] text-left transition',
+        compact ? 'min-h-[76px]' : 'min-h-[92px]',
         isSelected ? 'bg-[#fff9e8]' : 'hover:bg-[#fbfcfe]',
       )}
     >
       {hasIntervals ? (
-        <div className="flex min-h-[84px] w-full flex-col justify-start items-center rounded-[12px] bg-[#d8f5cd] px-6 py-5 text-[10px] font-extrabold leading-[1.35] text-[#57a057] whitespace-pre-line">
+        <div
+          className={clsx(
+            'flex w-full flex-col items-center justify-start rounded-[12px] bg-[#d8f5cd] font-extrabold leading-[1.35] text-[#57a057] whitespace-pre-line',
+            compact ? 'min-h-[68px] px-2 py-3 text-[9px]' : 'min-h-[84px] px-6 py-5 text-[10px]',
+          )}
+        >
           {timeLabel}
         </div>
       ) : (
@@ -1567,109 +1653,6 @@ function ScheduleCell({
         </div>
       )}
     </button>
-  );
-}
-
-function MobileStaffCard({
-  row,
-  selectedDate,
-  onOpenMenu,
-  onOpenDay,
-  onOpenOnlineSlots,
-  onOpenBreak,
-  onEditTemplate,
-}: {
-  row: ScheduleRow;
-  selectedDate: Date;
-  onOpenMenu: () => void;
-  onOpenDay: () => void;
-  onOpenOnlineSlots: () => void;
-  onOpenBreak: () => void;
-  onEditTemplate: () => void;
-}) {
-  const dayInterval = row.selectedDayIntervals[0];
-  const hasOnlineSlotEditor = row.selectedDayIntervals.length <= 1;
-
-  return (
-    <section className="rounded-[28px] border border-[#e2e8f0] bg-white p-4 shadow-[0_12px_32px_rgba(31,39,50,0.06)]">
-      <div className="flex items-start gap-3">
-        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] bg-[#eef2f6] text-[#65707d]">
-          {row.staff.avatarUrl ? (
-            <img src={row.staff.avatarUrl} alt={row.staff.name} className="h-full w-full object-cover" />
-          ) : (
-            <UserRound className="h-6 w-6" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[22px] font-extrabold tracking-[-0.04em] text-[#232c36]">
-            {row.staff.name}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-[#728090]">
-            {row.staff.positionName || 'Сотрудник'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onOpenMenu}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d8e0ea] bg-white text-[#7b8694]"
-        >
-          <MoreHorizontal className="h-5 w-5" />
-        </button>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">На месяц</p>
-          <p className="mt-2 text-base font-extrabold text-[#232c36]">
-            {row.monthDays} дн. · {formatHours(row.monthHours)}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#f5f8fb] px-4 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f98a6]">
-            {formatLongDateLabel(selectedDate)}
-          </p>
-          <p className="mt-2 text-base font-extrabold text-[#232c36]">
-            {dayInterval ? `${dayInterval.start} - ${dayInterval.end}` : 'Пусто'}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <button
-          type="button"
-          onClick={onOpenDay}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#232427] px-3 text-sm font-bold text-white"
-        >
-          <CalendarDays className="h-4 w-4" />
-          День
-        </button>
-        <button
-          type="button"
-          onClick={onEditTemplate}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
-        >
-          <Settings2 className="h-4 w-4" />
-          Шаблон
-        </button>
-        <button
-          type="button"
-          onClick={onOpenOnlineSlots}
-          disabled={!hasOnlineSlotEditor}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843] disabled:opacity-45"
-        >
-          <MonitorSmartphone className="h-4 w-4" />
-          Онлайн
-        </button>
-      </div>
-      <button
-        type="button"
-        onClick={onOpenBreak}
-        className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-[#fff9df] px-3 text-sm font-bold text-[#2f3843]"
-      >
-        <Coffee className="h-4 w-4" />
-        Перерыв
-      </button>
-    </section>
   );
 }
 
@@ -1723,7 +1706,8 @@ export function ScheduleScreen({
 }: ScheduleScreenProps) {
   const desktopHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const desktopBodyScrollRef = useRef<HTMLDivElement | null>(null);
-  const mobileDateStripRef = useRef<HTMLDivElement | null>(null);
+  const mobileHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileBodyScrollRef = useRef<HTMLDivElement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [staffMenuId, setStaffMenuId] = useState<string | null>(null);
@@ -1737,6 +1721,8 @@ export function ScheduleScreen({
   const [cellContextMenu, setCellContextMenu] = useState<ScheduleCellContextMenuState | null>(null);
   const [dateContextMenu, setDateContextMenu] = useState<ScheduleDateContextMenuState | null>(null);
   const [breakDraft, setBreakDraft] = useState<BreakDraft>(null);
+  const [editorBreakStart, setEditorBreakStart] = useState('13:00');
+  const [editorBreakEnd, setEditorBreakEnd] = useState('14:00');
 
   const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
   const visibleDates = useMemo(() => getVisibleScheduleDates(selectedDate), [selectedDate]);
@@ -1815,10 +1801,14 @@ export function ScheduleScreen({
   const gridTemplateColumns = `${STAFF_COLUMN_WIDTH}px ${showEmployeeTotals ? `${TOTAL_COLUMN_WIDTH}px ` : ''}repeat(${visibleDates.length}, ${DAY_COLUMN_WIDTH}px)`;
   const gridMinWidth =
     STAFF_COLUMN_WIDTH + (showEmployeeTotals ? TOTAL_COLUMN_WIDTH : 0) + visibleDates.length * DAY_COLUMN_WIDTH;
+  const mobileGridTemplateColumns = `${MOBILE_STAFF_COLUMN_WIDTH}px repeat(${visibleDates.length}, ${MOBILE_DAY_COLUMN_WIDTH}px)`;
+  const mobileGridMinWidth = MOBILE_STAFF_COLUMN_WIDTH + visibleDates.length * MOBILE_DAY_COLUMN_WIDTH;
   const openMenuRow = filteredRows.find((row) => row.staff.id === staffMenuId) ?? null;
-  const selectedDayWorkingRows = filteredRows.filter((row) => row.selectedDayIntervals.length > 0);
   const editorDayIntervals = editorStaff ? getIntervalsForDate(hoursByStaff, editorStaff.id, selectedDate) : [];
   const hasEditorDaySchedule = editorDayIntervals.length > 0;
+  const editorBreakActive = editorStaff
+    ? hasBreakRange(editorDayIntervals, editorBreakStart, editorBreakEnd)
+    : false;
   const editorDraftInterval = {
     start: editorStart,
     end: editorEnd,
@@ -1954,54 +1944,91 @@ export function ScheduleScreen({
     }
   };
 
-  useEffect(() => {
-    const header = desktopHeaderScrollRef.current;
-    const body = desktopBodyScrollRef.current;
-    if (!header || !body) {
+  const saveEditorBreak = async () => {
+    if (!editorStaff) {
       return;
     }
+    await onSaveBreak({
+      staffId: editorStaff.id,
+      date: selectedDate,
+      start: editorBreakStart,
+      end: editorBreakEnd,
+    });
+  };
 
-    let activeSource: 'header' | 'body' | null = null;
+  const removeEditorBreak = async () => {
+    if (!editorStaff) {
+      return;
+    }
+    await onRemoveBreak({
+      staffId: editorStaff.id,
+      date: selectedDate,
+      start: editorBreakStart,
+      end: editorBreakEnd,
+    });
+  };
 
-    const handleHeaderScroll = () => {
-      if (activeSource === 'body') {
+  useEffect(() => {
+    if (!editorStaff) {
+      return;
+    }
+    const existingBreak = getFirstBreakRange(getIntervalsForDate(hoursByStaff, editorStaff.id, selectedDate));
+    setEditorBreakStart(existingBreak?.start ?? '13:00');
+    setEditorBreakEnd(existingBreak?.end ?? '14:00');
+  }, [editorStaff?.id, hoursByStaff, selectedDate]);
+
+  useEffect(() => {
+    const pairs = [
+      [desktopHeaderScrollRef.current, desktopBodyScrollRef.current],
+      [mobileHeaderScrollRef.current, mobileBodyScrollRef.current],
+    ] as const;
+    const cleanups: Array<() => void> = [];
+
+    pairs.forEach(([header, body]) => {
+      if (!header || !body) {
         return;
       }
-      activeSource = 'header';
-      body.scrollLeft = header.scrollLeft;
-      window.requestAnimationFrame(() => {
-        activeSource = null;
-      });
-    };
 
-    const handleBodyScroll = () => {
-      if (activeSource === 'header') {
-        return;
-      }
-      activeSource = 'body';
+      let activeSource: 'header' | 'body' | null = null;
+
+      const handleHeaderScroll = () => {
+        if (activeSource === 'body') {
+          return;
+        }
+        activeSource = 'header';
+        body.scrollLeft = header.scrollLeft;
+        window.requestAnimationFrame(() => {
+          activeSource = null;
+        });
+      };
+
+      const handleBodyScroll = () => {
+        if (activeSource === 'header') {
+          return;
+        }
+        activeSource = 'body';
+        header.scrollLeft = body.scrollLeft;
+        window.requestAnimationFrame(() => {
+          activeSource = null;
+        });
+      };
+
+      header.addEventListener('scroll', handleHeaderScroll, { passive: true });
+      body.addEventListener('scroll', handleBodyScroll, { passive: true });
       header.scrollLeft = body.scrollLeft;
-      window.requestAnimationFrame(() => {
-        activeSource = null;
-      });
-    };
 
-    header.addEventListener('scroll', handleHeaderScroll, { passive: true });
-    body.addEventListener('scroll', handleBodyScroll, { passive: true });
-    header.scrollLeft = body.scrollLeft;
+      cleanups.push(() => {
+        header.removeEventListener('scroll', handleHeaderScroll);
+        body.removeEventListener('scroll', handleBodyScroll);
+      });
+    });
 
     return () => {
-      header.removeEventListener('scroll', handleHeaderScroll);
-      body.removeEventListener('scroll', handleBodyScroll);
+      cleanups.forEach((cleanup) => cleanup());
     };
-  }, [gridMinWidth]);
+  }, [gridMinWidth, mobileGridMinWidth]);
 
   useEffect(() => {
-    const header = desktopHeaderScrollRef.current;
-    const body = desktopBodyScrollRef.current;
-    if (!header || !body) {
-      return;
-    }
-
     const todayIso = toISODate(new Date());
     const startIso = visibleDates.some((date) => toISODate(date) === todayIso) ? todayIso : selectedIso;
     const startIndex = visibleDates.findIndex((date) => toISODate(date) === startIso);
@@ -2010,28 +2037,20 @@ export function ScheduleScreen({
     }
 
     const nextScrollLeft = startIndex * DAY_COLUMN_WIDTH;
-    header.scrollLeft = nextScrollLeft;
-    body.scrollLeft = nextScrollLeft;
+    const nextMobileScrollLeft = startIndex * MOBILE_DAY_COLUMN_WIDTH;
+    if (desktopHeaderScrollRef.current) {
+      desktopHeaderScrollRef.current.scrollLeft = nextScrollLeft;
+    }
+    if (desktopBodyScrollRef.current) {
+      desktopBodyScrollRef.current.scrollLeft = nextScrollLeft;
+    }
+    if (mobileHeaderScrollRef.current) {
+      mobileHeaderScrollRef.current.scrollLeft = nextMobileScrollLeft;
+    }
+    if (mobileBodyScrollRef.current) {
+      mobileBodyScrollRef.current.scrollLeft = nextMobileScrollLeft;
+    }
   }, [selectedIso, visibleDates]);
-
-  useEffect(() => {
-    const strip = mobileDateStripRef.current;
-    if (!strip) {
-      return;
-    }
-
-    const selectedIndex = monthDates.findIndex((date) => toISODate(date) === selectedIso);
-    if (selectedIndex < 0) {
-      return;
-    }
-
-    const selectedNode = strip.querySelector<HTMLElement>(`[data-date="${selectedIso}"]`);
-    if (!selectedNode) {
-      return;
-    }
-
-    strip.scrollLeft = Math.max(0, selectedNode.offsetLeft - MOBILE_DATE_STRIP_START_OFFSET);
-  }, [monthDates, selectedIso]);
 
   useEffect(() => {
     if (!hasMobileOverlay || !window.matchMedia('(max-width: 1279px)').matches) {
@@ -2136,14 +2155,6 @@ export function ScheduleScreen({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onOpenTimetable(selectedDate)}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
-                  >
-                    <CalendarDays className="h-4 w-4" />
-                    День
-                  </button>
-                  <button
-                    type="button"
                     onClick={onEdit}
                     disabled={!canEditSchedule}
                     className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#232427] px-3 text-sm font-bold text-white"
@@ -2151,56 +2162,6 @@ export function ScheduleScreen({
                     <Settings2 className="h-4 w-4" />
                     Шаблон
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettingsOpen((value) => !value);
-                      setFiltersOpen(false);
-                      setStaffMenuId(null);
-                    }}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
-                  >
-                    <MonitorSmartphone className="h-4 w-4" />
-                    Вид
-                  </button>
-                </div>
-
-                <div className="rounded-[24px] bg-[#f5f8fb] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">
-                        Выбранный день
-                      </p>
-                      <p className="mt-2 text-[20px] font-extrabold text-[#232c36]">
-                        {formatLongDateLabel(selectedDate)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onSelectDate(new Date())}
-                      className="inline-flex h-10 items-center rounded-2xl border border-[#d8e0ea] bg-white px-3 text-sm font-bold text-[#2f3843]"
-                    >
-                      Сегодня
-                    </button>
-                  </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <div className="rounded-2xl bg-white px-3 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">Работают</p>
-                      <p className="mt-1 text-[20px] font-extrabold text-[#232c36]">{selectedDayWorkingRows.length}</p>
-                    </div>
-                    <div className="rounded-2xl bg-white px-3 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">В списке</p>
-                      <p className="mt-1 text-[20px] font-extrabold text-[#232c36]">{filteredRows.length}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={onReload}
-                      className="inline-flex flex-col items-start justify-center rounded-2xl bg-white px-3 py-3 text-left text-[#2f3843]"
-                    >
-                      <RefreshCw className={clsx('h-4 w-4', loading ? 'animate-spin' : undefined)} />
-                      <span className="mt-1 text-[12px] font-extrabold">Обновить</span>
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -2386,6 +2347,86 @@ export function ScheduleScreen({
                 </div>
               </div>
             </div>
+
+            <div className="block border-t border-[#e7edf4] bg-white shadow-[0_10px_22px_rgba(31,39,50,0.05)] xl:hidden">
+              <div ref={mobileHeaderScrollRef} className="scrollbar-hidden overflow-x-auto border-b border-[#e7edf4]">
+                <div
+                  className="grid"
+                  style={{
+                    gridTemplateColumns: mobileGridTemplateColumns,
+                    minWidth: mobileGridMinWidth,
+                  }}
+                >
+                  <div className="sticky left-0 z-[26] flex items-center gap-2 border-r border-[#e7edf4] bg-white px-3 py-4">
+                    <span className="text-[16px] font-extrabold text-[#2f3843]">Сотрудники</span>
+                    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#eef2f7] px-1.5 text-[11px] font-bold text-[#8a93a0]">
+                      {filteredRows.length}
+                    </span>
+                  </div>
+
+                  {visibleDates.map((date, index) => {
+                    const iso = toISODate(date);
+                    const coverage = dayCoverage[index]?.count ?? 0;
+                    const isSelected = iso === selectedIso;
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    const isToday = iso === toISODate(new Date());
+                    return (
+                      <button
+                        key={`mobile-head-${iso}`}
+                        type="button"
+                        onClick={() => onSelectDate(date)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setFiltersOpen(false);
+                          setSettingsOpen(false);
+                          setStaffMenuId(null);
+                          setCellContextMenu(null);
+                          setDateContextMenu({
+                            x: Math.min(event.clientX, window.innerWidth - 280),
+                            y: Math.min(event.clientY, window.innerHeight - 190),
+                            date,
+                            coverage,
+                          });
+                        }}
+                        className={clsx(
+                          'border-r border-[#e7edf4] px-1 py-3 text-center transition',
+                          isSelected ? 'bg-[#fff5c9]' : 'bg-white',
+                        )}
+                      >
+                        <div
+                          className={clsx(
+                            'mx-auto inline-flex min-w-[32px] flex-col items-center justify-center rounded-[10px] px-1 py-1',
+                            isToday ? 'bg-[#ffd74d]' : undefined,
+                          )}
+                        >
+                          <p
+                            className={clsx(
+                              'text-[13px] font-semibold leading-none',
+                              isWeekend ? 'text-[#e07171]' : 'text-[#2f3843]',
+                            )}
+                          >
+                            {date.getDate()}
+                          </p>
+                          <p
+                            className={clsx(
+                              'mt-1 text-[10px] font-medium uppercase',
+                              isWeekend ? 'text-[#e07171]' : 'text-[#737d89]',
+                            )}
+                          >
+                            {formatWeekdayShort(date)}
+                          </p>
+                        </div>
+                        {showDayTotals ? (
+                          <p className="mt-2 text-[10px] font-semibold text-[#98a2af]">
+                            {coverage > 0 ? `👤 ${coverage}` : '–'}
+                          </p>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="relative">
@@ -2463,68 +2504,91 @@ export function ScheduleScreen({
               />
             ) : null}
 
-            <div className="xl:hidden px-4 py-4">
-              <div ref={mobileDateStripRef} className="scrollbar-hidden overflow-x-auto pb-2">
-                <div className="flex w-max gap-2">
-                  {monthDates.map((date) => {
-                    const active = toISODate(date) === selectedIso;
-                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    const coverage = dayCoverage.find((item) => item.iso === toISODate(date))?.count ?? 0;
-                    return (
-                      <button
-                        key={toISODate(date)}
-                        data-date={toISODate(date)}
-                        type="button"
-                        onClick={() => onSelectDate(date)}
-                        className={clsx(
-                          'min-w-[92px] rounded-[22px] border px-4 py-3 text-left transition',
-                          active
-                            ? 'border-[#f4c900] bg-[#fff4bf] text-[#232c36]'
-                            : 'border-[#d8e0ea] bg-white text-[#4c5664]',
-                        )}
-                      >
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em]">
-                          {formatWeekdayShort(date)}
-                        </p>
-                        <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#8f98a6]">
-                          {formatShortMonthLabel(date)}
-                        </p>
-                        <p
+            <div className="xl:hidden">
+              <div ref={mobileBodyScrollRef} className="scrollbar-hidden overflow-x-auto overflow-y-visible">
+                <div className="relative" style={{ minWidth: mobileGridMinWidth }}>
+                  <div
+                    className="grid"
+                    style={{
+                      gridTemplateColumns: mobileGridTemplateColumns,
+                      minWidth: mobileGridMinWidth,
+                    }}
+                  >
+                    {filteredRows.flatMap((row) => {
+                      return [
+                        <div
+                          key={`${row.staff.id}-mobile-meta`}
                           className={clsx(
-                            'mt-1 text-[26px] font-extrabold',
-                            isWeekend ? 'text-[#c95555]' : undefined,
+                            'sticky left-0 flex items-center gap-2 border-r border-b border-[#e7edf4] bg-white px-3 py-3',
+                            staffMenuId === row.staff.id ? 'z-[170]' : 'z-10',
                           )}
                         >
-                          {String(date.getDate()).padStart(2, '0')}
-                        </p>
-                        {showDayTotals ? (
-                          <p className="mt-2 text-[12px] font-semibold text-[#85909d]">
-                            {coverage > 0 ? `${coverage} спец.` : 'Пусто'}
-                          </p>
-                        ) : null}
-                      </button>
-                    );
-                  })}
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#f1f4f8] text-[#8b94a1]">
+                            {row.staff.avatarUrl ? (
+                              <img src={row.staff.avatarUrl} alt={row.staff.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <UserRound className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[14px] font-semibold text-[#2f3843]">{row.staff.name}</p>
+                            <p className="mt-0.5 truncate text-[11px] font-medium text-[#8a94a1]">
+                              {row.staff.positionName || 'Сотрудник'}
+                            </p>
+                          </div>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStaffMenuId((value) => (value === row.staff.id ? null : row.staff.id));
+                                setFiltersOpen(false);
+                                setSettingsOpen(false);
+                              }}
+                              disabled={!canEditSchedule}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#9099a6] transition hover:bg-[#f3f6fa]"
+                              aria-label={`Открыть действия для ${row.staff.name}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>,
+                        ...visibleDates.map((date) => {
+                          const iso = toISODate(date);
+                          const intervals = getIntervalsForDate(hoursByStaff, row.staff.id, date);
+                          return (
+                            <ScheduleCell
+                              key={`${row.staff.id}-mobile-${iso}`}
+                              intervals={intervals}
+                              isSelected={iso === selectedIso}
+                              compact
+                              onClick={() => {
+                                setCellContextMenu(null);
+                                if (canEditSchedule) {
+                                  onOpenDesktopEditor(row.staff, date);
+                                } else {
+                                  onSelectDate(date);
+                                }
+                              }}
+                              onContextMenu={(event) => {
+                                event.preventDefault();
+                                setFiltersOpen(false);
+                                setSettingsOpen(false);
+                                setStaffMenuId(null);
+                                setCellContextMenu({
+                                  x: Math.min(event.clientX, window.innerWidth - 260),
+                                  y: Math.min(event.clientY, window.innerHeight - 190),
+                                  staff: row.staff,
+                                  date,
+                                  intervals,
+                                });
+                              }}
+                            />
+                          );
+                        }),
+                      ];
+                    })}
+                  </div>
                 </div>
-              </div>
-
-              <div className="mt-4 space-y-4">
-                {filteredRows.map((row) => (
-                  <MobileStaffCard
-                    key={row.staff.id}
-                    row={row}
-                    selectedDate={selectedDate}
-                    onOpenMenu={() => {
-                      setStaffMenuId(row.staff.id);
-                      setFiltersOpen(false);
-                      setSettingsOpen(false);
-                    }}
-                    onOpenDay={() => onOpenDesktopEditor(row.staff, selectedDate)}
-                    onOpenOnlineSlots={() => onOpenOnlineSlots(row.staff, selectedDate)}
-                    onOpenBreak={() => openBreakModal(row.staff, selectedDate)}
-                    onEditTemplate={() => onEditStaff(row.staff)}
-                  />
-                ))}
               </div>
             </div>
 
@@ -2682,15 +2746,26 @@ export function ScheduleScreen({
           end={editorEnd}
           bookingStart={editorBookingStart}
           bookingEnd={editorBookingEnd}
+          breakStart={editorBreakStart}
+          breakEnd={editorBreakEnd}
+          isBreakActive={editorBreakActive}
           loading={loading}
           onClose={onCloseDesktopEditor}
           onStartChange={onEditorStartChange}
           onEndChange={onEditorEndChange}
           onBookingStartChange={onEditorBookingStartChange}
           onBookingEndChange={onEditorBookingEndChange}
+          onBreakStartChange={setEditorBreakStart}
+          onBreakEndChange={setEditorBreakEnd}
           onPresetSelect={onEditorPresetSelect}
           onSave={onSaveEditor}
           onClear={onClearEditor}
+          onSaveBreak={() => {
+            void saveEditorBreak();
+          }}
+          onRemoveBreak={() => {
+            void removeEditorBreak();
+          }}
           onCopy={() => {
             copyScheduleDay({
               staff: editorStaff,

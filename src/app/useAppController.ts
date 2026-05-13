@@ -5462,6 +5462,24 @@ export function useAppController(): AppController {
     }
   };
 
+  const getScheduleEditorDraftIntervalsForBreak = (staffId: string, date: Date) => {
+    if (
+      page !== 'tabs' ||
+      scheduleEditorStaff?.id !== staffId ||
+      toISODate(date) !== toISODate(selectedDate)
+    ) {
+      return [];
+    }
+
+    const interval = createScheduleInterval(
+      scheduleEditorStart,
+      scheduleEditorEnd,
+      scheduleEditorBookingStart,
+      scheduleEditorBookingEnd,
+    );
+    return isScheduleIntervalValid(interval) ? [interval] : [];
+  };
+
   const saveScheduleBreakForStaff = async ({
     staffId,
     date,
@@ -5496,7 +5514,14 @@ export function useAppController(): AppController {
       const isoDate = toISODate(date);
       const dailyIntervals = await fetchStaffDailySchedule(staffId, date);
       const fallbackIntervals = workingHoursByStaff[staffId]?.[isoDate] ?? [];
-      const intervals = dailyIntervals.length > 0 ? dailyIntervals : fallbackIntervals;
+      const editorDraftIntervals = getScheduleEditorDraftIntervalsForBreak(staffId, date);
+      const canUseEditorDraft =
+        editorDraftIntervals.length > 0 && dailyIntervals.length <= 1 && fallbackIntervals.length <= 1;
+      const intervals = canUseEditorDraft
+        ? editorDraftIntervals
+        : dailyIntervals.length > 0
+          ? dailyIntervals
+          : fallbackIntervals;
       const nextIntervals = subtractBreakFromScheduleIntervals(intervals, start, end);
 
       if (!nextIntervals) {
