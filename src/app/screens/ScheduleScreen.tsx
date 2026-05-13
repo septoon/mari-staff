@@ -2087,7 +2087,7 @@ export function ScheduleScreen({
   return (
     <>
       <div className="pb-6 pt-4 md:pt-6">
-        <section className="overflow-x-hidden overflow-y-visible rounded-[34px] border border-[#dfe6ee] bg-white shadow-[0_24px_60px_rgba(31,39,50,0.08)]">
+        <section className="overflow-visible rounded-[34px] border border-[#dfe6ee] bg-white shadow-[0_24px_60px_rgba(31,39,50,0.08)]">
           <div className="sticky top-0 z-30 bg-white/95 backdrop-blur">
             <div className="border-b border-[#e7edf4] px-4 py-4 md:px-6 md:py-5">
               <div className="space-y-4 xl:hidden">
@@ -2293,7 +2293,7 @@ export function ScheduleScreen({
               </div>
             </div>
 
-            <div className="hidden xl:block">
+            <div className="sticky top-0 z-[70] hidden bg-white shadow-[0_12px_26px_rgba(31,39,50,0.06)] xl:block">
               <div ref={desktopHeaderScrollRef} className="overflow-x-auto border-b border-[#e7edf4]">
                 <div
                   className="grid"

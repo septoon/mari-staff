@@ -357,6 +357,7 @@ export type ControllerState = {
   scheduleEditorEnd: string;
   scheduleEditorBookingStart: string;
   scheduleEditorBookingEnd: string;
+  scheduleEditorApplyWeeks: number;
   scheduleOnlineSlotsStaff: StaffItem | null;
   scheduleOnlineSlotsDate: Date | null;
   scheduleOnlineSlotsShiftStart: string;
@@ -530,6 +531,7 @@ export type ControllerActions = {
   setScheduleEditorEnd: (value: string) => void;
   setScheduleEditorBookingStart: (value: string) => void;
   setScheduleEditorBookingEnd: (value: string) => void;
+  setScheduleEditorApplyWeeks: (value: number) => void;
   applyScheduleEditorPreset: (value: string) => void;
   saveScheduleEditor: () => Promise<void>;
   clearScheduleEditor: () => Promise<void>;

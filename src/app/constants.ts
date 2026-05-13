@@ -56,7 +56,7 @@ export const TAB_ITEMS: TabItem[] = [
 export const MORE_MENU: MoreActionItem[] = [
   { title: 'Сотрудники', icon: UserRound },
   { title: 'Аналитика', icon: ChartPie },
-  { title: 'Онлайн-запись', icon: Clock3 },
+  { title: 'Оформление страницы', icon: Clock3 },
   { title: 'Политика конфиденциальности', icon: Shield },
   { title: 'Настройки', icon: Cog },
   { title: 'Поддержка', icon: MessageCircleMore },

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
-import { ArrowLeft, CalendarRange, Clock3, MonitorSmartphone, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarRange, Clock3, Minus, MonitorSmartphone, Plus, Trash2, UserRound } from 'lucide-react';
 import { MONTHS_RU, MONTHS_RU_GENITIVE } from '../constants';
 import type { StaffItem } from '../types';
 
@@ -12,6 +12,7 @@ type ScheduleEditorScreenProps = {
   end: string;
   bookingStart: string;
   bookingEnd: string;
+  applyWeeks: number;
   loading: boolean;
   onBack: () => void;
   onToggleDay: (day: number) => void;
@@ -19,6 +20,7 @@ type ScheduleEditorScreenProps = {
   onEndChange: (value: string) => void;
   onBookingStartChange: (value: string) => void;
   onBookingEndChange: (value: string) => void;
+  onApplyWeeksChange: (value: number) => void;
   onPresetSelect: (value: string) => void;
   onSave: () => void;
   onClear: () => void;
@@ -35,6 +37,15 @@ const ISO_DAY_OPTIONS = [
 ] as const;
 
 const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
+const MIN_APPLY_WEEKS = 1;
+const MAX_APPLY_WEEKS = 12;
+
+function clampApplyWeeks(value: number) {
+  if (!Number.isFinite(value)) {
+    return MIN_APPLY_WEEKS;
+  }
+  return Math.min(MAX_APPLY_WEEKS, Math.max(MIN_APPLY_WEEKS, Math.round(value)));
+}
 
 function formatEditorMonthLabel(date: Date) {
   return `${date.getDate()} ${MONTHS_RU_GENITIVE[date.getMonth()]} ${date.getFullYear()}`;
@@ -113,6 +124,63 @@ function ScheduleRangeCard({
   );
 }
 
+function ApplyWeeksCard({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const normalizedValue = clampApplyWeeks(value);
+  return (
+    <section className="rounded-[32px] border border-[#e1e6ee] bg-white p-5 shadow-[0_16px_36px_rgba(41,49,58,0.06)]">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f8f3d1] text-[#946d00]">
+          <CalendarRange className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-[24px] font-extrabold tracking-[-0.03em] text-[#2d3640]">Период применения</h2>
+          <p className="mt-2 max-w-[520px] text-[15px] leading-6 text-[#66707d]">
+            Шаблон будет применен к выбранным дням недели вперед от текущей даты.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center gap-3 rounded-[28px] border border-[#e1e6ee] bg-[#f7f9fc] px-4 py-4">
+        <button
+          type="button"
+          onClick={() => onChange(clampApplyWeeks(normalizedValue - 1))}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dce2ea] bg-white text-[#39424d]"
+          aria-label="Уменьшить количество недель"
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+        <label className="min-w-0 flex-1">
+          <span className="block text-[12px] font-bold uppercase tracking-[0.16em] text-[#98a0ac]">
+            Недель вперед
+          </span>
+          <input
+            type="number"
+            min={MIN_APPLY_WEEKS}
+            max={MAX_APPLY_WEEKS}
+            value={normalizedValue}
+            onChange={(event) => onChange(clampApplyWeeks(Number(event.target.value)))}
+            className="mt-1 w-full bg-transparent text-[34px] font-extrabold leading-none text-[#2d3640] outline-none"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => onChange(clampApplyWeeks(normalizedValue + 1))}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#dce2ea] bg-white text-[#39424d]"
+          aria-label="Увеличить количество недель"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function ScheduleEditorScreen({
   staff,
   selectedDate,
@@ -121,6 +189,7 @@ export function ScheduleEditorScreen({
   end,
   bookingStart,
   bookingEnd,
+  applyWeeks,
   loading,
   onBack,
   onToggleDay,
@@ -128,6 +197,7 @@ export function ScheduleEditorScreen({
   onEndChange,
   onBookingStartChange,
   onBookingEndChange,
+  onApplyWeeksChange,
   onPresetSelect,
   onSave,
   onClear,
@@ -259,6 +329,8 @@ export function ScheduleEditorScreen({
                 </div>
               </section>
 
+              <ApplyWeeksCard value={applyWeeks} onChange={onApplyWeeksChange} />
+
               <ScheduleRangeCard
                 title="Рабочая смена"
                 description="Этот интервал определяет, когда сотрудник находится в графике и может принимать ручные записи."
@@ -357,6 +429,8 @@ export function ScheduleEditorScreen({
               ))}
             </div>
           </section>
+
+          <ApplyWeeksCard value={applyWeeks} onChange={onApplyWeeksChange} />
 
           <ScheduleRangeCard
             title="Рабочая смена"

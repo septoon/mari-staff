@@ -67,6 +67,7 @@ import {
 } from './controller/routes';
 import {
   buildBookingSlotTimes,
+  buildScheduleTemplateDates,
   createScheduleInterval,
   deriveEditorInterval,
   isScheduleIntervalValid,
@@ -111,6 +112,7 @@ const MORE_ACTION_PERMISSION_CODE: Record<string, string | null> = {
   Услуги: 'VIEW_SERVICES',
   Аналитика: 'VIEW_FINANCIAL_STATS',
   'Онлайн-запись': 'MANAGE_CLIENT_FRONT',
+  'Оформление страницы': 'MANAGE_CLIENT_FRONT',
   'Политика конфиденциальности': 'MANAGE_CLIENT_FRONT',
   Настройки: null,
   Поддержка: null,
@@ -408,6 +410,8 @@ export function useAppController(): AppController {
     setScheduleEditorBookingStart,
     scheduleEditorBookingEnd,
     setScheduleEditorBookingEnd,
+    scheduleEditorApplyWeeks,
+    setScheduleEditorApplyWeeks,
     scheduleOnlineSlotsStaff,
     setScheduleOnlineSlotsStaff,
     scheduleOnlineSlotsDate,
@@ -1999,6 +2003,7 @@ export function useAppController(): AppController {
       setOwnerDraft(EMPTY_OWNER_DRAFT);
       setScheduleEditorStaff(null);
       setScheduleEditorDays([]);
+      setScheduleEditorApplyWeeks(4);
       resetScheduleEditorDraft();
       resetScheduleOnlineSlotsState();
       setJournalDatePickerOpen(false);
@@ -4729,7 +4734,8 @@ export function useAppController(): AppController {
           setTab('analytics');
           return;
         }
-        case 'Онлайн-запись': {
+        case 'Онлайн-запись':
+        case 'Оформление страницы': {
           setPage('clientSiteEditor');
           return;
         }
@@ -5224,6 +5230,7 @@ export function useAppController(): AppController {
     const focusedDay = focusDate ? toISODay(focusDate) : null;
     setScheduleEditorStaff(item);
     setScheduleEditorDays(focusedDay ? [focusedDay] : []);
+    setScheduleEditorApplyWeeks(4);
     resetScheduleEditorDraft();
     if (presentation === 'page') {
       setPage('scheduleEditor');
@@ -5263,6 +5270,7 @@ export function useAppController(): AppController {
     setTab('schedule');
     setScheduleEditorStaff(null);
     setScheduleEditorDays([]);
+    setScheduleEditorApplyWeeks(4);
     resetScheduleEditorDraft();
   };
 
@@ -5635,14 +5643,25 @@ export function useAppController(): AppController {
       if (page === 'tabs') {
         await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, [interval]);
       } else {
-        const next: Record<number, ScheduleInterval[]> = {};
-        scheduleEditorDays.forEach((day) => {
-          next[day] = [interval];
-        });
-        await putStaffWorkingHours(scheduleEditorStaff.id, next);
+        const dates = buildScheduleTemplateDates(
+          selectedDate,
+          scheduleEditorDays,
+          scheduleEditorApplyWeeks,
+        );
+        if (dates.length === 0) {
+          setToast('Нет дат для применения шаблона');
+          return;
+        }
+        await Promise.all(
+          dates.map((date) => putStaffDailySchedule(scheduleEditorStaff.id, date, [interval])),
+        );
       }
       await loadWorkingHours(staff);
-      setToast(page === 'tabs' ? 'График на день сохранен' : 'График сохранен');
+      setToast(
+        page === 'tabs'
+          ? 'График на день сохранен'
+          : `График применен на ${scheduleEditorApplyWeeks} нед.`,
+      );
       closeScheduleEditor();
     } catch (error) {
       setToast(toErrorMessage(error));
@@ -5918,6 +5937,7 @@ export function useAppController(): AppController {
     setJournalActionStaff(null);
     setScheduleEditorStaff(null);
     setScheduleEditorDays([]);
+    setScheduleEditorApplyWeeks(4);
     resetScheduleEditorDraft();
     resetScheduleOnlineSlotsState();
     setJournalDatePickerOpen(false);
@@ -6070,6 +6090,7 @@ export function useAppController(): AppController {
       scheduleEditorEnd,
       scheduleEditorBookingStart,
       scheduleEditorBookingEnd,
+      scheduleEditorApplyWeeks,
       scheduleOnlineSlotsStaff,
       scheduleOnlineSlotsDate,
       scheduleOnlineSlotsShiftStart,
@@ -6241,6 +6262,7 @@ export function useAppController(): AppController {
       setScheduleEditorEnd,
       setScheduleEditorBookingStart,
       setScheduleEditorBookingEnd,
+      setScheduleEditorApplyWeeks,
       applyScheduleEditorPreset,
       saveScheduleEditor,
       clearScheduleEditor,

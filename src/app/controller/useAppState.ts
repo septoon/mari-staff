@@ -179,6 +179,7 @@ export function useAppState() {
   const [scheduleEditorEnd, setScheduleEditorEnd] = useState('18:00');
   const [scheduleEditorBookingStart, setScheduleEditorBookingStart] = useState('10:00');
   const [scheduleEditorBookingEnd, setScheduleEditorBookingEnd] = useState('18:00');
+  const [scheduleEditorApplyWeeks, setScheduleEditorApplyWeeks] = useState(4);
   const [scheduleOnlineSlotsStaff, setScheduleOnlineSlotsStaff] = useState<StaffItem | null>(null);
   const [scheduleOnlineSlotsDate, setScheduleOnlineSlotsDate] = useState<Date | null>(null);
   const [scheduleOnlineSlotsShiftStart, setScheduleOnlineSlotsShiftStart] = useState('10:00');
@@ -371,6 +372,8 @@ export function useAppState() {
     setScheduleEditorBookingStart,
     scheduleEditorBookingEnd,
     setScheduleEditorBookingEnd,
+    scheduleEditorApplyWeeks,
+    setScheduleEditorApplyWeeks,
     scheduleOnlineSlotsStaff,
     setScheduleOnlineSlotsStaff,
     scheduleOnlineSlotsDate,

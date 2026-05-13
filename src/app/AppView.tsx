@@ -1085,6 +1085,7 @@ export function AppView({ controller }: AppViewProps) {
             end={state.scheduleEditorEnd}
             bookingStart={state.scheduleEditorBookingStart}
             bookingEnd={state.scheduleEditorBookingEnd}
+            applyWeeks={state.scheduleEditorApplyWeeks}
             loading={state.loading.action}
             onBack={actions.closeScheduleEditor}
             onToggleDay={actions.toggleScheduleEditorDay}
@@ -1092,6 +1093,7 @@ export function AppView({ controller }: AppViewProps) {
             onEndChange={actions.setScheduleEditorEnd}
             onBookingStartChange={actions.setScheduleEditorBookingStart}
             onBookingEndChange={actions.setScheduleEditorBookingEnd}
+            onApplyWeeksChange={actions.setScheduleEditorApplyWeeks}
             onPresetSelect={actions.applyScheduleEditorPreset}
             onSave={() => {
               void actions.saveScheduleEditor();

@@ -178,6 +178,30 @@ export function calculateScheduleIntervalHours(interval: ScheduleInterval) {
   return durationMin / 60;
 }
 
+export function buildScheduleTemplateDates(
+  startDate: Date,
+  isoDays: number[],
+  weeksAhead: number,
+) {
+  const days = new Set(
+    isoDays.filter((day) => Number.isFinite(day) && day >= 1 && day <= 7),
+  );
+  const totalDays = Math.max(1, Math.floor(weeksAhead)) * 7;
+  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const result: Date[] = [];
+
+  for (let offset = 0; offset < totalDays; offset += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + offset);
+    const isoDay = date.getDay() === 0 ? 7 : date.getDay();
+    if (days.has(isoDay)) {
+      result.push(date);
+    }
+  }
+
+  return result;
+}
+
 function clampTimeRange(start: number, end: number, min: number, max: number) {
   return {
     start: Math.max(start, min),

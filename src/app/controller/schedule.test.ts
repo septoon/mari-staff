@@ -1,4 +1,5 @@
 import {
+  buildScheduleTemplateDates,
   restoreBreakInScheduleIntervals,
   subtractBreakFromScheduleIntervals,
   toFlatWorkingHours,
@@ -75,4 +76,14 @@ test('restoreBreakInScheduleIntervals merges split break back into shift', () =>
   ).toEqual([
     { start: '10:00', end: '19:00', bookingStart: '10:00', bookingEnd: '19:00', bookingSlots: null },
   ]);
+});
+
+test('buildScheduleTemplateDates applies selected weekdays forward from selected date', () => {
+  expect(
+    buildScheduleTemplateDates(new Date(2026, 4, 13), [1, 3], 1).map((date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+        date.getDate(),
+      ).padStart(2, '0')}`,
+    ),
+  ).toEqual(['2026-05-13', '2026-05-18']);
 });
