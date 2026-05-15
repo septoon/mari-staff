@@ -225,6 +225,8 @@ export type JournalCreateDraft = {
   startTime: string;
   durationMin: number;
   durationManuallyChanged: boolean;
+  finalTotal: string;
+  finalTotalManuallyChanged: boolean;
   staffId: string;
   serviceIds: string[];
 };
@@ -431,6 +433,7 @@ export type ControllerState = {
   canViewClients: boolean;
   canViewClientPhone: boolean;
   canCreateJournalAppointments: boolean;
+  canEditJournalFinalTotal: boolean;
   canEditClients: boolean;
   canEditJournal: boolean;
   canViewSchedule: boolean;

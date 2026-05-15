@@ -140,7 +140,7 @@ type BreakDraft = {
   end: string;
 } | null;
 
-const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
+const PRESETS = ['10:00-20:00'] as const;
 const STAFF_COLUMN_WIDTH = 344;
 const TOTAL_COLUMN_WIDTH = 128;
 const DAY_COLUMN_WIDTH = 56;
@@ -551,15 +551,27 @@ function TimeField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const openTimePicker = () => {
+    const input = inputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    input?.focus();
+    input?.showPicker?.();
+  };
+
   return (
-    <label className="rounded-2xl border border-[#dce2ea] bg-white px-4 py-3">
+    <label
+      className="rounded-2xl border border-[#dce2ea] bg-white px-4 py-3"
+      onClick={openTimePicker}
+    >
       <span className="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#8e97a4]">
         {label}
       </span>
       <input
+        ref={inputRef}
+        type="time"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        inputMode="numeric"
         className="mt-3 w-full bg-transparent text-[28px] font-extrabold tracking-[-0.04em] text-[#28313b] outline-none"
       />
     </label>
@@ -1613,12 +1625,14 @@ function ScheduleDateContextMenu({
 function ScheduleCell({
   intervals,
   isSelected,
+  isToday,
   compact = false,
   onClick,
   onContextMenu,
 }: {
   intervals: ScheduleInterval[];
   isSelected: boolean;
+  isToday: boolean;
   compact?: boolean;
   onClick: () => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -1633,9 +1647,13 @@ function ScheduleCell({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={clsx(
-        'group relative flex w-full items-stretch border-r border-b border-[#e7edf4] bg-white p-[3px] text-left transition',
+        'group relative flex w-full items-stretch border-r border-b border-[#e7edf4] p-[3px] text-left transition',
         compact ? 'min-h-[76px]' : 'min-h-[92px]',
-        isSelected ? 'bg-[#fff9e8]' : 'hover:bg-[#fbfcfe]',
+        isToday
+          ? 'bg-[#ffd74d]/10 hover:bg-[#ffd74d]/18'
+          : isSelected
+            ? 'bg-[#fff9e8]'
+            : 'bg-white hover:bg-[#fbfcfe]',
       )}
     >
       {hasIntervals ? (
@@ -2310,13 +2328,17 @@ export function ScheduleScreen({
                         }}
                         className={clsx(
                           'border-r border-[#e7edf4] px-2 py-4 text-center transition',
-                          isSelected ? 'bg-[#fff5c9]' : 'bg-white hover:bg-[#fafbfc]',
+                          isToday
+                            ? 'bg-[#ffd74d]/10 hover:bg-[#ffd74d]/18'
+                            : isSelected
+                              ? 'bg-[#fff9e8]'
+                              : 'bg-white hover:bg-[#fafbfc]',
                         )}
                       >
                         <div
                           className={clsx(
                             'mx-auto inline-flex min-w-[34px] flex-col items-center justify-center rounded-[10px] px-1 py-1',
-                            isToday ? 'bg-[#ffd74d]' : undefined,
+                            isToday ? 'bg-[#ffd74d]/35' : undefined,
                           )}
                         >
                           <p
@@ -2390,13 +2412,17 @@ export function ScheduleScreen({
                         }}
                         className={clsx(
                           'border-r border-[#e7edf4] px-1 py-3 text-center transition',
-                          isSelected ? 'bg-[#fff5c9]' : 'bg-white',
+                          isToday
+                            ? 'bg-[#ffd74d]/20 hover:bg-[#ffd74d]/28'
+                            : isSelected
+                              ? 'bg-[#fff9e8]'
+                              : 'bg-white',
                         )}
                       >
                         <div
                           className={clsx(
                             'mx-auto inline-flex min-w-[32px] flex-col items-center justify-center rounded-[10px] px-1 py-1',
-                            isToday ? 'bg-[#ffd74d]' : undefined,
+                            isToday ? 'bg-[#ffd74d]/35' : undefined,
                           )}
                         >
                           <p
@@ -2555,11 +2581,13 @@ export function ScheduleScreen({
                         ...visibleDates.map((date) => {
                           const iso = toISODate(date);
                           const intervals = getIntervalsForDate(hoursByStaff, row.staff.id, date);
+                          const isToday = iso === toISODate(new Date());
                           return (
                             <ScheduleCell
                               key={`${row.staff.id}-mobile-${iso}`}
                               intervals={intervals}
                               isSelected={iso === selectedIso}
+                              isToday={isToday}
                               compact
                               onClick={() => {
                                 setCellContextMenu(null);
@@ -2675,11 +2703,13 @@ export function ScheduleScreen({
                         ...visibleDates.map((date) => {
                           const iso = toISODate(date);
                           const intervals = getIntervalsForDate(hoursByStaff, row.staff.id, date);
+                          const isToday = iso === toISODate(new Date());
                           return (
                             <ScheduleCell
                               key={`${row.staff.id}-${iso}`}
                               intervals={intervals}
                               isSelected={iso === selectedIso}
+                              isToday={isToday}
                               onClick={() => {
                                 setCellContextMenu(null);
                                 if (canEditSchedule) {

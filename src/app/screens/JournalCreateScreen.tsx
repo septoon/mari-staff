@@ -13,6 +13,7 @@ type JournalCreateScreenProps = {
   services: ServiceItem[];
   loading: boolean;
   servicesLoading: boolean;
+  canEditFinalTotal: boolean;
   onBack: () => void;
   onDraftChange: (patch: Partial<JournalCreateDraft>) => void;
   onSave: () => void;
@@ -74,6 +75,8 @@ function TextField({
   onChange,
   type = 'text',
   step,
+  min,
+  disabled = false,
 }: {
   label: string;
   value: string | number;
@@ -81,6 +84,8 @@ function TextField({
   onChange: (value: string) => void;
   type?: 'text' | 'tel' | 'date' | 'time' | 'number';
   step?: number;
+  min?: number;
+  disabled?: boolean;
 }) {
   return (
     <label className="block min-w-0">
@@ -89,10 +94,14 @@ function TextField({
         type={type}
         value={value}
         placeholder={placeholder}
-        min={type === 'number' ? 15 : undefined}
+        min={min ?? (type === 'number' ? 15 : undefined)}
         step={step ?? (type === 'number' ? 15 : undefined)}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-[#d9dfe8] bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:text-[#a0a7b3] focus:border-[#c2cad6]"
+        className={clsx(
+          'mt-3 h-12 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-[#d9dfe8] px-4 text-sm font-semibold outline-none transition placeholder:text-[#a0a7b3] focus:border-[#c2cad6]',
+          disabled ? 'cursor-not-allowed bg-[#edf1f6] text-[#7d8795]' : 'bg-white text-ink',
+        )}
       />
     </label>
   );
@@ -135,6 +144,7 @@ function Content({
   services,
   loading,
   servicesLoading,
+  canEditFinalTotal,
   onDraftChange,
   onSave,
 }: Omit<JournalCreateScreenProps, 'onBack'>) {
@@ -194,6 +204,7 @@ function Content({
 
     return selectedServices.reduce((sum, item) => sum + Math.max(item.priceMax || item.priceMin, 0), 0);
   }, [selectedServices]);
+  const calculatedFinalTotal = totalPriceMax || totalPriceMin;
   const totalDurationMin = useMemo(
     () =>
       selectedServices.reduce(
@@ -234,6 +245,10 @@ function Content({
     onDraftChange({
       serviceIds: nextIds,
       durationMin: draft.durationManuallyChanged ? draft.durationMin : nextDurationMin,
+      finalTotal:
+        draft.finalTotalManuallyChanged || nextServices.length === 0
+          ? draft.finalTotal
+          : String(nextServices.reduce((sum, item) => sum + Math.max(item.priceMax || item.priceMin, 0), 0)),
     });
   };
 
@@ -517,6 +532,36 @@ function Content({
                   ) : null}
                 </div>
               </div>
+              <div className="rounded-[22px] border border-[#d9dfe8] bg-white px-4 py-4">
+                <TextField
+                  label="Итоговая сумма"
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={
+                    canEditFinalTotal
+                      ? draft.finalTotal
+                      : calculatedFinalTotal > 0
+                        ? String(calculatedFinalTotal)
+                        : '0'
+                  }
+                  placeholder={calculatedFinalTotal > 0 ? String(calculatedFinalTotal) : '0'}
+                  disabled={!canEditFinalTotal}
+                  onChange={(value) =>
+                    onDraftChange({
+                      finalTotal: value,
+                      finalTotalManuallyChanged: true,
+                    })
+                  }
+                />
+                <p className="mt-3 text-sm font-semibold text-[#788292]">
+                  {calculatedFinalTotal > 0
+                    ? `Расчет по услугам: ${formatRub(calculatedFinalTotal)}`
+                    : canEditFinalTotal
+                      ? 'Можно указать сумму вручную без выбранной услуги'
+                      : 'Ручное изменение доступно владельцу или сотруднику с правом'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -555,6 +600,7 @@ export function JournalCreateScreen({
   services,
   loading,
   servicesLoading,
+  canEditFinalTotal,
   onBack,
   onDraftChange,
   onSave,
@@ -610,6 +656,7 @@ export function JournalCreateScreen({
             services={services}
             loading={loading}
             servicesLoading={servicesLoading}
+            canEditFinalTotal={canEditFinalTotal}
             onDraftChange={onDraftChange}
             onSave={onSave}
           />
@@ -654,6 +701,7 @@ export function JournalCreateScreen({
               services={services}
               loading={loading}
               servicesLoading={servicesLoading}
+              canEditFinalTotal={canEditFinalTotal}
               onDraftChange={onDraftChange}
               onSave={onSave}
             />

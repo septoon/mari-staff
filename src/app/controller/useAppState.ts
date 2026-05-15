@@ -8,6 +8,7 @@ import {
   EMPTY_STAFF_FILTER,
   JOURNAL_SETTINGS_STORAGE_KEY,
 } from '../constants';
+import { DEFAULT_SCHEDULE_END, DEFAULT_SCHEDULE_START } from './schedule';
 import type {
   AppPage,
   AppointmentItem,
@@ -120,6 +121,8 @@ function buildEmptyJournalCreateDraft(): JournalCreateDraft {
     startTime: '10:00',
     durationMin: 60,
     durationManuallyChanged: false,
+    finalTotal: '',
+    finalTotalManuallyChanged: false,
     staffId: '',
     serviceIds: [],
   };
@@ -175,28 +178,31 @@ export function useAppState() {
   const [ownerDraft, setOwnerDraft] = useState<OwnerDraft>(EMPTY_OWNER_DRAFT);
   const [scheduleEditorStaff, setScheduleEditorStaff] = useState<StaffItem | null>(null);
   const [scheduleEditorDays, setScheduleEditorDays] = useState<number[]>([]);
-  const [scheduleEditorStart, setScheduleEditorStart] = useState('10:00');
-  const [scheduleEditorEnd, setScheduleEditorEnd] = useState('18:00');
-  const [scheduleEditorBookingStart, setScheduleEditorBookingStart] = useState('10:00');
-  const [scheduleEditorBookingEnd, setScheduleEditorBookingEnd] = useState('18:00');
+  const [scheduleEditorStart, setScheduleEditorStart] = useState(DEFAULT_SCHEDULE_START);
+  const [scheduleEditorEnd, setScheduleEditorEnd] = useState(DEFAULT_SCHEDULE_END);
+  const [scheduleEditorBookingStart, setScheduleEditorBookingStart] = useState(DEFAULT_SCHEDULE_START);
+  const [scheduleEditorBookingEnd, setScheduleEditorBookingEnd] = useState(DEFAULT_SCHEDULE_END);
   const [scheduleEditorApplyWeeks, setScheduleEditorApplyWeeks] = useState(4);
   const [scheduleOnlineSlotsStaff, setScheduleOnlineSlotsStaff] = useState<StaffItem | null>(null);
   const [scheduleOnlineSlotsDate, setScheduleOnlineSlotsDate] = useState<Date | null>(null);
-  const [scheduleOnlineSlotsShiftStart, setScheduleOnlineSlotsShiftStart] = useState('10:00');
-  const [scheduleOnlineSlotsShiftEnd, setScheduleOnlineSlotsShiftEnd] = useState('18:00');
-  const [scheduleOnlineSlotsBookingStart, setScheduleOnlineSlotsBookingStart] = useState('10:00');
-  const [scheduleOnlineSlotsBookingEnd, setScheduleOnlineSlotsBookingEnd] = useState('18:00');
+  const [scheduleOnlineSlotsShiftStart, setScheduleOnlineSlotsShiftStart] = useState(DEFAULT_SCHEDULE_START);
+  const [scheduleOnlineSlotsShiftEnd, setScheduleOnlineSlotsShiftEnd] = useState(DEFAULT_SCHEDULE_END);
+  const [scheduleOnlineSlotsBookingStart, setScheduleOnlineSlotsBookingStart] = useState(DEFAULT_SCHEDULE_START);
+  const [scheduleOnlineSlotsBookingEnd, setScheduleOnlineSlotsBookingEnd] = useState(DEFAULT_SCHEDULE_END);
   const [scheduleOnlineSlotsSelectedTimes, setScheduleOnlineSlotsSelectedTimes] = useState<string[]>([]);
-  const [scheduleOnlineSlotsInitialShiftStart, setScheduleOnlineSlotsInitialShiftStart] = useState('10:00');
-  const [scheduleOnlineSlotsInitialShiftEnd, setScheduleOnlineSlotsInitialShiftEnd] = useState('18:00');
-  const [scheduleOnlineSlotsInitialBookingStart, setScheduleOnlineSlotsInitialBookingStart] = useState('10:00');
-  const [scheduleOnlineSlotsInitialBookingEnd, setScheduleOnlineSlotsInitialBookingEnd] = useState('18:00');
+  const [scheduleOnlineSlotsInitialShiftStart, setScheduleOnlineSlotsInitialShiftStart] =
+    useState(DEFAULT_SCHEDULE_START);
+  const [scheduleOnlineSlotsInitialShiftEnd, setScheduleOnlineSlotsInitialShiftEnd] = useState(DEFAULT_SCHEDULE_END);
+  const [scheduleOnlineSlotsInitialBookingStart, setScheduleOnlineSlotsInitialBookingStart] =
+    useState(DEFAULT_SCHEDULE_START);
+  const [scheduleOnlineSlotsInitialBookingEnd, setScheduleOnlineSlotsInitialBookingEnd] =
+    useState(DEFAULT_SCHEDULE_END);
   const [scheduleOnlineSlotsInitialSelectedTimes, setScheduleOnlineSlotsInitialSelectedTimes] = useState<string[]>([]);
   const [journalDatePickerOpen, setJournalDatePickerOpen] = useState(false);
   const [journalMarkedDates, setJournalMarkedDates] = useState<string[]>([]);
   const [journalActionStaff, setJournalActionStaff] = useState<StaffItem | null>(null);
-  const [journalDayStart, setJournalDayStart] = useState('10:00');
-  const [journalDayEnd, setJournalDayEnd] = useState('18:00');
+  const [journalDayStart, setJournalDayStart] = useState(DEFAULT_SCHEDULE_START);
+  const [journalDayEnd, setJournalDayEnd] = useState(DEFAULT_SCHEDULE_END);
   const [journalSettings, setJournalSettings] = useState<JournalSettings>(loadJournalSettings);
   const [journalCreateDraft, setJournalCreateDraft] = useState<JournalCreateDraft>(
     buildEmptyJournalCreateDraft,

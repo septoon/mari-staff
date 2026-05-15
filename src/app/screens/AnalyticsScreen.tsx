@@ -940,7 +940,7 @@ export function AnalyticsScreen({
               title="Средняя заполненность"
               value={`${averageOccupancy}%`}
               accent="gold"
-              subtitle="Оценка загрузки от доступных часов по сетке 10:00-18:00."
+              subtitle="Оценка загрузки от доступных часов по сетке 10:00-20:00."
             />
           </section>
 

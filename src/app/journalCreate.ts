@@ -10,6 +10,7 @@ type BuildJournalCreateAppointmentPayloadInput = {
   staffId: string;
   startAt: Date;
   endAt: Date;
+  finalTotalPrice?: number | null;
 };
 
 export function buildJournalCreateAppointmentPayload({
@@ -20,6 +21,7 @@ export function buildJournalCreateAppointmentPayload({
   staffId,
   startAt,
   endAt,
+  finalTotalPrice,
 }: BuildJournalCreateAppointmentPayloadInput) {
   const clientNameTrimmed = clientName.trim();
   const clientPhoneTrimmed = clientPhone.trim();
@@ -38,6 +40,7 @@ export function buildJournalCreateAppointmentPayload({
         }
       : {}),
     comment: comment?.trim() || undefined,
+    ...(finalTotalPrice !== null && finalTotalPrice !== undefined ? { finalTotalPrice } : {}),
   };
 }
 

@@ -16,6 +16,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
       clientName: ' Анна ',
       clientPhone: ' +79780000000 ',
       comment: '  Комментарий к записи  ',
+      finalTotalPrice: 2500,
     }),
   ).toEqual({
     startAt: '2026-03-20T10:30:00.000Z',
@@ -28,6 +29,7 @@ test('buildJournalCreateAppointmentPayload matches backend contract', () => {
       phone: '+79780000000',
     },
     comment: 'Комментарий к записи',
+    finalTotalPrice: 2500,
   });
 });
 

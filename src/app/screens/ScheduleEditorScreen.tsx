@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useRef } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, CalendarRange, Clock3, Minus, MonitorSmartphone, Plus, Trash2, UserRound } from 'lucide-react';
 import { MONTHS_RU, MONTHS_RU_GENITIVE } from '../constants';
@@ -36,7 +36,7 @@ const ISO_DAY_OPTIONS = [
   { day: 7, short: 'Вс', full: 'Воскресенье' },
 ] as const;
 
-const PRESETS = ['09:00-18:00', '10:00-19:00', '10:00-20:00', '12:00-21:00'] as const;
+const PRESETS = ['10:00-20:00'] as const;
 const MIN_APPLY_WEEKS = 1;
 const MAX_APPLY_WEEKS = 12;
 
@@ -68,15 +68,27 @@ function TimeField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const openTimePicker = () => {
+    const input = inputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    input?.focus();
+    input?.showPicker?.();
+  };
+
   return (
-    <label className="rounded-[28px] border border-[#e1e6ee] bg-white px-5 py-5">
+    <label
+      className="rounded-[28px] border border-[#e1e6ee] bg-white px-5 py-5"
+      onClick={openTimePicker}
+    >
       <span className="block text-[13px] font-semibold uppercase tracking-[0.18em] text-[#98a0ac]">
         {label}
       </span>
       <input
+        ref={inputRef}
+        type="time"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        inputMode="numeric"
         className="mt-4 w-full bg-transparent text-[44px] font-light tracking-[-0.05em] text-[#2d3640] outline-none"
       />
     </label>

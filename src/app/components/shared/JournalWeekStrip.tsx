@@ -1,5 +1,13 @@
 import clsx from 'clsx';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type TouchEvent,
+  type WheelEvent,
+} from 'react';
 import { DAY_NAMES } from '../../constants';
 import { getWeekDates, toISODate } from '../../helpers';
 
@@ -10,12 +18,11 @@ type JournalWeekStripProps = {
 };
 
 const WEEK_PAGE_SIZE = 7;
-const WEEK_CELL_WIDTH = 65;
-const WEEK_CELL_GAP = 6;
-const WEEK_CELL_STEP = WEEK_CELL_WIDTH + WEEK_CELL_GAP;
-const INITIAL_WEEK_BUFFER = 8;
-const EXTEND_DAYS = WEEK_PAGE_SIZE * 4;
-const EDGE_THRESHOLD_PX = WEEK_CELL_STEP * WEEK_PAGE_SIZE * 2;
+const SWIPE_THRESHOLD_PX = 42;
+const WHEEL_THRESHOLD_PX = 32;
+const WHEEL_COOLDOWN_MS = 360;
+const SWIPE_CLICK_SUPPRESS_MS = 450;
+const WEEK_SLIDE_MS = 180;
 
 function addDays(date: Date, amount: number) {
   const next = new Date(date);
@@ -23,45 +30,28 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function buildDatesFrom(start: Date, count: number) {
-  return Array.from({ length: count }).map((_, index) => addDays(start, index));
-}
-
-function buildDatesAround(date: Date) {
-  const weekStart = getWeekDates(date)[0];
-  const start = addDays(weekStart, -INITIAL_WEEK_BUFFER * WEEK_PAGE_SIZE);
-  const total = (INITIAL_WEEK_BUFFER * 2 + 1) * WEEK_PAGE_SIZE;
-  return buildDatesFrom(start, total);
+function buildControlledStripDates(weekDates: Date[], selectedDate: Date) {
+  return weekDates.length === WEEK_PAGE_SIZE ? weekDates : getWeekDates(selectedDate);
 }
 
 export function JournalWeekStrip({
   selectedDate,
+  weekDates,
   onDaySelect,
 }: JournalWeekStripProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
-  const extendingRef = useRef(false);
-  const pendingScrollAdjustmentRef = useRef(0);
-  const shouldCenterSelectedRef = useRef(true);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lastSwipeAtRef = useRef(0);
+  const wheelLockUntilRef = useRef(0);
+  const animationTimeoutRef = useRef<number | null>(null);
   const lastSelectedIsoRef = useRef(toISODate(selectedDate));
-  const [stripDates, setStripDates] = useState<Date[]>(() => buildDatesAround(selectedDate));
 
   const selectedIso = toISODate(selectedDate);
-  if (lastSelectedIsoRef.current !== selectedIso) {
-    lastSelectedIsoRef.current = selectedIso;
-    shouldCenterSelectedRef.current = true;
-  }
-
-  const selectedIsRendered = useMemo(
-    () => stripDates.some((date) => toISODate(date) === selectedIso),
-    [selectedIso, stripDates],
+  const [stripDates, setStripDates] = useState<Date[]>(() =>
+    buildControlledStripDates(weekDates, selectedDate),
   );
-
-  useEffect(() => {
-    if (!selectedIsRendered) {
-      shouldCenterSelectedRef.current = true;
-      setStripDates(buildDatesAround(selectedDate));
-    }
-  }, [selectedDate, selectedIsRendered]);
+  const [slideOffset, setSlideOffset] = useState(0);
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
 
   useLayoutEffect(() => {
     const container = stripRef.current;
@@ -69,66 +59,150 @@ export function JournalWeekStrip({
       return;
     }
 
-    const pendingAdjustment = pendingScrollAdjustmentRef.current;
-    if (pendingAdjustment) {
-      container.scrollLeft += pendingAdjustment;
-      pendingScrollAdjustmentRef.current = 0;
-    }
-    extendingRef.current = false;
-
-    if (shouldCenterSelectedRef.current) {
-      const selectedButton = container.querySelector<HTMLElement>(`[data-date="${selectedIso}"]`);
-      if (selectedButton) {
-        if (typeof selectedButton.scrollIntoView === 'function') {
-          selectedButton.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
-        } else {
-          container.scrollLeft =
-            selectedButton.offsetLeft - container.clientWidth / 2 + selectedButton.offsetWidth / 2;
-        }
-        shouldCenterSelectedRef.current = false;
-      }
-    }
+    container.scrollLeft = 0;
   }, [selectedIso, stripDates]);
 
-  const handleScroll = () => {
-    const container = stripRef.current;
-    if (!container || extendingRef.current || stripDates.length === 0) {
+  useEffect(() => {
+    if (lastSelectedIsoRef.current === selectedIso) {
       return;
     }
 
-    if (container.scrollLeft < EDGE_THRESHOLD_PX) {
-      extendingRef.current = true;
-      pendingScrollAdjustmentRef.current += EXTEND_DAYS * WEEK_CELL_STEP;
-      setStripDates((current) => [
-        ...buildDatesFrom(addDays(current[0], -EXTEND_DAYS), EXTEND_DAYS),
-        ...current,
-      ]);
+    lastSelectedIsoRef.current = selectedIso;
+    setTransitionEnabled(false);
+    setSlideOffset(0);
+    setStripDates(buildControlledStripDates(weekDates, selectedDate));
+  }, [selectedDate, selectedIso, weekDates]);
+
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current) {
+        window.clearTimeout(animationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const animateWeekOffset = (offset: number) => {
+    if (animationTimeoutRef.current) {
       return;
     }
 
-    if (container.scrollWidth - container.clientWidth - container.scrollLeft < EDGE_THRESHOLD_PX) {
-      extendingRef.current = true;
-      setStripDates((current) => [
-        ...current,
-        ...buildDatesFrom(addDays(current[current.length - 1], 1), EXTEND_DAYS),
-      ]);
+    lastSwipeAtRef.current = Date.now();
+    setTransitionEnabled(true);
+    setSlideOffset(offset > 0 ? -1 : 1);
+
+    animationTimeoutRef.current = window.setTimeout(() => {
+      setTransitionEnabled(false);
+      setStripDates((current) => getWeekDates(addDays(current[0] ?? selectedDate, offset * WEEK_PAGE_SIZE)));
+      setSlideOffset(offset > 0 ? 1 : -1);
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          setTransitionEnabled(true);
+          setSlideOffset(0);
+          animationTimeoutRef.current = null;
+        });
+      });
+    }, WEEK_SLIDE_MS);
+  };
+
+  const handleGestureStart = (x: number, y: number) => {
+    touchStartRef.current = { x, y };
+  };
+
+  const handleGestureEnd = (x: number, y: number) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) {
+      return;
     }
+
+    const deltaX = x - start.x;
+    const deltaY = y - start.y;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) {
+      return;
+    }
+
+    lastSwipeAtRef.current = Date.now();
+    animateWeekOffset(deltaX < 0 ? 1 : -1);
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    handleGestureStart(event.clientX, event.clientY);
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    handleGestureEnd(event.clientX, event.clientY);
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) {
+      return;
+    }
+    handleGestureStart(touch.clientX, touch.clientY);
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.changedTouches[0];
+    if (!touch) {
+      return;
+    }
+    handleGestureEnd(touch.clientX, touch.clientY);
+  };
+
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (Math.abs(event.deltaX) < WHEEL_THRESHOLD_PX || Math.abs(event.deltaX) < Math.abs(event.deltaY)) {
+      return;
+    }
+
+    event.preventDefault();
+    const now = Date.now();
+    if (now < wheelLockUntilRef.current) {
+      return;
+    }
+
+    wheelLockUntilRef.current = now + WHEEL_COOLDOWN_MS;
+    animateWeekOffset(event.deltaX > 0 ? 1 : -1);
+  };
+
+  const handleDayClick = (date: Date) => {
+    if (Date.now() - lastSwipeAtRef.current < SWIPE_CLICK_SUPPRESS_MS) {
+      return;
+    }
+    onDaySelect(date);
   };
 
   return (
     <div className="rounded-lg bg-slatePanel p-2">
-      <div ref={stripRef} className="scrollbar-hidden overflow-x-auto" onScroll={handleScroll}>
-        <ul className="flex min-w-max items-center gap-1.5 text-center">
+      <div
+        ref={stripRef}
+        className="scrollbar-hidden touch-pan-y select-none overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onWheel={handleWheel}
+      >
+        <ul
+          className={clsx(
+            'grid grid-cols-7 items-center gap-1.5 text-center',
+            transitionEnabled ? 'transition-transform ease-out' : undefined,
+          )}
+          style={{
+            transform: `translateX(${slideOffset * 100}%)`,
+            transitionDuration: transitionEnabled ? `${WEEK_SLIDE_MS}ms` : '0ms',
+          }}
+        >
           {stripDates.map((date) => {
             const iso = toISODate(date);
             const isActive = iso === selectedIso;
             const weekend = date.getDay() === 0 || date.getDay() === 6;
             return (
-              <li key={iso} className="shrink-0" style={{ width: `${WEEK_CELL_WIDTH}px` }}>
+              <li key={iso} className="min-w-0">
                 <button
                   type="button"
                   data-date={iso}
-                  onClick={() => onDaySelect(date)}
+                  onClick={() => handleDayClick(date)}
                   className={clsx(
                     'w-full rounded-lg py-1 text-[14px] font-semibold',
                     isActive ? 'bg-accent text-[#222b33]' : 'text-white',

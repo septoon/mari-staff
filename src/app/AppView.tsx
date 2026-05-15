@@ -866,6 +866,7 @@ export function AppView({ controller }: AppViewProps) {
             services={journalCreateServices}
             loading={state.loading.action}
             servicesLoading={state.journalCreateServicesLoading}
+            canEditFinalTotal={state.canEditJournalFinalTotal}
             onBack={actions.closeJournalCreatePage}
             onDraftChange={(patch) => {
               actions.setJournalCreateDraft((prev) => ({ ...prev, ...patch }));

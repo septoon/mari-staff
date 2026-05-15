@@ -69,6 +69,8 @@ import {
   buildBookingSlotTimes,
   buildScheduleTemplateDates,
   createScheduleInterval,
+  DEFAULT_SCHEDULE_END,
+  DEFAULT_SCHEDULE_START,
   deriveEditorInterval,
   isScheduleIntervalValid,
   isValidTime,
@@ -172,6 +174,7 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
     'MANAGE_APPOINTMENTS',
     'ACCESS_JOURNAL',
   ],
+  EDIT_JOURNAL_FINAL_TOTAL: ['EDIT_JOURNAL_FINAL_TOTAL'],
   VIEW_SCHEDULE: ['VIEW_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   VIEW_ALL_SCHEDULE: ['VIEW_ALL_SCHEDULE', 'EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
   EDIT_SCHEDULE: ['EDIT_SCHEDULE', 'ACCESS_SCHEDULE'],
@@ -203,6 +206,10 @@ function hasSessionPermissionAccess(
   const permissionCodes = Array.isArray(sessionData.staff.permissions)
     ? sessionData.staff.permissions
     : null;
+
+  if (permissionCode === 'EDIT_JOURNAL_FINAL_TOTAL' && !permissionCodes) {
+    return false;
+  }
 
   if (!permissionCodes) {
     return sessionData.staff.role !== 'MASTER';
@@ -271,6 +278,8 @@ function buildJournalCreateDraft(
     startTime: options?.startTime || '10:00',
     durationMin: 60,
     durationManuallyChanged: false,
+    finalTotal: '',
+    finalTotalManuallyChanged: false,
     staffId: selectedStaff?.id || '',
     serviceIds: [],
   };
@@ -600,6 +609,7 @@ export function useAppController(): AppController {
   const canViewStaff = hasPermissionAccess('VIEW_STAFF');
   const canViewReports = hasPermissionAccess('VIEW_FINANCIAL_STATS');
   const canCreateJournalAppointments = hasPermissionAccess('CREATE_JOURNAL_APPOINTMENTS');
+  const canEditJournalFinalTotal = hasPermissionAccess('EDIT_JOURNAL_FINAL_TOTAL');
   const canUseStaffDirectory = canViewStaff || canViewJournal || canViewSchedule;
   const canEditPrivacyPolicy = hasPermissionAccess('MANAGE_CLIENT_FRONT');
   const canEditSettings = session?.staff.role === 'OWNER';
@@ -1678,6 +1688,10 @@ export function useAppController(): AppController {
       const service = allowedServices.find((item) => item.id === serviceId) || null;
       return total + (service ? Math.max(15, Math.round(service.durationSec / 60)) : 0);
     }, 0);
+    const totalPrice = resolvedServiceIds.reduce((total, serviceId) => {
+      const service = allowedServices.find((item) => item.id === serviceId) || null;
+      return total + (service ? Math.max(service.priceMax || service.priceMin, 0) : 0);
+    }, 0);
 
     const sameSelection =
       resolvedServiceIds.length === journalCreateDraft.serviceIds.length &&
@@ -1694,6 +1708,10 @@ export function useAppController(): AppController {
         !current.durationManuallyChanged && totalDurationMin > 0
           ? totalDurationMin
           : current.durationMin,
+      finalTotal:
+        !current.finalTotalManuallyChanged && totalPrice > 0
+          ? String(totalPrice)
+          : current.finalTotal,
     }));
   }, [
     journalCreateDraft.serviceIds,
@@ -2011,8 +2029,8 @@ export function useAppController(): AppController {
       setStaffServicesEditorQuery('');
       setStaffServicesEditorSelectedIds([]);
       setJournalActionStaff(null);
-      setJournalDayStart('10:00');
-      setJournalDayEnd('18:00');
+      setJournalDayStart(DEFAULT_SCHEDULE_START);
+      setJournalDayEnd(DEFAULT_SCHEDULE_END);
       setServicesCategorySearch('');
       setServicesItemsSearch('');
       setLocalServiceCategories([]);
@@ -3328,6 +3346,13 @@ export function useAppController(): AppController {
     const end = new Date(
       start.getTime() + Math.max(15, Math.round(journalCreateDraft.durationMin || 0)) * 60_000,
     );
+    const finalTotal = canEditJournalFinalTotal && journalCreateDraft.finalTotal.trim()
+      ? Number(journalCreateDraft.finalTotal)
+      : null;
+    if (finalTotal !== null && (!Number.isFinite(finalTotal) || finalTotal < 0)) {
+      setToast('Проверьте итоговую сумму. Укажите число не меньше 0.');
+      return;
+    }
 
     const payload = buildJournalCreateAppointmentPayload({
       startAt: start,
@@ -3337,6 +3362,7 @@ export function useAppController(): AppController {
       clientName,
       clientPhone: phone,
       comment: journalCreateDraft.comment,
+      finalTotalPrice: finalTotal,
     });
 
     setLoadingKey(setLoading, 'action', true);
@@ -5154,10 +5180,10 @@ export function useAppController(): AppController {
     applyScheduleOnlineSlotsDraft({
       staff: null,
       date: null,
-      shiftStart: '10:00',
-      shiftEnd: '18:00',
-      bookingStart: '10:00',
-      bookingEnd: '18:00',
+      shiftStart: DEFAULT_SCHEDULE_START,
+      shiftEnd: DEFAULT_SCHEDULE_END,
+      bookingStart: DEFAULT_SCHEDULE_START,
+      bookingEnd: DEFAULT_SCHEDULE_END,
       selectedTimes: [],
     }, { persistInitial: true });
   }, [applyScheduleOnlineSlotsDraft]);
@@ -6190,6 +6216,7 @@ export function useAppController(): AppController {
       canViewClients,
       canViewClientPhone,
       canCreateJournalAppointments,
+      canEditJournalFinalTotal,
       canEditClients: canEdit(EDIT_PERMISSION.clients),
       canEditJournal: canEditAppointments,
       canViewSchedule,

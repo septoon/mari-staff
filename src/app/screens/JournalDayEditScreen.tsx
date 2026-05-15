@@ -56,7 +56,7 @@ export function JournalDayEditScreen({
             <input
               value={end}
               onChange={(event) => onEndChange(event.target.value)}
-              placeholder="18:00"
+              placeholder="20:00"
               className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
             />
           </label>

@@ -1,6 +1,8 @@
 import type { ScheduleInterval } from '../types';
 
 export const ONLINE_BOOKING_SLOT_STEP_MINUTES = 10;
+export const DEFAULT_SCHEDULE_START = '10:00';
+export const DEFAULT_SCHEDULE_END = '20:00';
 
 export function isValidTime(value: string) {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
@@ -57,8 +59,8 @@ export function parseSlot(slot: string) {
 }
 
 export function createScheduleInterval(
-  start = '10:00',
-  end = '18:00',
+  start = DEFAULT_SCHEDULE_START,
+  end = DEFAULT_SCHEDULE_END,
   bookingStart = start,
   bookingEnd = end,
   bookingSlots?: string[] | null
