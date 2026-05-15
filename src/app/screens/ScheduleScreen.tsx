@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
   CalendarDays,
@@ -142,6 +142,94 @@ const TOTAL_COLUMN_WIDTH = 128;
 const DAY_COLUMN_WIDTH = 56;
 const MOBILE_STAFF_COLUMN_WIDTH = 190;
 const MOBILE_DAY_COLUMN_WIDTH = 54;
+
+function formatMonthInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function parseMonthInputValue(value: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isInteger(year) || month < 1 || month > 12) {
+    return null;
+  }
+
+  return new Date(year, month - 1, 1);
+}
+
+function MonthPickerTitle({
+  eyebrow,
+  monthLabel,
+  selectedDate,
+  headingClassName,
+  className,
+  children,
+  onSelectDate,
+}: {
+  eyebrow?: string;
+  monthLabel: string;
+  selectedDate: Date;
+  headingClassName: string;
+  className?: string;
+  children?: ReactNode;
+  onSelectDate: (value: Date) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const openPicker = () => {
+    const input = inputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // Fall back to click for browsers that expose showPicker but reject it for month inputs.
+      }
+    }
+    input.click();
+  };
+
+  return (
+    <div className={clsx('relative min-w-0', className)}>
+      <button
+        type="button"
+        onClick={openPicker}
+        className="min-w-0 text-center outline-none focus-visible:ring-2 focus-visible:ring-[#f4c900] focus-visible:ring-offset-2"
+        aria-label="Выбрать месяц и год"
+      >
+        {eyebrow ? (
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">{eyebrow}</p>
+        ) : null}
+        <h1 className={headingClassName}>{monthLabel}</h1>
+        {children}
+      </button>
+      <input
+        ref={inputRef}
+        type="month"
+        value={formatMonthInputValue(selectedDate)}
+        onChange={(event) => {
+          const nextDate = parseMonthInputValue(event.target.value);
+          if (nextDate) {
+            onSelectDate(nextDate);
+          }
+        }}
+        className="pointer-events-none absolute left-1/2 top-1/2 h-px w-px -translate-x-1/2 -translate-y-1/2 opacity-0"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+    </div>
+  );
+}
 
 function getMonthDates(date: Date) {
   const year = date.getFullYear();
@@ -342,15 +430,18 @@ function PersonalScheduleCalendar({
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <div className="min-w-0 text-center">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">Мой график</p>
-                <h1 className="mt-1 truncate text-[24px] font-extrabold text-[#2f3843] md:text-[30px]">
-                  {monthLabel}
-                </h1>
+              <MonthPickerTitle
+                className="text-center"
+                eyebrow="Мой график"
+                monthLabel={monthLabel}
+                selectedDate={selectedDate}
+                headingClassName="mt-1 truncate text-[24px] font-extrabold text-[#2f3843] md:text-[30px]"
+                onSelectDate={onSelectDate}
+              >
                 {currentStaff ? (
                   <p className="mt-1 truncate text-sm font-semibold text-[#7d8693]">{currentStaff.name}</p>
                 ) : null}
-              </div>
+              </MonthPickerTitle>
               <button
                 type="button"
                 onClick={() => onSelectDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}
@@ -627,7 +718,7 @@ function DayEditorPanel({
     <section
       className={clsx(
         'rounded-[32px] border border-[#e0e5ed] bg-[#fbfcfe] shadow-[0_20px_48px_rgba(41,49,58,0.12)]',
-        mobile ? 'p-4' : 'p-5',
+        mobile ? 'px-4 pb-[calc(env(safe-area-inset-bottom,0px)+36px)] pt-4' : 'p-5',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -805,15 +896,15 @@ function DayEditorModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[160] overscroll-contain bg-[rgba(34,43,51,0.48)]"
+      className="fixed inset-0 z-[160] overflow-hidden overscroll-none bg-[rgba(34,43,51,0.48)]"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="hidden h-full items-center justify-center px-6 py-8 md:flex">
-        <div className="w-full max-w-[560px]">
+      <div className="hidden h-full items-center justify-center overflow-hidden px-6 py-6 md:flex">
+        <div className="max-h-[calc(100dvh-48px)] w-full max-w-[560px] overflow-y-auto overscroll-contain">
           <DayEditorPanel
             staff={staff}
             date={date}
@@ -841,8 +932,8 @@ function DayEditorModal({
         </div>
       </div>
 
-      <div className="flex h-full items-end overscroll-contain md:hidden">
-        <div className="max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-[34px] bg-white shadow-[0_-24px_64px_rgba(41,49,58,0.24)]">
+      <div className="flex h-full items-end overflow-hidden overscroll-none md:hidden">
+        <div className="max-h-[calc(100dvh-8px)] w-full overflow-y-auto overscroll-contain rounded-t-[34px] bg-white shadow-[0_-24px_64px_rgba(41,49,58,0.24)]">
           <DayEditorPanel
             staff={staff}
             date={date}
@@ -2024,28 +2115,34 @@ export function ScheduleScreen({
   }, [selectedIso, visibleDates]);
 
   useEffect(() => {
-    if (!hasMobileOverlay || !window.matchMedia('(max-width: 1279px)').matches) {
+    if (!hasMobileOverlay) {
       return;
     }
 
     const main = document.querySelector<HTMLElement>('.app-main-scroll');
     const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverflowY = document.body.style.overflowY;
     const previousBodyOverscroll = document.body.style.overscrollBehavior;
     const previousMainOverflow = main?.style.overflow;
+    const previousMainOverflowY = main?.style.overflowY;
     const previousMainOverscroll = main?.style.overscrollBehavior;
 
     document.body.style.overflow = 'hidden';
+    document.body.style.overflowY = 'hidden';
     document.body.style.overscrollBehavior = 'contain';
     if (main) {
       main.style.overflow = 'hidden';
+      main.style.overflowY = 'hidden';
       main.style.overscrollBehavior = 'contain';
     }
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overflowY = previousBodyOverflowY;
       document.body.style.overscrollBehavior = previousBodyOverscroll;
       if (main) {
         main.style.overflow = previousMainOverflow ?? '';
+        main.style.overflowY = previousMainOverflowY ?? '';
         main.style.overscrollBehavior = previousMainOverscroll ?? '';
       }
     };
@@ -2090,12 +2187,14 @@ export function ScheduleScreen({
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <div className="min-w-0 text-center">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">График</p>
-                    <h1 className="mt-1 truncate text-[24px] font-extrabold text-[#2f3843]">
-                      {monthLabel}
-                    </h1>
-                  </div>
+                  <MonthPickerTitle
+                    className="text-center"
+                    eyebrow="График"
+                    monthLabel={monthLabel}
+                    selectedDate={selectedDate}
+                    headingClassName="mt-1 truncate text-[24px] font-extrabold text-[#2f3843]"
+                    onSelectDate={onSelectDate}
+                  />
                   <button
                     type="button"
                     onClick={() => onSelectDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}
@@ -2175,9 +2274,13 @@ export function ScheduleScreen({
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
-                  <h1 className="ml-1 text-[24px] font-extrabold tracking-[-0.04em] text-[#2f3843] md:text-[28px]">
-                    {monthLabel}
-                  </h1>
+                  <MonthPickerTitle
+                    className="ml-1"
+                    monthLabel={monthLabel}
+                    selectedDate={selectedDate}
+                    headingClassName="text-[24px] font-extrabold tracking-[-0.04em] text-[#2f3843] md:text-[28px]"
+                    onSelectDate={onSelectDate}
+                  />
                   <button
                     type="button"
                     onClick={() => onSelectDate(new Date())}
