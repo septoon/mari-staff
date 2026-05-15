@@ -38,8 +38,6 @@ type ScheduleScreenProps = {
   editorSelectedDays: number[];
   editorStart: string;
   editorEnd: string;
-  editorBookingStart: string;
-  editorBookingEnd: string;
   onlineSlotsStaff: StaffItem | null;
   onlineSlotsDate: Date | null;
   onlineSlotsShiftStart: string;
@@ -56,8 +54,6 @@ type ScheduleScreenProps = {
   onToggleEditorDay: (day: number) => void;
   onEditorStartChange: (value: string) => void;
   onEditorEndChange: (value: string) => void;
-  onEditorBookingStartChange: (value: string) => void;
-  onEditorBookingEndChange: (value: string) => void;
   onEditorPresetSelect: (value: string) => void;
   onSaveEditor: () => void;
   onClearEditor: () => void;
@@ -583,8 +579,6 @@ function DayEditorPanel({
   date,
   start,
   end,
-  bookingStart,
-  bookingEnd,
   breakStart,
   breakEnd,
   isBreakActive,
@@ -592,8 +586,6 @@ function DayEditorPanel({
   onClose,
   onStartChange,
   onEndChange,
-  onBookingStartChange,
-  onBookingEndChange,
   onBreakStartChange,
   onBreakEndChange,
   onPresetSelect,
@@ -611,8 +603,6 @@ function DayEditorPanel({
   date: Date;
   start: string;
   end: string;
-  bookingStart: string;
-  bookingEnd: string;
   breakStart: string;
   breakEnd: string;
   isBreakActive: boolean;
@@ -620,8 +610,6 @@ function DayEditorPanel({
   onClose: () => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
-  onBookingStartChange: (value: string) => void;
-  onBookingEndChange: (value: string) => void;
   onBreakStartChange: (value: string) => void;
   onBreakEndChange: (value: string) => void;
   onPresetSelect: (value: string) => void;
@@ -683,21 +671,6 @@ function DayEditorPanel({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <TimeField label="Начало" value={start} onChange={onStartChange} />
             <TimeField label="Конец" value={end} onChange={onEndChange} />
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-[#e1e6ee] bg-white p-4">
-          <div className="flex items-center gap-2 text-[#28313b]">
-            <MonitorSmartphone className="h-4 w-4 text-[#946d00]" />
-            <h3 className="text-[18px] font-extrabold tracking-[-0.03em]">Окно онлайн-записи</h3>
-          </div>
-          <p className="mt-2 text-[14px] leading-6 text-[#66707d]">
-            Это время попадет в клиентскую запись. Можно сделать окно уже смены и оставить только
-            нужное время.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <TimeField label="Открыть онлайн" value={bookingStart} onChange={onBookingStartChange} />
-            <TimeField label="Закрыть онлайн" value={bookingEnd} onChange={onBookingEndChange} />
           </div>
         </div>
 
@@ -788,8 +761,6 @@ function DayEditorModal({
   date,
   start,
   end,
-  bookingStart,
-  bookingEnd,
   breakStart,
   breakEnd,
   isBreakActive,
@@ -797,8 +768,6 @@ function DayEditorModal({
   onClose,
   onStartChange,
   onEndChange,
-  onBookingStartChange,
-  onBookingEndChange,
   onBreakStartChange,
   onBreakEndChange,
   onPresetSelect,
@@ -815,8 +784,6 @@ function DayEditorModal({
   date: Date;
   start: string;
   end: string;
-  bookingStart: string;
-  bookingEnd: string;
   breakStart: string;
   breakEnd: string;
   isBreakActive: boolean;
@@ -824,8 +791,6 @@ function DayEditorModal({
   onClose: () => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
-  onBookingStartChange: (value: string) => void;
-  onBookingEndChange: (value: string) => void;
   onBreakStartChange: (value: string) => void;
   onBreakEndChange: (value: string) => void;
   onPresetSelect: (value: string) => void;
@@ -854,8 +819,6 @@ function DayEditorModal({
             date={date}
             start={start}
             end={end}
-            bookingStart={bookingStart}
-            bookingEnd={bookingEnd}
             breakStart={breakStart}
             breakEnd={breakEnd}
             isBreakActive={isBreakActive}
@@ -863,8 +826,6 @@ function DayEditorModal({
             onClose={onClose}
             onStartChange={onStartChange}
             onEndChange={onEndChange}
-            onBookingStartChange={onBookingStartChange}
-            onBookingEndChange={onBookingEndChange}
             onBreakStartChange={onBreakStartChange}
             onBreakEndChange={onBreakEndChange}
             onPresetSelect={onPresetSelect}
@@ -887,8 +848,6 @@ function DayEditorModal({
             date={date}
             start={start}
             end={end}
-            bookingStart={bookingStart}
-            bookingEnd={bookingEnd}
             breakStart={breakStart}
             breakEnd={breakEnd}
             isBreakActive={isBreakActive}
@@ -896,8 +855,6 @@ function DayEditorModal({
             onClose={onClose}
             onStartChange={onStartChange}
             onEndChange={onEndChange}
-            onBookingStartChange={onBookingStartChange}
-            onBookingEndChange={onBookingEndChange}
             onBreakStartChange={onBreakStartChange}
             onBreakEndChange={onBreakEndChange}
             onPresetSelect={onPresetSelect}
@@ -1683,8 +1640,6 @@ export function ScheduleScreen({
   editorStaff,
   editorStart,
   editorEnd,
-  editorBookingStart,
-  editorBookingEnd,
   onlineSlotsStaff,
   onlineSlotsDate,
   onlineSlotsShiftStart,
@@ -1700,8 +1655,6 @@ export function ScheduleScreen({
   onCloseDesktopEditor,
   onEditorStartChange,
   onEditorEndChange,
-  onEditorBookingStartChange,
-  onEditorBookingEndChange,
   onEditorPresetSelect,
   onSaveEditor,
   onClearEditor,
@@ -1830,8 +1783,8 @@ export function ScheduleScreen({
   const editorDraftInterval = {
     start: editorStart,
     end: editorEnd,
-    bookingStart: editorBookingStart,
-    bookingEnd: editorBookingEnd,
+    bookingStart: editorStart,
+    bookingEnd: editorEnd,
     bookingSlots: null,
   };
   const hasMobileOverlay =
@@ -2774,8 +2727,6 @@ export function ScheduleScreen({
           date={selectedDate}
           start={editorStart}
           end={editorEnd}
-          bookingStart={editorBookingStart}
-          bookingEnd={editorBookingEnd}
           breakStart={editorBreakStart}
           breakEnd={editorBreakEnd}
           isBreakActive={editorBreakActive}
@@ -2783,8 +2734,6 @@ export function ScheduleScreen({
           onClose={onCloseDesktopEditor}
           onStartChange={onEditorStartChange}
           onEndChange={onEditorEndChange}
-          onBookingStartChange={onEditorBookingStartChange}
-          onBookingEndChange={onEditorBookingEndChange}
           onBreakStartChange={setEditorBreakStart}
           onBreakEndChange={setEditorBreakEnd}
           onPresetSelect={onEditorPresetSelect}

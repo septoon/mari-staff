@@ -5113,8 +5113,8 @@ export function useAppController(): AppController {
   const resetScheduleEditorDraft = (interval: ScheduleInterval = createScheduleInterval()) => {
     setScheduleEditorStart(interval.start);
     setScheduleEditorEnd(interval.end);
-    setScheduleEditorBookingStart(interval.bookingStart);
-    setScheduleEditorBookingEnd(interval.bookingEnd);
+    setScheduleEditorBookingStart(interval.start);
+    setScheduleEditorBookingEnd(interval.end);
   };
 
   const filterScheduleOnlineSlotTimes = useCallback(
@@ -5204,6 +5204,28 @@ export function useAppController(): AppController {
     return parsed[isoDate] ?? [];
   };
 
+  const fetchStaffRenderedScheduleForDate = async (staffId: string, date: Date) => {
+    const isoDate = toISODate(date);
+    const data = await api.get<unknown>(
+      `/schedule/staff/${staffId}/working-hours?from=${isoDate}&to=${isoDate}`,
+    );
+    const parsed = parseScheduleCalendar(data);
+    return parsed[isoDate] ?? [];
+  };
+
+  const deriveEditorIntervalFromServerIntervals = (intervals: ScheduleInterval[]) => {
+    if (intervals.length === 0) {
+      return createScheduleInterval();
+    }
+    const sorted = [...intervals].sort((left, right) => left.start.localeCompare(right.start));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    if (!first || !last) {
+      return createScheduleInterval();
+    }
+    return createScheduleInterval(first.start, last.end);
+  };
+
   const putStaffDailySchedule = async (staffId: string, date: Date, intervals: ScheduleInterval[]) => {
     const isoDate = toISODate(date);
     const items = intervals
@@ -5268,10 +5290,10 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       if (focusDate && focusedDay) {
-        const focusedIntervals = await fetchStaffDailySchedule(item.id, focusDate);
+        const focusedIntervals = await fetchStaffRenderedScheduleForDate(item.id, focusDate);
         const days = [focusedDay];
         setScheduleEditorDays(days);
-        resetScheduleEditorDraft(deriveEditorInterval({ [focusedDay]: focusedIntervals }, days));
+        resetScheduleEditorDraft(deriveEditorIntervalFromServerIntervals(focusedIntervals));
         return;
       }
 
@@ -5668,20 +5690,18 @@ export function useAppController(): AppController {
     const interval = createScheduleInterval(
       scheduleEditorStart,
       scheduleEditorEnd,
-      scheduleEditorBookingStart,
-      scheduleEditorBookingEnd,
+      scheduleEditorStart,
+      scheduleEditorEnd,
     );
     if (
       !isValidTime(scheduleEditorStart) ||
-      !isValidTime(scheduleEditorEnd) ||
-      !isValidTime(scheduleEditorBookingStart) ||
-      !isValidTime(scheduleEditorBookingEnd)
+      !isValidTime(scheduleEditorEnd)
     ) {
       setToast('Время в формате HH:mm');
       return;
     }
     if (!isScheduleIntervalValid(interval)) {
-      setToast('Окно онлайн-записи должно быть внутри рабочей смены');
+      setToast('Проверьте время смены: начало должно быть раньше конца');
       return;
     }
     if (page !== 'tabs' && scheduleEditorDays.length === 0) {

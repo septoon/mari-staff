@@ -970,8 +970,6 @@ export function AppView({ controller }: AppViewProps) {
             editorSelectedDays={state.scheduleEditorDays}
             editorStart={state.scheduleEditorStart}
             editorEnd={state.scheduleEditorEnd}
-            editorBookingStart={state.scheduleEditorBookingStart}
-            editorBookingEnd={state.scheduleEditorBookingEnd}
             onlineSlotsStaff={state.scheduleOnlineSlotsStaff}
             onlineSlotsDate={state.scheduleOnlineSlotsDate}
             onlineSlotsShiftStart={state.scheduleOnlineSlotsShiftStart}
@@ -998,10 +996,14 @@ export function AppView({ controller }: AppViewProps) {
             }}
             onCloseDesktopEditor={actions.closeScheduleEditor}
             onToggleEditorDay={actions.toggleScheduleEditorDay}
-            onEditorStartChange={actions.setScheduleEditorStart}
-            onEditorEndChange={actions.setScheduleEditorEnd}
-            onEditorBookingStartChange={actions.setScheduleEditorBookingStart}
-            onEditorBookingEndChange={actions.setScheduleEditorBookingEnd}
+            onEditorStartChange={(value) => {
+              actions.setScheduleEditorStart(value);
+              actions.setScheduleEditorBookingStart(value);
+            }}
+            onEditorEndChange={(value) => {
+              actions.setScheduleEditorEnd(value);
+              actions.setScheduleEditorBookingEnd(value);
+            }}
             onEditorPresetSelect={actions.applyScheduleEditorPreset}
             onSaveEditor={() => {
               void actions.saveScheduleEditor();
@@ -1084,16 +1086,18 @@ export function AppView({ controller }: AppViewProps) {
             selectedDays={state.scheduleEditorDays}
             start={state.scheduleEditorStart}
             end={state.scheduleEditorEnd}
-            bookingStart={state.scheduleEditorBookingStart}
-            bookingEnd={state.scheduleEditorBookingEnd}
             applyWeeks={state.scheduleEditorApplyWeeks}
             loading={state.loading.action}
             onBack={actions.closeScheduleEditor}
             onToggleDay={actions.toggleScheduleEditorDay}
-            onStartChange={actions.setScheduleEditorStart}
-            onEndChange={actions.setScheduleEditorEnd}
-            onBookingStartChange={actions.setScheduleEditorBookingStart}
-            onBookingEndChange={actions.setScheduleEditorBookingEnd}
+            onStartChange={(value) => {
+              actions.setScheduleEditorStart(value);
+              actions.setScheduleEditorBookingStart(value);
+            }}
+            onEndChange={(value) => {
+              actions.setScheduleEditorEnd(value);
+              actions.setScheduleEditorBookingEnd(value);
+            }}
             onApplyWeeksChange={actions.setScheduleEditorApplyWeeks}
             onPresetSelect={actions.applyScheduleEditorPreset}
             onSave={() => {

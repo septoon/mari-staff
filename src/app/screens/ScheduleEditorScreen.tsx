@@ -1,6 +1,6 @@
 import { type ReactNode, useRef } from 'react';
 import clsx from 'clsx';
-import { ArrowLeft, CalendarRange, Clock3, Minus, MonitorSmartphone, Plus, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarRange, Clock3, Minus, Plus, Trash2, UserRound } from 'lucide-react';
 import { MONTHS_RU, MONTHS_RU_GENITIVE } from '../constants';
 import type { StaffItem } from '../types';
 
@@ -10,16 +10,12 @@ type ScheduleEditorScreenProps = {
   selectedDays: number[];
   start: string;
   end: string;
-  bookingStart: string;
-  bookingEnd: string;
   applyWeeks: number;
   loading: boolean;
   onBack: () => void;
   onToggleDay: (day: number) => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
-  onBookingStartChange: (value: string) => void;
-  onBookingEndChange: (value: string) => void;
   onApplyWeeksChange: (value: number) => void;
   onPresetSelect: (value: string) => void;
   onSave: () => void;
@@ -199,16 +195,12 @@ export function ScheduleEditorScreen({
   selectedDays,
   start,
   end,
-  bookingStart,
-  bookingEnd,
   applyWeeks,
   loading,
   onBack,
   onToggleDay,
   onStartChange,
   onEndChange,
-  onBookingStartChange,
-  onBookingEndChange,
   onApplyWeeksChange,
   onPresetSelect,
   onSave,
@@ -355,17 +347,6 @@ export function ScheduleEditorScreen({
                 onEndChange={onEndChange}
               />
 
-              <ScheduleRangeCard
-                title="Онлайн-запись"
-                description="Этот интервал попадает в публичную запись в mari. Он должен находиться внутри рабочей смены."
-                icon={<MonitorSmartphone className="h-5 w-5" />}
-                start={bookingStart}
-                end={bookingEnd}
-                startLabel="Открыть онлайн с"
-                endLabel="Закрыть онлайн в"
-                onStartChange={onBookingStartChange}
-                onEndChange={onBookingEndChange}
-              />
             </div>
           </div>
         </section>
@@ -454,18 +435,6 @@ export function ScheduleEditorScreen({
             endLabel="Конец смены"
             onStartChange={onStartChange}
             onEndChange={onEndChange}
-          />
-
-          <ScheduleRangeCard
-            title="Онлайн-запись"
-            description="Время, которое увидят клиенты в mari."
-            icon={<MonitorSmartphone className="h-5 w-5" />}
-            start={bookingStart}
-            end={bookingEnd}
-            startLabel="Открыть онлайн"
-            endLabel="Закрыть онлайн"
-            onStartChange={onBookingStartChange}
-            onEndChange={onBookingEndChange}
           />
 
           <button
