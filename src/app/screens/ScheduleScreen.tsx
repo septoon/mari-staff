@@ -142,6 +142,10 @@ const TOTAL_COLUMN_WIDTH = 128;
 const DAY_COLUMN_WIDTH = 56;
 const MOBILE_STAFF_COLUMN_WIDTH = 190;
 const MOBILE_DAY_COLUMN_WIDTH = 54;
+const TODAY_COLUMN_BG = 'bg-[#ffd74d]/10 hover:bg-[#ffd74d]/18';
+const TODAY_MOBILE_HEADER_BG = 'bg-[#ffd74d]/20 hover:bg-[#ffd74d]/28';
+const SELECTED_DAY_COLUMN_BG = 'bg-[#4c9cff]/10 hover:bg-[#4c9cff]/18';
+const SELECTED_DAY_MOBILE_HEADER_BG = 'bg-[#4c9cff]/20 hover:bg-[#4c9cff]/28';
 
 function formatMonthInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -179,42 +183,16 @@ function MonthPickerTitle({
   children?: ReactNode;
   onSelectDate: (value: Date) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const openPicker = () => {
-    const input = inputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
-    if (!input) {
-      return;
-    }
-
-    input.focus();
-    if (typeof input.showPicker === 'function') {
-      try {
-        input.showPicker();
-        return;
-      } catch {
-        // Fall back to click for browsers that expose showPicker but reject it for month inputs.
-      }
-    }
-    input.click();
-  };
-
   return (
     <div className={clsx('relative min-w-0', className)}>
-      <button
-        type="button"
-        onClick={openPicker}
-        className="min-w-0 text-center outline-none focus-visible:ring-2 focus-visible:ring-[#f4c900] focus-visible:ring-offset-2"
-        aria-label="Выбрать месяц и год"
-      >
+      <div className="min-w-0 text-center">
         {eyebrow ? (
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8f98a6]">{eyebrow}</p>
         ) : null}
         <h1 className={headingClassName}>{monthLabel}</h1>
         {children}
-      </button>
+      </div>
       <input
-        ref={inputRef}
         type="month"
         value={formatMonthInputValue(selectedDate)}
         onChange={(event) => {
@@ -223,9 +201,8 @@ function MonthPickerTitle({
             onSelectDate(nextDate);
           }
         }}
-        className="pointer-events-none absolute left-1/2 top-1/2 h-px w-px -translate-x-1/2 -translate-y-1/2 opacity-0"
-        aria-hidden="true"
-        tabIndex={-1}
+        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+        aria-label="Выбрать месяц и год"
       />
     </div>
   );
@@ -1698,9 +1675,9 @@ function ScheduleCell({
         'group relative flex w-full items-stretch border-r border-b border-[#e7edf4] p-[3px] text-left transition',
         compact ? 'min-h-[76px]' : 'min-h-[92px]',
         isToday
-          ? 'bg-[#ffd74d]/10 hover:bg-[#ffd74d]/18'
+          ? TODAY_COLUMN_BG
           : isSelected
-            ? 'bg-[#fff9e8]'
+            ? SELECTED_DAY_COLUMN_BG
             : 'bg-white hover:bg-[#fbfcfe]',
       )}
     >
@@ -1789,6 +1766,7 @@ export function ScheduleScreen({
   const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
   const visibleDates = useMemo(() => getVisibleScheduleDates(selectedDate), [selectedDate]);
   const selectedIso = toISODate(selectedDate);
+  const todayIso = toISODate(new Date());
 
   const allRows = useMemo<ScheduleRow[]>(
     () =>
@@ -2091,7 +2069,6 @@ export function ScheduleScreen({
   }, [gridMinWidth, mobileGridMinWidth]);
 
   useEffect(() => {
-    const todayIso = toISODate(new Date());
     const startIso = visibleDates.some((date) => toISODate(date) === todayIso) ? todayIso : selectedIso;
     const startIndex = visibleDates.findIndex((date) => toISODate(date) === startIso);
     if (startIndex < 0) {
@@ -2112,7 +2089,7 @@ export function ScheduleScreen({
     if (mobileBodyScrollRef.current) {
       mobileBodyScrollRef.current.scrollLeft = nextMobileScrollLeft;
     }
-  }, [selectedIso, visibleDates]);
+  }, [selectedIso, todayIso, visibleDates]);
 
   useEffect(() => {
     if (!hasMobileOverlay) {
@@ -2363,7 +2340,7 @@ export function ScheduleScreen({
                     const coverage = dayCoverage[index]?.count ?? 0;
                     const isSelected = iso === selectedIso;
                     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    const isToday = iso === toISODate(new Date());
+                    const isToday = iso === todayIso;
                     return (
                       <button
                         key={`head-${iso}`}
@@ -2385,9 +2362,9 @@ export function ScheduleScreen({
                         className={clsx(
                           'border-r border-[#e7edf4] px-2 py-4 text-center transition',
                           isToday
-                            ? 'bg-[#ffd74d]/10 hover:bg-[#ffd74d]/18'
+                            ? TODAY_COLUMN_BG
                             : isSelected
-                              ? 'bg-[#fff9e8]'
+                              ? SELECTED_DAY_COLUMN_BG
                               : 'bg-white hover:bg-[#fafbfc]',
                         )}
                       >
@@ -2447,7 +2424,7 @@ export function ScheduleScreen({
                     const coverage = dayCoverage[index]?.count ?? 0;
                     const isSelected = iso === selectedIso;
                     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    const isToday = iso === toISODate(new Date());
+                    const isToday = iso === todayIso;
                     return (
                       <button
                         key={`mobile-head-${iso}`}
@@ -2469,9 +2446,9 @@ export function ScheduleScreen({
                         className={clsx(
                           'border-r border-[#e7edf4] px-1 py-3 text-center transition',
                           isToday
-                            ? 'bg-[#ffd74d]/20 hover:bg-[#ffd74d]/28'
+                            ? TODAY_MOBILE_HEADER_BG
                             : isSelected
-                              ? 'bg-[#fff9e8]'
+                              ? SELECTED_DAY_MOBILE_HEADER_BG
                               : 'bg-white',
                         )}
                       >
@@ -2637,7 +2614,7 @@ export function ScheduleScreen({
                         ...visibleDates.map((date) => {
                           const iso = toISODate(date);
                           const intervals = getIntervalsForDate(hoursByStaff, row.staff.id, date);
-                          const isToday = iso === toISODate(new Date());
+                          const isToday = iso === todayIso;
                           return (
                             <ScheduleCell
                               key={`${row.staff.id}-mobile-${iso}`}
@@ -2759,7 +2736,7 @@ export function ScheduleScreen({
                         ...visibleDates.map((date) => {
                           const iso = toISODate(date);
                           const intervals = getIntervalsForDate(hoursByStaff, row.staff.id, date);
-                          const isToday = iso === toISODate(new Date());
+                          const isToday = iso === todayIso;
                           return (
                             <ScheduleCell
                               key={`${row.staff.id}-${iso}`}

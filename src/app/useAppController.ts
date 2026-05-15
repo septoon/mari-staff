@@ -1795,7 +1795,7 @@ export function useAppController(): AppController {
       return;
     }
     void loadWorkingHours(workingHoursStaff);
-  }, [isAuthorized, journalStaff, loadWorkingHours, page, scheduleStaff, staff, tab]);
+  }, [isAuthorized, journalStaff, loadWorkingHours, page, scheduleStaff, selectedDate, staff, tab]);
 
   const syncLiveData = useCallback(
     async ({ includeHistory = false }: { includeHistory?: boolean } = {}) => {
