@@ -10,6 +10,12 @@ function openNativePicker(input: HTMLInputElement & { showPicker?: () => void })
   }
 }
 
+const TIME_GRID_CLASS = 'mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3';
+const TIME_FIELD_CLASS = 'block min-w-0';
+const TIME_INPUT_CLASS =
+  'native-picker-input block h-10 rounded-xl border border-line px-2 text-center text-sm font-semibold leading-none text-ink outline-none';
+const BREAK_TIME_INPUT_CLASS = `${TIME_INPUT_CLASS} bg-white`;
+
 type JournalDayEditScreenProps = {
   staff: StaffItem | null;
   selectedDate: Date;
@@ -61,8 +67,8 @@ export function JournalDayEditScreen({
         <p className="mt-4 text-sm font-semibold text-muted">Дата</p>
         <p className="mt-1 text-[18px] font-semibold text-ink">{formatDateLabel(selectedDate)}</p>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="block">
+        <div className={TIME_GRID_CLASS}>
+          <label className={TIME_FIELD_CLASS}>
             <span className="mb-1 block text-sm font-semibold text-muted">Начало</span>
             <input
               type="time"
@@ -71,10 +77,10 @@ export function JournalDayEditScreen({
               onClick={(event) => openNativePicker(event.currentTarget)}
               onFocus={(event) => openNativePicker(event.currentTarget)}
               placeholder="10:00"
-              className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
+              className={TIME_INPUT_CLASS}
             />
           </label>
-          <label className="block">
+          <label className={TIME_FIELD_CLASS}>
             <span className="mb-1 block text-sm font-semibold text-muted">Конец</span>
             <input
               type="time"
@@ -83,7 +89,7 @@ export function JournalDayEditScreen({
               onClick={(event) => openNativePicker(event.currentTarget)}
               onFocus={(event) => openNativePicker(event.currentTarget)}
               placeholder="20:00"
-              className="w-full rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink outline-none"
+              className={TIME_INPUT_CLASS}
             />
           </label>
         </div>
@@ -103,8 +109,8 @@ export function JournalDayEditScreen({
           </label>
 
           {breakEnabled ? (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="block">
+            <div className={TIME_GRID_CLASS}>
+              <label className={TIME_FIELD_CLASS}>
                 <span className="mb-1 block text-sm font-semibold text-muted">Начало</span>
                 <input
                   type="time"
@@ -113,10 +119,10 @@ export function JournalDayEditScreen({
                   onClick={(event) => openNativePicker(event.currentTarget)}
                   onFocus={(event) => openNativePicker(event.currentTarget)}
                   placeholder="13:00"
-                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-ink outline-none"
+                  className={BREAK_TIME_INPUT_CLASS}
                 />
               </label>
-              <label className="block">
+              <label className={TIME_FIELD_CLASS}>
                 <span className="mb-1 block text-sm font-semibold text-muted">Конец</span>
                 <input
                   type="time"
@@ -125,7 +131,7 @@ export function JournalDayEditScreen({
                   onClick={(event) => openNativePicker(event.currentTarget)}
                   onFocus={(event) => openNativePicker(event.currentTarget)}
                   placeholder="14:00"
-                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-ink outline-none"
+                  className={BREAK_TIME_INPUT_CLASS}
                 />
               </label>
             </div>

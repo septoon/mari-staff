@@ -133,6 +133,24 @@ body {
   touch-action: pan-x pan-y;
 }
 
+.native-picker-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.native-picker-input::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: center;
+}
+
+.native-picker-input::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+}
+
 .striped-slot {
   background: repeating-linear-gradient(
     135deg,
