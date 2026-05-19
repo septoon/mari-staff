@@ -55,7 +55,7 @@ type ScheduleScreenProps = {
   onEditorStartChange: (value: string) => void;
   onEditorEndChange: (value: string) => void;
   onEditorPresetSelect: (value: string) => void;
-  onSaveEditor: () => void;
+  onSaveEditor: (options?: { applyBreak?: boolean; breakStart?: string; breakEnd?: string }) => void;
   onClearEditor: () => void;
   onOpenOnlineSlots: (item: StaffItem, date: Date) => void;
   onCloseOnlineSlots: () => void;
@@ -1762,11 +1762,16 @@ export function ScheduleScreen({
   const [breakDraft, setBreakDraft] = useState<BreakDraft>(null);
   const [editorBreakStart, setEditorBreakStart] = useState('13:00');
   const [editorBreakEnd, setEditorBreakEnd] = useState('14:00');
+  const [editorBreakDirty, setEditorBreakDirty] = useState(false);
 
   const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
   const visibleDates = useMemo(() => getVisibleScheduleDates(selectedDate), [selectedDate]);
   const selectedIso = toISODate(selectedDate);
   const todayIso = toISODate(new Date());
+
+  useEffect(() => {
+    setEditorBreakDirty(false);
+  }, [editorStaff?.id, selectedIso]);
 
   const allRows = useMemo<ScheduleRow[]>(
     () =>
@@ -1988,24 +1993,30 @@ export function ScheduleScreen({
     if (!editorStaff) {
       return;
     }
-    await onSaveBreak({
+    const saved = await onSaveBreak({
       staffId: editorStaff.id,
       date: selectedDate,
       start: editorBreakStart,
       end: editorBreakEnd,
     });
+    if (saved) {
+      setEditorBreakDirty(false);
+    }
   };
 
   const removeEditorBreak = async () => {
     if (!editorStaff) {
       return;
     }
-    await onRemoveBreak({
+    const removed = await onRemoveBreak({
       staffId: editorStaff.id,
       date: selectedDate,
       start: editorBreakStart,
       end: editorBreakEnd,
     });
+    if (removed) {
+      setEditorBreakDirty(false);
+    }
   };
 
   useEffect(() => {
@@ -2814,10 +2825,22 @@ export function ScheduleScreen({
           onClose={onCloseDesktopEditor}
           onStartChange={onEditorStartChange}
           onEndChange={onEditorEndChange}
-          onBreakStartChange={setEditorBreakStart}
-          onBreakEndChange={setEditorBreakEnd}
+          onBreakStartChange={(value) => {
+            setEditorBreakStart(value);
+            setEditorBreakDirty(true);
+          }}
+          onBreakEndChange={(value) => {
+            setEditorBreakEnd(value);
+            setEditorBreakDirty(true);
+          }}
           onPresetSelect={onEditorPresetSelect}
-          onSave={onSaveEditor}
+          onSave={() =>
+            onSaveEditor({
+              applyBreak: editorBreakDirty || editorBreakActive,
+              breakStart: editorBreakStart,
+              breakEnd: editorBreakEnd,
+            })
+          }
           onClear={onClearEditor}
           onSaveBreak={() => {
             void saveEditorBreak();

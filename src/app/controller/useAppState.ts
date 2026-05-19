@@ -203,6 +203,9 @@ export function useAppState() {
   const [journalActionStaff, setJournalActionStaff] = useState<StaffItem | null>(null);
   const [journalDayStart, setJournalDayStart] = useState(DEFAULT_SCHEDULE_START);
   const [journalDayEnd, setJournalDayEnd] = useState(DEFAULT_SCHEDULE_END);
+  const [journalDayBreakEnabled, setJournalDayBreakEnabled] = useState(false);
+  const [journalDayBreakStart, setJournalDayBreakStart] = useState('13:00');
+  const [journalDayBreakEnd, setJournalDayBreakEnd] = useState('14:00');
   const [journalSettings, setJournalSettings] = useState<JournalSettings>(loadJournalSettings);
   const [journalCreateDraft, setJournalCreateDraft] = useState<JournalCreateDraft>(
     buildEmptyJournalCreateDraft,
@@ -414,6 +417,12 @@ export function useAppState() {
     setJournalDayStart,
     journalDayEnd,
     setJournalDayEnd,
+    journalDayBreakEnabled,
+    setJournalDayBreakEnabled,
+    journalDayBreakStart,
+    setJournalDayBreakStart,
+    journalDayBreakEnd,
+    setJournalDayBreakEnd,
     journalSettings,
     setJournalSettings,
     journalCreateDraft,

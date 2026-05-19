@@ -82,6 +82,12 @@ export type ScheduleEditorOpenOptions = {
   focusDate?: Date;
 };
 
+export type ScheduleEditorSaveOptions = {
+  applyBreak?: boolean;
+  breakStart?: string;
+  breakEnd?: string;
+};
+
 export type ScheduleBreakSaveInput = {
   staffId: string;
   date: Date;
@@ -416,6 +422,9 @@ export type ControllerState = {
   journalActionStaff: StaffItem | null;
   journalDayStart: string;
   journalDayEnd: string;
+  journalDayBreakEnabled: boolean;
+  journalDayBreakStart: string;
+  journalDayBreakEnd: string;
   journalSettings: JournalSettings;
   journalCreateDraft: JournalCreateDraft;
   journalCreateServiceIdsByStaff: Record<string, string[]>;
@@ -536,7 +545,7 @@ export type ControllerActions = {
   setScheduleEditorBookingEnd: (value: string) => void;
   setScheduleEditorApplyWeeks: (value: number) => void;
   applyScheduleEditorPreset: (value: string) => void;
-  saveScheduleEditor: () => Promise<void>;
+  saveScheduleEditor: (options?: ScheduleEditorSaveOptions) => Promise<void>;
   clearScheduleEditor: () => Promise<void>;
   clearScheduleDayForStaff: (item: StaffItem) => Promise<void>;
   pasteScheduleDayForStaff: (
@@ -582,6 +591,9 @@ export type ControllerActions = {
   handleBackFromJournalDayAction: () => void;
   setJournalDayStart: (value: string) => void;
   setJournalDayEnd: (value: string) => void;
+  setJournalDayBreakEnabled: (value: boolean) => void;
+  setJournalDayBreakStart: (value: string) => void;
+  setJournalDayBreakEnd: (value: string) => void;
   handleSaveJournalDayEdit: () => Promise<void>;
   handleSaveJournalDayRemove: () => Promise<void>;
   setServicesCategorySearch: (value: string) => void;

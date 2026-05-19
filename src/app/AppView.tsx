@@ -939,10 +939,16 @@ export function AppView({ controller }: AppViewProps) {
             selectedDate={state.selectedDate}
             start={state.journalDayStart}
             end={state.journalDayEnd}
+            breakEnabled={state.journalDayBreakEnabled}
+            breakStart={state.journalDayBreakStart}
+            breakEnd={state.journalDayBreakEnd}
             loading={state.loading.action}
             onBack={actions.handleBackFromJournalDayAction}
             onStartChange={actions.setJournalDayStart}
             onEndChange={actions.setJournalDayEnd}
+            onBreakEnabledChange={actions.setJournalDayBreakEnabled}
+            onBreakStartChange={actions.setJournalDayBreakStart}
+            onBreakEndChange={actions.setJournalDayBreakEnd}
             onSave={() => {
               void actions.handleSaveJournalDayEdit();
             }}
@@ -1005,8 +1011,8 @@ export function AppView({ controller }: AppViewProps) {
               actions.setScheduleEditorBookingEnd(value);
             }}
             onEditorPresetSelect={actions.applyScheduleEditorPreset}
-            onSaveEditor={() => {
-              void actions.saveScheduleEditor();
+            onSaveEditor={(options) => {
+              void actions.saveScheduleEditor(options);
             }}
             onClearEditor={() => {
               void actions.clearScheduleEditor();

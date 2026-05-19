@@ -93,6 +93,7 @@ import type {
   JournalCard,
   ScheduleInterval,
   ScheduleEditorOpenOptions,
+  ScheduleEditorSaveOptions,
   ScheduleBreakSaveInput,
   ServiceCategoryItem,
   ServiceSectionItem,
@@ -455,6 +456,12 @@ export function useAppController(): AppController {
     setJournalDayStart,
     journalDayEnd,
     setJournalDayEnd,
+    journalDayBreakEnabled,
+    setJournalDayBreakEnabled,
+    journalDayBreakStart,
+    setJournalDayBreakStart,
+    journalDayBreakEnd,
+    setJournalDayBreakEnd,
     journalSettings,
     setJournalSettings,
     journalCreateDraft,
@@ -2336,6 +2343,18 @@ export function useAppController(): AppController {
     } finally {
       setLoadingKey(setLoading, 'action', false);
     }
+  };
+
+  const getFirstScheduleBreakRange = (intervals: ScheduleInterval[]) => {
+    const sorted = [...intervals].sort((left, right) => left.start.localeCompare(right.start));
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const current = sorted[index];
+      if (previous && current && previous.end < current.start) {
+        return { start: previous.end, end: current.start };
+      }
+    }
+    return null;
   };
 
   const handleCreateStaff = async () => {
@@ -5678,7 +5697,7 @@ export function useAppController(): AppController {
     resetScheduleEditorDraft(createScheduleInterval(parsed.start, parsed.end));
   };
 
-  const saveScheduleEditor = async () => {
+  const saveScheduleEditor = async (options: ScheduleEditorSaveOptions = {}) => {
     if (!canEdit(EDIT_PERMISSION.schedule)) {
       setToast('Нет прав на редактирование графика');
       return;
@@ -5712,7 +5731,28 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       if (page === 'tabs') {
-        await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, [interval]);
+        let intervals = [interval];
+        if (options.applyBreak) {
+          const nextIntervals = subtractBreakFromScheduleIntervals(
+            intervals,
+            options.breakStart ?? '',
+            options.breakEnd ?? '',
+          );
+          if (!nextIntervals) {
+            setToast('Перерыв должен пересекаться с рабочим днем');
+            return;
+          }
+          if (nextIntervals.length === 0) {
+            setToast('Перерыв не может закрывать весь рабочий день');
+            return;
+          }
+          intervals = nextIntervals;
+        }
+        if (intervals.some((item) => !isScheduleIntervalValid(item))) {
+          setToast('Не удалось применить перерыв к этому графику');
+          return;
+        }
+        await putStaffDailySchedule(scheduleEditorStaff.id, selectedDate, intervals);
       } else {
         const dates = buildScheduleTemplateDates(
           selectedDate,
@@ -5903,10 +5943,27 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     void (async () => {
       try {
-        const daySlots = await fetchStaffDailySchedule(journalActionStaff.id, selectedDate);
-        const firstSlot = daySlots[0] || createScheduleInterval();
+        const [daySlots, renderedSlots] = await Promise.all([
+          fetchStaffDailySchedule(journalActionStaff.id, selectedDate),
+          fetchStaffRenderedScheduleForDate(journalActionStaff.id, selectedDate),
+        ]);
+        const dayBreakRange = getFirstScheduleBreakRange(daySlots);
+        const renderedBreakRange = getFirstScheduleBreakRange(renderedSlots);
+        const sourceSlots =
+          dayBreakRange || !renderedBreakRange
+            ? daySlots.length > 0
+              ? daySlots
+              : renderedSlots
+            : renderedSlots;
+        const sortedSlots = [...sourceSlots].sort((left, right) => left.start.localeCompare(right.start));
+        const firstSlot = sortedSlots[0] || createScheduleInterval();
+        const lastSlot = sortedSlots[sortedSlots.length - 1] || firstSlot;
+        const breakRange = getFirstScheduleBreakRange(sortedSlots);
         setJournalDayStart(firstSlot.start);
-        setJournalDayEnd(firstSlot.end);
+        setJournalDayEnd(lastSlot.end);
+        setJournalDayBreakEnabled(Boolean(breakRange));
+        setJournalDayBreakStart(breakRange?.start ?? '13:00');
+        setJournalDayBreakEnd(breakRange?.end ?? '14:00');
         setPage('journalDayEdit');
       } catch (error) {
         setToast(toErrorMessage(error));
@@ -5967,13 +6024,49 @@ export function useAppController(): AppController {
       setToast('Время в формате HH:mm');
       return;
     }
-    if (journalDayStart >= journalDayEnd) {
+    if (timeValueToMinutes(journalDayEnd) <= timeValueToMinutes(journalDayStart)) {
       setToast('Время окончания должно быть позже начала');
       return;
     }
-    const success = await updateStaffScheduleForSelectedDay([
-      createScheduleInterval(journalDayStart, journalDayEnd),
-    ]);
+    const interval = createScheduleInterval(journalDayStart, journalDayEnd);
+    let intervals = [interval];
+
+    if (journalDayBreakEnabled) {
+      if (!isValidTime(journalDayBreakStart) || !isValidTime(journalDayBreakEnd)) {
+        setToast('Время перерыва в формате HH:mm');
+        return;
+      }
+      const shiftStartMinutes = timeValueToMinutes(journalDayStart);
+      const shiftEndMinutes = timeValueToMinutes(journalDayEnd);
+      const breakStartMinutes = timeValueToMinutes(journalDayBreakStart);
+      const breakEndMinutes = timeValueToMinutes(journalDayBreakEnd);
+      if (breakEndMinutes <= breakStartMinutes) {
+        setToast('Конец перерыва должен быть позже начала');
+        return;
+      }
+      if (breakStartMinutes <= shiftStartMinutes || breakEndMinutes >= shiftEndMinutes) {
+        setToast('Перерыв должен быть внутри рабочего дня');
+        return;
+      }
+
+      const intervalsWithBreak = subtractBreakFromScheduleIntervals(
+        intervals,
+        journalDayBreakStart,
+        journalDayBreakEnd,
+      );
+      if (!intervalsWithBreak || intervalsWithBreak.length === 0) {
+        setToast('Не удалось применить перерыв к этому графику');
+        return;
+      }
+      intervals = intervalsWithBreak;
+    }
+
+    if (intervals.some((item) => !isScheduleIntervalValid(item))) {
+      setToast('Не удалось сохранить график на день');
+      return;
+    }
+
+    const success = await updateStaffScheduleForSelectedDay(intervals);
     if (!success) {
       return;
     }
@@ -6218,6 +6311,9 @@ export function useAppController(): AppController {
       journalActionStaff,
       journalDayStart,
       journalDayEnd,
+      journalDayBreakEnabled,
+      journalDayBreakStart,
+      journalDayBreakEnd,
       journalSettings,
       journalCreateDraft,
       journalCreateServiceIdsByStaff,
@@ -6373,6 +6469,9 @@ export function useAppController(): AppController {
       handleBackFromJournalDayAction,
       setJournalDayStart,
       setJournalDayEnd,
+      setJournalDayBreakEnabled,
+      setJournalDayBreakStart,
+      setJournalDayBreakEnd,
       handleSaveJournalDayEdit,
       handleSaveJournalDayRemove,
       setServicesCategorySearch,
