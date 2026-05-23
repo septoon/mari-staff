@@ -1,6 +1,8 @@
 import { ApiError } from '../api';
 
 export const JOURNAL_CREATE_STEP_MINUTES = 10;
+export const JOURNAL_CREATE_DURATION_MIN_MINUTES = 1;
+export const JOURNAL_CREATE_DURATION_MAX_MINUTES = 23 * 60 + 59;
 
 type BuildJournalCreateAppointmentPayloadInput = {
   clientName: string;
@@ -47,6 +49,35 @@ export function buildJournalCreateAppointmentPayload({
 export function isJournalCreateStartAligned(startAt: Date) {
   const stepMs = JOURNAL_CREATE_STEP_MINUTES * 60 * 1000;
   return startAt.getTime() % stepMs === 0;
+}
+
+export function formatJournalCreateDurationTime(durationMin: number) {
+  const totalMinutes = Math.round(durationMin);
+  if (
+    !Number.isFinite(totalMinutes) ||
+    totalMinutes < JOURNAL_CREATE_DURATION_MIN_MINUTES ||
+    totalMinutes > JOURNAL_CREATE_DURATION_MAX_MINUTES
+  ) {
+    return '';
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function parseJournalCreateDurationTime(value: string) {
+  const match = value.trim().match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, hours, minutes] = match;
+  if (Number(hours) > 23 || Number(minutes) > 59) {
+    return null;
+  }
+  const totalMinutes = Number(hours) * 60 + Number(minutes);
+  return totalMinutes >= JOURNAL_CREATE_DURATION_MIN_MINUTES ? totalMinutes : null;
 }
 
 function stringifyErrorDetails(value: unknown): string {

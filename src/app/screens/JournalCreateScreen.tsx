@@ -2,7 +2,11 @@ import clsx from 'clsx';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowLeft, CalendarDays, ChevronDown, Clock3, Loader2, Plus, UserRound, X } from 'lucide-react';
 import { formatRub, formatTime } from '../helpers';
-import { JOURNAL_CREATE_STEP_MINUTES } from '../journalCreate';
+import {
+  formatJournalCreateDurationTime,
+  JOURNAL_CREATE_STEP_MINUTES,
+  parseJournalCreateDurationTime,
+} from '../journalCreate';
 import type { ClientItem, JournalCreateDraft, ServiceItem, StaffItem } from '../types';
 
 type JournalCreateScreenProps = {
@@ -76,6 +80,7 @@ function TextField({
   type = 'text',
   step,
   min,
+  max,
   disabled = false,
 }: {
   label: string;
@@ -84,7 +89,8 @@ function TextField({
   onChange: (value: string) => void;
   type?: 'text' | 'tel' | 'date' | 'time' | 'number';
   step?: number;
-  min?: number;
+  min?: string | number;
+  max?: string | number;
   disabled?: boolean;
 }) {
   return (
@@ -95,6 +101,7 @@ function TextField({
         value={value}
         placeholder={placeholder}
         min={min ?? (type === 'number' ? 15 : undefined)}
+        max={max}
         step={step ?? (type === 'number' ? 15 : undefined)}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
@@ -181,18 +188,6 @@ function Content({
       : draft.durationMin <= 0
         ? 'Укажите длительность записи.'
       : null;
-  const durationOptions = useMemo(() => {
-    const presetValues = [30, 45, 60, 90, 120, 150, 180];
-    const currentValue = Math.max(15, Math.round(draft.durationMin || 0));
-    const values = presetValues.includes(currentValue)
-      ? presetValues
-      : [...presetValues, currentValue].sort((left, right) => left - right);
-
-    return values.map((value) => ({
-      value: String(value),
-      label: `${value} мин`,
-    }));
-  }, [draft.durationMin]);
   const totalPriceMin = useMemo(
     () => selectedServices.reduce((sum, item) => sum + Math.max(item.priceMin, 0), 0),
     [selectedServices],
@@ -362,16 +357,20 @@ function Content({
             }))}
             onChange={(value) => onDraftChange({ staffId: value })}
           />
-          <SelectField
+          <TextField
             label="Длительность"
-            value={String(draft.durationMin)}
-            options={durationOptions}
-            onChange={(value) =>
+            type="time"
+            value={formatJournalCreateDurationTime(draft.durationMin)}
+            min="00:01"
+            max="23:59"
+            step={60}
+            onChange={(value) => {
+              const durationMin = parseJournalCreateDurationTime(value);
               onDraftChange({
-                durationMin: Number(value) || 60,
+                durationMin: durationMin ?? 0,
                 durationManuallyChanged: true,
-              })
-            }
+              });
+            }}
           />
         </div>
       </Section>

@@ -41,6 +41,7 @@ import {
   buildJournalCreateAppointmentPayload,
   formatJournalCreateSaveError,
   isJournalCreateStartAligned,
+  JOURNAL_CREATE_DURATION_MIN_MINUTES,
   JOURNAL_CREATE_STEP_MINUTES,
 } from './journalCreate';
 import {
@@ -3362,9 +3363,11 @@ export function useAppController(): AppController {
       setToast(`Время записи должно быть кратно ${JOURNAL_CREATE_STEP_MINUTES} минутам`);
       return;
     }
-    const end = new Date(
-      start.getTime() + Math.max(15, Math.round(journalCreateDraft.durationMin || 0)) * 60_000,
+    const durationMin = Math.max(
+      JOURNAL_CREATE_DURATION_MIN_MINUTES,
+      Math.round(journalCreateDraft.durationMin || 0),
     );
+    const end = new Date(start.getTime() + durationMin * 60_000);
     const finalTotal = canEditJournalFinalTotal && journalCreateDraft.finalTotal.trim()
       ? Number(journalCreateDraft.finalTotal)
       : null;
