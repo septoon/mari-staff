@@ -128,11 +128,14 @@ export function parseService(value: unknown): ServiceItem | null {
   const categoryRecord = toRecord(record.category);
   const categoryId = toString(categoryRecord?.id) || 'uncategorized';
   const categoryName = toString(categoryRecord?.name) || 'Без категории';
-  const providerNames = asArray(record.providers)
-    .map((item) => {
-      const providerRecord = toRecord(item);
-      return toString(providerRecord?.name);
-    })
+  const providers = asArray(record.providers)
+    .map((item) => toRecord(item))
+    .filter((item): item is Record<string, unknown> => item !== null);
+  const providerIds = providers
+    .map((item) => toString(item.id))
+    .filter(Boolean);
+  const providerNames = providers
+    .map((item) => toString(item.name))
     .filter(Boolean);
   if (!id || !name) {
     return null;
@@ -142,6 +145,7 @@ export function parseService(value: unknown): ServiceItem | null {
     name,
     categoryId,
     categoryName,
+    providerIds,
     providerNames,
     nameOnline: toNullableString(record.nameOnline),
     description: toNullableString(record.description),

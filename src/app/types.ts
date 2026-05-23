@@ -123,6 +123,7 @@ export type ServiceItem = {
   name: string;
   categoryId: string;
   categoryName: string;
+  providerIds: string[];
   providerNames: string[];
   nameOnline: string | null;
   description: string | null;
@@ -427,8 +428,6 @@ export type ControllerState = {
   journalDayBreakEnd: string;
   journalSettings: JournalSettings;
   journalCreateDraft: JournalCreateDraft;
-  journalCreateServiceIdsByStaff: Record<string, string[]>;
-  journalCreateServicesLoading: boolean;
   staffAvatarPreviewUrl: string;
   serviceImagePreviewUrl: string;
   staffAvatarServerDirHint: string;

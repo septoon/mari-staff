@@ -399,14 +399,13 @@ export function AppView({ controller }: AppViewProps) {
       return state.services;
     }
 
-    const allowedIds = state.journalCreateServiceIdsByStaff[selectedStaffId];
-    if (!allowedIds) {
-      return [];
+    const assignedServices = state.services.filter((item) => item.providerIds.includes(selectedStaffId));
+    if (assignedServices.length > 0) {
+      return assignedServices;
     }
 
-    const allowedSet = new Set(allowedIds);
-    return state.services.filter((item) => allowedSet.has(item.id));
-  }, [state.journalCreateDraft.staffId, state.journalCreateServiceIdsByStaff, state.services]);
+    return state.services;
+  }, [state.journalCreateDraft.staffId, state.services]);
   const effectiveJournalSettings = useMemo(
     () => ({
       ...state.journalSettings,
@@ -865,7 +864,7 @@ export function AppView({ controller }: AppViewProps) {
             staff={state.journalCreateStaff}
             services={journalCreateServices}
             loading={state.loading.action}
-            servicesLoading={state.journalCreateServicesLoading}
+            servicesLoading={state.loading.services}
             canEditFinalTotal={state.canEditJournalFinalTotal}
             onBack={actions.closeJournalCreatePage}
             onDraftChange={(patch) => {

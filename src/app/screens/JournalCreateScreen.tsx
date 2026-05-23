@@ -182,7 +182,7 @@ function Content({
   const endAt = addMinutes(startAt, draft.durationMin);
   const createDisabled = loading || !draft.staffId || !draft.dateValue || !draft.startTime || draft.durationMin <= 0;
   const createDisabledReason = servicesLoading
-    ? 'Пока загружаются услуги выбранного сотрудника.'
+    ? 'Пока загружается каталог услуг.'
     : !draft.staffId
       ? 'Выберите сотрудника.'
       : draft.durationMin <= 0
@@ -386,7 +386,7 @@ function Content({
               <div className="rounded-[24px] border border-[#e7ebf0] bg-[#f8fafc] px-4 py-4 text-sm font-semibold text-[#788292]">
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Загружаю услуги сотрудника...
+                  Загружаю услуги...
                 </span>
               </div>
             ) : services.length > 0 ? (

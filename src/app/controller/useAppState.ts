@@ -210,10 +210,6 @@ export function useAppState() {
   const [journalCreateDraft, setJournalCreateDraft] = useState<JournalCreateDraft>(
     buildEmptyJournalCreateDraft,
   );
-  const [journalCreateServiceIdsByStaff, setJournalCreateServiceIdsByStaff] = useState<
-    Record<string, string[]>
-  >({});
-  const [journalCreateServicesLoading, setJournalCreateServicesLoading] = useState(false);
   const [servicesCategorySearch, setServicesCategorySearch] = useState('');
   const [servicesItemsSearch, setServicesItemsSearch] = useState('');
   const [localServiceCategories, setLocalServiceCategories] = useState<ServiceCategoryItem[]>([]);
@@ -427,10 +423,6 @@ export function useAppState() {
     setJournalSettings,
     journalCreateDraft,
     setJournalCreateDraft,
-    journalCreateServiceIdsByStaff,
-    setJournalCreateServiceIdsByStaff,
-    journalCreateServicesLoading,
-    setJournalCreateServicesLoading,
     servicesCategorySearch,
     setServicesCategorySearch,
     servicesItemsSearch,

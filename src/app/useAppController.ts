@@ -467,10 +467,6 @@ export function useAppController(): AppController {
     setJournalSettings,
     journalCreateDraft,
     setJournalCreateDraft,
-    journalCreateServiceIdsByStaff,
-    setJournalCreateServiceIdsByStaff,
-    journalCreateServicesLoading,
-    setJournalCreateServicesLoading,
     servicesCategorySearch,
     setServicesCategorySearch,
     servicesItemsSearch,
@@ -1526,152 +1522,53 @@ export function useAppController(): AppController {
     if (page !== 'journalCreate') {
       return;
     }
-    const missingStaff = journalCreateBaseStaff.filter(
-      (item) => journalCreateServiceIdsByStaff[item.id] === undefined,
-    );
-    if (missingStaff.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      setJournalCreateServicesLoading(true);
-      try {
-        const loaded = await Promise.all(
-          missingStaff.map(async (item) => {
-            try {
-              return {
-                staffId: item.id,
-                ids: await getStaffServiceIds(item.id),
-              };
-            } catch {
-              return {
-                staffId: item.id,
-                ids: [] as string[],
-              };
-            }
-          }),
-        );
-        if (cancelled) {
-          return;
-        }
-        setJournalCreateServiceIdsByStaff((prev) => {
-          const next = { ...prev };
-          loaded.forEach(({ staffId, ids }) => {
-            next[staffId] = ids;
-          });
-          return next;
-        });
-      } finally {
-        if (!cancelled) {
-          setJournalCreateServicesLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    getStaffServiceIds,
-    journalCreateBaseStaff,
-    journalCreateServiceIdsByStaff,
-    page,
-    setJournalCreateServiceIdsByStaff,
-    setJournalCreateServicesLoading,
-  ]);
-
-  useEffect(() => {
-    if (page !== 'journalCreate') {
-      return;
-    }
-    const hasPendingStaffServices = journalCreateBaseStaff.some(
-      (item) => journalCreateServiceIdsByStaff[item.id] === undefined,
-    );
-    if (hasPendingStaffServices) {
-      return;
-    }
     if (journalCreateStaff.length === 0) {
+      if (loading.staff || (!initialDataLoadedRef.current && staff.length === 0)) {
+        return;
+      }
       setPage('tabs');
       setTab('journal');
       return;
     }
-    setJournalCreateDraft((current) => ({
-      ...current,
-      dateValue: current.dateValue || formatJournalCreateDateValue(selectedDate),
-      staffId:
-        journalCreateStaff.some((item) => item.id === current.staffId)
-          ? current.staffId
-          : journalCreateStaff[0]?.id || '',
-      serviceIds:
+    setJournalCreateDraft((current) => {
+      const nextDateValue = current.dateValue || formatJournalCreateDateValue(selectedDate);
+      const nextStaffId = journalCreateStaff.some((item) => item.id === current.staffId)
+        ? current.staffId
+        : journalCreateStaff[0]?.id || '';
+      const nextServiceIds =
         current.serviceIds.length > 0
           ? current.serviceIds.filter((serviceId) => services.some((item) => item.id === serviceId))
-          : [],
-      durationMin: current.durationMin > 0 ? current.durationMin : 60,
-    }));
+          : [];
+      const nextDurationMin = current.durationMin > 0 ? current.durationMin : 60;
+
+      if (
+        current.dateValue === nextDateValue &&
+        current.staffId === nextStaffId &&
+        current.durationMin === nextDurationMin &&
+        current.serviceIds.length === nextServiceIds.length &&
+        current.serviceIds.every((serviceId, index) => serviceId === nextServiceIds[index])
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        dateValue: nextDateValue,
+        staffId: nextStaffId,
+        serviceIds: nextServiceIds,
+        durationMin: nextDurationMin,
+      };
+    });
   }, [
-    journalCreateBaseStaff,
-    journalCreateServiceIdsByStaff,
     journalCreateStaff,
+    loading.staff,
     page,
     selectedDate,
     services,
     setJournalCreateDraft,
     setPage,
     setTab,
-  ]);
-
-  useEffect(() => {
-    if (page !== 'journalCreate') {
-      return;
-    }
-    const staffId = journalCreateDraft.staffId.trim();
-    if (!staffId) {
-      return;
-    }
-    if (journalCreateServiceIdsByStaff[staffId]) {
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      setJournalCreateServicesLoading(true);
-      try {
-        const ids = await getStaffServiceIds(staffId);
-        if (cancelled) {
-          return;
-        }
-        setJournalCreateServiceIdsByStaff((prev) => ({
-          ...prev,
-          [staffId]: ids,
-        }));
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        setToast(toErrorMessage(error));
-        setJournalCreateServiceIdsByStaff((prev) => ({
-          ...prev,
-          [staffId]: [],
-        }));
-      } finally {
-        if (!cancelled) {
-          setJournalCreateServicesLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    getStaffServiceIds,
-    journalCreateDraft.staffId,
-    journalCreateServiceIdsByStaff,
-    page,
-    setJournalCreateServiceIdsByStaff,
-    setJournalCreateServicesLoading,
-    setToast,
+    staff.length,
   ]);
 
   useEffect(() => {
@@ -1683,12 +1580,8 @@ export function useAppController(): AppController {
       return;
     }
 
-    const allowedServiceIds = journalCreateServiceIdsByStaff[staffId];
-    if (!allowedServiceIds) {
-      return;
-    }
-
-    const allowedServices = services.filter((item) => allowedServiceIds.includes(item.id));
+    const assignedServices = services.filter((item) => item.providerIds.includes(staffId));
+    const allowedServices = assignedServices.length > 0 ? assignedServices : services;
     const resolvedServiceIds = journalCreateDraft.serviceIds.filter((serviceId) =>
       allowedServices.some((item) => item.id === serviceId)
     );
@@ -1723,7 +1616,6 @@ export function useAppController(): AppController {
     }));
   }, [
     journalCreateDraft.serviceIds,
-    journalCreateServiceIdsByStaff,
     journalCreateDraft.staffId,
     page,
     services,
@@ -4645,6 +4537,7 @@ export function useAppController(): AppController {
               name: payload.name,
               categoryId: payload.categoryId,
               categoryName: serviceDraft.categoryName,
+              providerIds: [],
               providerNames: [],
               nameOnline: payload.nameOnline,
               description: payload.description || null,
@@ -6319,8 +6212,6 @@ export function useAppController(): AppController {
       journalDayBreakEnd,
       journalSettings,
       journalCreateDraft,
-      journalCreateServiceIdsByStaff,
-      journalCreateServicesLoading,
       staffAvatarPreviewUrl,
       serviceImagePreviewUrl,
       staffAvatarServerDirHint,
