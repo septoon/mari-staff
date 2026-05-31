@@ -2745,6 +2745,17 @@ export function useAppController(): AppController {
       setToast(`Время записи должно быть кратно ${JOURNAL_CREATE_STEP_MINUTES} минутам`);
       return;
     }
+    if (patch.finalTotalPrice !== null && !canEditJournalFinalTotal) {
+      setToast('Нет прав на изменение итоговой суммы записи');
+      return;
+    }
+    if (
+      patch.finalTotalPrice !== null &&
+      (!Number.isFinite(patch.finalTotalPrice) || patch.finalTotalPrice < 0)
+    ) {
+      setToast('Проверьте итоговую сумму. Укажите число не меньше 0.');
+      return;
+    }
 
     const payment =
       patch.paidAmount !== null || patch.paymentMethod
@@ -2765,6 +2776,7 @@ export function useAppController(): AppController {
         serviceIds: patch.serviceIds,
         startAt: patch.startAt.toISOString(),
         endAt: patch.endAt.toISOString(),
+        ...(patch.finalTotalPrice !== null ? { finalTotalPrice: patch.finalTotalPrice } : {}),
         status: patch.status,
         comment: patch.comment.trim() || null,
         ...(payment ? { payment } : {}),

@@ -889,6 +889,7 @@ export function AppView({ controller }: AppViewProps) {
               historyOpen={state.page === 'journalClient'}
               loading={state.loading.action}
               canEdit={state.canEditJournal}
+              canEditFinalTotal={state.canEditJournalFinalTotal}
               canOpenClient={state.canViewClients}
               canViewClientPhone={state.canViewClientPhone}
               visitsCount={activeJournalHistory.length}

@@ -55,6 +55,7 @@ type JournalAppointmentScreenProps = {
   historyOpen: boolean;
   loading: boolean;
   canEdit: boolean;
+  canEditFinalTotal: boolean;
   canOpenClient: boolean;
   canViewClientPhone: boolean;
   visitsCount: number;
@@ -80,6 +81,8 @@ type DesktopAppointmentDraft = {
   endTime: string;
   durationMin: number;
   serviceIds: string[];
+  finalTotal: string;
+  finalTotalManuallyChanged: boolean;
   technicalBreaks: string[];
   comment: string;
   paidAmount: string;
@@ -174,6 +177,14 @@ function formatDesktopHistoryDay(date: Date) {
 
 function appointmentAmountValue(appointment: AppointmentItem) {
   return appointment.amountAfterDiscount ?? appointment.amountBeforeDiscount;
+}
+
+function servicesForStaff(services: ServiceItem[], staffId: string) {
+  const normalizedStaffId = staffId.trim();
+  if (!normalizedStaffId) {
+    return services;
+  }
+  return services.filter((item) => item.providerIds.includes(normalizedStaffId));
 }
 
 function appointmentPaidValue(appointment: AppointmentItem) {
@@ -275,6 +286,8 @@ function buildDesktopDraft(appointment: AppointmentItem): DesktopAppointmentDraf
     endTime: formatTime(appointment.endAt),
     durationMin,
     serviceIds: appointment.serviceIds,
+    finalTotal: appointmentAmountValue(appointment) === null ? '' : String(appointmentAmountValue(appointment)),
+    finalTotalManuallyChanged: false,
     technicalBreaks: [],
     comment: appointment.comment || '',
     paidAmount: appointment.paidAmount === null ? '' : String(appointment.paidAmount),
@@ -339,6 +352,8 @@ const EMPTY_DESKTOP_DRAFT: DesktopAppointmentDraft = {
   endTime: '11:00',
   durationMin: 60,
   serviceIds: [],
+  finalTotal: '',
+  finalTotalManuallyChanged: false,
   technicalBreaks: [],
   comment: '',
   paidAmount: '',
@@ -357,6 +372,7 @@ export function JournalAppointmentScreen({
   historyOpen,
   loading,
   canEdit,
+  canEditFinalTotal,
   canOpenClient,
   canViewClientPhone,
   visitsCount,
@@ -446,6 +462,7 @@ export function JournalAppointmentScreen({
     availableStaff.find((item) => item.id === desktopDraft.staffId) ||
     availableStaff.find((item) => item.id === appointment.staffId) ||
     null;
+  const staffServices = servicesForStaff(services, desktopDraft.staffId || appointment.staffId);
   const draftStartAt = combineDraftDateTime(desktopDraft.dateValue, desktopDraft.startTime);
   const draftEndAt = combineDraftDateTime(desktopDraft.dateValue, desktopDraft.endTime);
   const displayAppointmentStartAt = draftStartAt || appointment.startAt;
@@ -522,6 +539,10 @@ export function JournalAppointmentScreen({
       const durationMin =
         selectedServices.reduce((sum, item) => sum + Math.max(15, Math.round(item.durationSec / 60)), 0) ||
         prev.durationMin;
+      const totalPrice = selectedServices.reduce(
+        (sum, item) => sum + Math.max(item.priceMax || item.priceMin, 0),
+        0,
+      );
       const startDate = combineDraftDateTime(prev.dateValue, prev.startTime);
       const endTime = startDate
         ? formatTime(new Date(startDate.getTime() + durationMin * 60000))
@@ -531,6 +552,10 @@ export function JournalAppointmentScreen({
         serviceIds,
         durationMin,
         endTime,
+        finalTotal:
+          prev.finalTotalManuallyChanged || selectedServices.length === 0
+            ? prev.finalTotal
+            : String(totalPrice),
       };
     });
   };
@@ -547,6 +572,10 @@ export function JournalAppointmentScreen({
       serviceIds: desktopDraft.serviceIds,
       startAt,
       endAt,
+      finalTotalPrice:
+        canEditFinalTotal && desktopDraft.finalTotal.trim()
+          ? Number(desktopDraft.finalTotal)
+          : null,
       status: appointment.status,
       comment: desktopDraft.comment,
       paidAmount: desktopDraft.paidAmount.trim() ? Number(desktopDraft.paidAmount) : null,
@@ -812,9 +841,17 @@ export function JournalAppointmentScreen({
               <LeftPanelField label="Сотрудник">
                 <select
                   value={desktopDraft.staffId}
-                  onChange={(event) =>
-                    setDesktopDraft((prev) => ({ ...prev, staffId: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const nextStaffId = event.target.value;
+                    const nextServices = servicesForStaff(services, nextStaffId);
+                    setDesktopDraft((prev) => ({
+                      ...prev,
+                      staffId: nextStaffId,
+                      serviceIds: prev.serviceIds.filter((serviceId) =>
+                        nextServices.some((item) => item.id === serviceId),
+                      ),
+                    }));
+                  }}
                   className={LEFT_PANEL_CONTROL_CLASS}
                 >
                   {availableStaff.map((item) => (
@@ -865,8 +902,8 @@ export function JournalAppointmentScreen({
 
               <LeftPanelField label="Услуги">
                 <div className="max-h-[280px] space-y-2 overflow-y-auto rounded-[22px] border border-[#d7dde6] bg-white p-2">
-                  {services.length > 0 ? (
-                    services.map((item) => {
+                  {staffServices.length > 0 ? (
+                    staffServices.map((item) => {
                       const active = desktopDraft.serviceIds.includes(item.id);
                       return (
                         <button
@@ -890,10 +927,40 @@ export function JournalAppointmentScreen({
                     })
                   ) : (
                     <p className="px-2 py-3 text-sm font-semibold text-[#818997]">
-                      Список услуг недоступен.
+                      У выбранного сотрудника нет назначенных услуг.
                     </p>
                   )}
                 </div>
+              </LeftPanelField>
+
+              <LeftPanelField label="Стоимость">
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={
+                    canEditFinalTotal
+                      ? desktopDraft.finalTotal
+                      : appointmentAmountValue(appointment) === null
+                        ? ''
+                        : String(appointmentAmountValue(appointment))
+                  }
+                  disabled={!canEditFinalTotal}
+                  onChange={(event) =>
+                    setDesktopDraft((prev) => ({
+                      ...prev,
+                      finalTotal: event.target.value,
+                      finalTotalManuallyChanged: true,
+                    }))
+                  }
+                  placeholder="0"
+                  className={LEFT_PANEL_CONTROL_CLASS}
+                />
+                {!canEditFinalTotal ? (
+                  <p className="mt-2 text-sm font-semibold text-[#818997]">
+                    Ручное изменение доступно сотруднику с правом.
+                  </p>
+                ) : null}
               </LeftPanelField>
 
               <LeftPanelField label="Комментарий к записи">
@@ -1173,12 +1240,17 @@ export function JournalAppointmentScreen({
                           <LeftPanelField label="Сотрудник">
                             <select
                               value={desktopDraft.staffId}
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const nextStaffId = event.target.value;
+                                const nextServices = servicesForStaff(services, nextStaffId);
                                 setDesktopDraft((prev) => ({
                                   ...prev,
-                                  staffId: event.target.value,
-                                }))
-                              }
+                                  staffId: nextStaffId,
+                                  serviceIds: prev.serviceIds.filter((serviceId) =>
+                                    nextServices.some((item) => item.id === serviceId),
+                                  ),
+                                }));
+                              }}
                               className={LEFT_PANEL_CONTROL_CLASS}
                             >
                               {availableStaff.map((item) => (
@@ -1209,8 +1281,8 @@ export function JournalAppointmentScreen({
                           <LeftPanelField label="Услуги записи">
                             <div className="rounded-[22px] border border-[#d7dde6] bg-white p-3">
                               <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
-                                {services.length > 0 ? (
-                                  services.map((item) => {
+                                {staffServices.length > 0 ? (
+                                  staffServices.map((item) => {
                                     const active = desktopDraft.serviceIds.includes(item.id);
                                     return (
                                       <button
@@ -1239,7 +1311,7 @@ export function JournalAppointmentScreen({
                                   })
                                 ) : (
                                   <p className="px-2 py-3 text-sm font-semibold text-[#818997]">
-                                    Список услуг недоступен.
+                                    У выбранного сотрудника нет назначенных услуг.
                                   </p>
                                 )}
                               </div>
@@ -1250,6 +1322,36 @@ export function JournalAppointmentScreen({
                                   : 'Без услуги'}
                               </div>
                             </div>
+                          </LeftPanelField>
+
+                          <LeftPanelField label="Стоимость записи">
+                            <input
+                              type="number"
+                              min={0}
+                              step={100}
+                              value={
+                                canEditFinalTotal
+                                  ? desktopDraft.finalTotal
+                                  : appointmentAmountValue(appointment) === null
+                                    ? ''
+                                    : String(appointmentAmountValue(appointment))
+                              }
+                              disabled={!canEditFinalTotal}
+                              onChange={(event) =>
+                                setDesktopDraft((prev) => ({
+                                  ...prev,
+                                  finalTotal: event.target.value,
+                                  finalTotalManuallyChanged: true,
+                                }))
+                              }
+                              placeholder="0"
+                              className={LEFT_PANEL_CONTROL_CLASS}
+                            />
+                            {!canEditFinalTotal ? (
+                              <p className="mt-2 text-sm font-semibold text-[#818997]">
+                                Ручное изменение доступно сотруднику с правом.
+                              </p>
+                            ) : null}
                           </LeftPanelField>
 
                           <LeftPanelField label="Время и Длительность записи">
@@ -1482,9 +1584,9 @@ export function JournalAppointmentScreen({
                       </div>
 
                       <div className="mt-8">
-                        {services.length > 0 ? (
+                        {staffServices.length > 0 ? (
                           <div className="grid gap-3 xl:grid-cols-2">
-                            {services.map((item) => {
+                            {staffServices.map((item) => {
                               const active = desktopDraft.serviceIds.includes(item.id);
                               return (
                                 <button
@@ -1515,7 +1617,7 @@ export function JournalAppointmentScreen({
                           </div>
                         ) : (
                           <p className="text-base font-semibold text-[#818997]">
-                            Список услуг недоступен. Обновите данные и попробуйте снова.
+                            У выбранного сотрудника нет назначенных услуг.
                           </p>
                         )}
                         {selectedDraftServices.length > 0 ? (

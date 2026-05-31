@@ -245,6 +245,7 @@ export type JournalAppointmentPatch = {
   serviceIds: string[];
   startAt: Date;
   endAt: Date;
+  finalTotalPrice: number | null;
   status: string;
   comment: string;
   paidAmount: number | null;
