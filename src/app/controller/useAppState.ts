@@ -35,7 +35,7 @@ import type {
 } from '../types';
 
 function loadJournalSettings(): JournalSettings {
-  if (typeof window === 'undefined' || !window.localStorage) {
+  if (typeof window === 'undefined') {
     return DEFAULT_JOURNAL_SETTINGS;
   }
 

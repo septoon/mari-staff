@@ -580,7 +580,7 @@ export function useAppController(): AppController {
   }, [page, tab]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.localStorage) {
+    if (typeof window === 'undefined') {
       return;
     }
     try {
@@ -1333,14 +1333,12 @@ export function useAppController(): AppController {
 
   useEffect(() => {
     const restore = async () => {
-      const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-      if (!raw) {
-        setLoadingKey(setLoading, 'boot', false);
-        return;
-      }
-
       let parsed: StaffSession | null = null;
       try {
+        const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+        if (!raw) {
+          return;
+        }
         parsed = JSON.parse(raw) as StaffSession;
         api.setSession(parsed);
         const refreshed = await api.refresh();
@@ -1348,7 +1346,6 @@ export function useAppController(): AppController {
       } catch (error) {
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
           api.clearSession();
-          localStorage.removeItem(SESSION_STORAGE_KEY);
           return;
         }
         if (parsed) {
@@ -1366,10 +1363,7 @@ export function useAppController(): AppController {
 
   useEffect(() => {
     api.setSession(session);
-    if (session) {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    } else {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
+    if (!session) {
       setAccessDeniedPath('');
     }
   }, [session, setAccessDeniedPath]);

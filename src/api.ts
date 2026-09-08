@@ -386,18 +386,47 @@ class ApiClient {
       headers.Authorization = `Bearer ${this.accessToken}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers,
-    });
-
-    const parsed = await response.json().catch(() => null);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (init.signal?.aborted) {
+      controller.abort();
+    } else {
+      init.signal?.addEventListener('abort', abort, { once: true });
+    }
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, path.startsWith('/auth/') ? 15_000 : 60_000);
+    let response: Response;
+    let parsed: unknown;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers,
+        signal: controller.signal,
+      });
+      parsed = await response.json().catch((error) => {
+        if (controller.signal.aborted) throw error;
+        return null;
+      });
+    } catch (error) {
+      if (timedOut) {
+        throw new ApiError('Сервер не ответил вовремя. Повторите попытку.', 408, 'REQUEST_TIMEOUT');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      init.signal?.removeEventListener('abort', abort);
+    }
     const envelope = parsed as ApiEnvelope<T> | null;
     if (response.status === 401 && allowRefresh && this.refreshToken && auth) {
       try {
         await this.refresh();
       } catch (error) {
-        this.clearSession();
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          this.clearSession();
+        }
         throw error;
       }
       return this.request<T>(path, init, { ...options, allowRefresh: false });
@@ -446,7 +475,7 @@ class ApiClient {
   }
 
   private persistSession(session: StaffSession | null) {
-    if (typeof window === 'undefined' || !window.localStorage) {
+    if (typeof window === 'undefined') {
       return;
     }
     try {
