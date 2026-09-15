@@ -896,7 +896,7 @@ export function JournalAppointmentScreen({
                       dateValue: nativeDateToDraftValue(event.target.value),
                     }))
                   }
-                  className={LEFT_PANEL_CONTROL_CLASS}
+                  className={`${LEFT_PANEL_CONTROL_CLASS} native-picker-input`}
                 />
                 <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 min-[640px]:grid-cols-2">
                   <input
@@ -904,14 +904,14 @@ export function JournalAppointmentScreen({
                     onChange={(event) => handleStartTimeChange(event.target.value)}
                     type="time"
                     step={1800}
-                    className={LEFT_PANEL_CONTROL_CLASS}
+                    className={`${LEFT_PANEL_CONTROL_CLASS} native-picker-input`}
                   />
                   <input
                     value={desktopDraft.endTime}
                     onChange={(event) => handleEndTimeChange(event.target.value)}
                     type="time"
                     step={1800}
-                    className={LEFT_PANEL_CONTROL_CLASS}
+                    className={`${LEFT_PANEL_CONTROL_CLASS} native-picker-input`}
                   />
                 </div>
                 <select
@@ -1299,7 +1299,7 @@ export function JournalAppointmentScreen({
                                     dateValue: nativeDateToDraftValue(event.target.value),
                                   }))
                                 }
-                                className={`${LEFT_PANEL_CONTROL_CLASS} pr-14`}
+                                className={`${LEFT_PANEL_CONTROL_CLASS} native-picker-input pr-14`}
                               />
                               <CalendarDays className="pointer-events-none absolute right-5 top-1/2 h-6 w-6 -translate-y-1/2 text-[#8d95a1]" />
                             </div>
@@ -1389,7 +1389,7 @@ export function JournalAppointmentScreen({
                                   onChange={(event) => handleStartTimeChange(event.target.value)}
                                   type="time"
                                   step={1800}
-                                  className={`${LEFT_PANEL_CONTROL_CLASS} pr-12`}
+                                  className={`${LEFT_PANEL_CONTROL_CLASS} native-picker-input pr-12`}
                                 />
                                 <button
                                   type="button"
@@ -1406,7 +1406,7 @@ export function JournalAppointmentScreen({
                                   onChange={(event) => handleEndTimeChange(event.target.value)}
                                   type="time"
                                   step={1800}
-                                  className={`${LEFT_PANEL_CONTROL_CLASS} pr-12`}
+                                  className={`${LEFT_PANEL_CONTROL_CLASS} native-picker-input pr-12`}
                                 />
                                 <button
                                   type="button"
