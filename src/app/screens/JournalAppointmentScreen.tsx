@@ -230,7 +230,31 @@ function parseDateDraftValue(value: string) {
   }
   const [, day, month, year] = match;
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() !== Number(month) - 1 ||
+    parsed.getDate() !== Number(day)
+    ? null
+    : parsed;
+}
+
+function dateDraftToNativeValue(value: string) {
+  const date = parseDateDraftValue(value);
+  if (!date) {
+    return '';
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+function nativeDateToDraftValue(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return '';
+  }
+  const [, year, month, day] = match;
+  return `${day}.${month}.${year}`;
 }
 
 function combineDraftDateTime(dateValue: string, timeValue: string) {
@@ -333,7 +357,7 @@ function LeftPanelField({
   children: ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <p className="text-[15px] font-medium text-[#737b88]">{label}</p>
       <div className="mt-3">{children}</div>
     </label>
@@ -341,7 +365,7 @@ function LeftPanelField({
 }
 
 const LEFT_PANEL_CONTROL_CLASS =
-  'h-16 w-full rounded-[18px] border border-[#d7dde6] bg-white px-5 text-[17px] font-semibold text-ink outline-none transition focus:border-[#c0c8d4]';
+  'h-16 min-w-0 max-w-full w-full rounded-[18px] border border-[#d7dde6] bg-white px-5 text-[17px] font-semibold text-ink outline-none transition focus:border-[#c0c8d4]';
 
 const EMPTY_DESKTOP_DRAFT: DesktopAppointmentDraft = {
   clientName: '',
@@ -695,7 +719,7 @@ export function JournalAppointmentScreen({
 
   return (
     <>
-      <div className="pb-6 pt-4 md:hidden">
+      <div className="min-w-0 max-w-full overflow-x-hidden pb-6 pt-4 md:hidden">
         <div className="mb-4 flex items-center gap-3 border-b border-line pb-3">
           <button type="button" onClick={onBack} className="rounded-lg p-2 text-ink">
             <ArrowLeft className="h-6 w-6" />
@@ -714,7 +738,7 @@ export function JournalAppointmentScreen({
           ) : null}
         </div>
 
-        <section className="mt-5 rounded-3xl border border-line bg-screen p-4">
+        <section className="mt-5 min-w-0 max-w-full rounded-3xl border border-line bg-screen p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-start gap-3">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#e8edf4] text-[22px] font-extrabold text-[#626b78]">
@@ -771,7 +795,7 @@ export function JournalAppointmentScreen({
           ) : null}
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-5 grid min-w-0 grid-cols-2 gap-3">
             {infoTileTitle('Визитов', String(visitsCount))}
             {infoTileTitle('Неявок', String(noShowCount))}
             {infoTileTitle(
@@ -785,7 +809,7 @@ export function JournalAppointmentScreen({
         </section>
 
         {desktopEditing ? (
-          <section className="mt-5 rounded-3xl border border-line bg-[#f7f9fc] p-4">
+          <section className="mt-5 min-w-0 max-w-full rounded-3xl border border-line bg-[#f7f9fc] p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[24px] font-extrabold text-ink">Редактирование</h2>
               {loading ? <Loader2 className="h-5 w-5 animate-spin text-muted" /> : null}
@@ -864,14 +888,17 @@ export function JournalAppointmentScreen({
 
               <LeftPanelField label="Дата и время">
                 <input
-                  value={desktopDraft.dateValue}
+                  type="date"
+                  value={dateDraftToNativeValue(desktopDraft.dateValue)}
                   onChange={(event) =>
-                    setDesktopDraft((prev) => ({ ...prev, dateValue: event.target.value }))
+                    setDesktopDraft((prev) => ({
+                      ...prev,
+                      dateValue: nativeDateToDraftValue(event.target.value),
+                    }))
                   }
-                  placeholder="ДД.ММ.ГГГГ"
                   className={LEFT_PANEL_CONTROL_CLASS}
                 />
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 min-[640px]:grid-cols-2">
                   <input
                     value={desktopDraft.startTime}
                     onChange={(event) => handleStartTimeChange(event.target.value)}
@@ -1262,16 +1289,16 @@ export function JournalAppointmentScreen({
                           </LeftPanelField>
 
                           <LeftPanelField label="Дата">
-                            <div className="relative">
+                            <div className="relative min-w-0">
                               <input
-                                value={desktopDraft.dateValue}
+                                type="date"
+                                value={dateDraftToNativeValue(desktopDraft.dateValue)}
                                 onChange={(event) =>
                                   setDesktopDraft((prev) => ({
                                     ...prev,
-                                    dateValue: event.target.value,
+                                    dateValue: nativeDateToDraftValue(event.target.value),
                                   }))
                                 }
-                                placeholder="ДД.ММ.ГГГГ"
                                 className={`${LEFT_PANEL_CONTROL_CLASS} pr-14`}
                               />
                               <CalendarDays className="pointer-events-none absolute right-5 top-1/2 h-6 w-6 -translate-y-1/2 text-[#8d95a1]" />
@@ -1355,7 +1382,7 @@ export function JournalAppointmentScreen({
                           </LeftPanelField>
 
                           <LeftPanelField label="Время и Длительность записи">
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid min-w-0 grid-cols-1 gap-3 min-[390px]:grid-cols-2">
                               <div className="relative">
                                 <input
                                   value={desktopDraft.startTime}

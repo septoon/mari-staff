@@ -634,7 +634,7 @@ export function AppView({ controller }: AppViewProps) {
       <main
         ref={mainScrollRef}
         className={clsx(
-          'app-main-scroll scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-6',
+          'app-main-scroll scrollbar-hidden min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-6',
           shouldRaiseMobilePageAboveNav ? 'relative z-[60] bg-screen md:z-auto' : undefined,
           showDesktopRail ? 'md:pl-[444px] md:pr-6' : undefined,
           isJournalMainPage
