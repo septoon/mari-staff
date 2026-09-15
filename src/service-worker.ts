@@ -10,6 +10,7 @@ import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
 declare const self: ServiceWorkerGlobalScope;
 
 clientsClaim();
+self.skipWaiting();
 precacheAndRoute(self.__WB_MANIFEST);
 
 const fileExtensionRegexp = new RegExp('/[^/?]+\\.[^/]+$');
