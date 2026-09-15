@@ -605,7 +605,6 @@ export function JournalAppointmentScreen({
       paidAmount: desktopDraft.paidAmount.trim() ? Number(desktopDraft.paidAmount) : null,
       paymentMethod: desktopDraft.paymentMethod || null,
     });
-    setDesktopEditing(false);
   };
   const displayStaffName = selectedStaff?.name || appointment.staffName;
   const displayStaffSubtitle =

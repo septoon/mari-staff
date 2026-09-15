@@ -578,6 +578,7 @@ export function useAppController(): AppController {
   const pageRef = useRef(page);
   const tabRef = useRef(tab);
   const initialDataLoadedRef = useRef(false);
+  const appointmentWriteInFlightRef = useRef(false);
 
   useEffect(() => {
     pageRef.current = page;
@@ -2771,6 +2772,10 @@ export function useAppController(): AppController {
           }
         : undefined;
 
+    if (appointmentWriteInFlightRef.current) {
+      return;
+    }
+    appointmentWriteInFlightRef.current = true;
     setLoadingKey(setLoading, 'action', true);
     try {
       const data = await api.patch<unknown>(`/appointments/${appointment.id}`, {
@@ -2803,9 +2808,11 @@ export function useAppController(): AppController {
         ]);
       }
       setToast('Запись обновлена');
+      handleCloseJournalAppointment();
     } catch (error) {
       setToast(formatJournalCreateSaveError(error));
     } finally {
+      appointmentWriteInFlightRef.current = false;
       setLoadingKey(setLoading, 'action', false);
     }
   };
@@ -3286,6 +3293,10 @@ export function useAppController(): AppController {
       return;
     }
 
+    if (appointmentWriteInFlightRef.current) {
+      return;
+    }
+    appointmentWriteInFlightRef.current = true;
     const payload = buildJournalCreateAppointmentPayload({
       startAt: start,
       endAt: end,
@@ -3300,7 +3311,6 @@ export function useAppController(): AppController {
     setLoadingKey(setLoading, 'action', true);
     try {
       const created = await api.post<unknown>('/appointments', payload);
-      const parsed = parseAppointment(created);
       setSelectedDate(start);
       let telegramError = false;
       try {
@@ -3324,17 +3334,11 @@ export function useAppController(): AppController {
         loadJournalListAppointments(),
         loadJournalMarkedDates(start),
       ]);
-      if (parsed) {
-        handleOpenJournalAppointment(parsed);
-        setPage('journalAppointment');
-        setTab('journal');
-      } else {
-        setPage('tabs');
-        setTab('journal');
-      }
+      handleCloseJournalAppointment();
     } catch (error) {
       setToast(formatJournalCreateSaveError(error));
     } finally {
+      appointmentWriteInFlightRef.current = false;
       setLoadingKey(setLoading, 'action', false);
     }
   };
