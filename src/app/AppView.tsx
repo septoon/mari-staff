@@ -1186,10 +1186,13 @@ export function AppView({ controller }: AppViewProps) {
             sections={state.settingsNotificationSections}
             minNoticeMinutes={state.settingsNotificationMinNoticeMinutes}
             canEdit={state.canEditSettings}
+            canEditChannels={Boolean(state.session)}
+            isPersonalOnly={state.session?.staff.role !== 'OWNER'}
             loading={state.loading.settings || state.loading.action}
             onBack={actions.closeSettingsNotificationsPage}
             onSaveMinNotice={actions.saveNotificationMinNoticeMinutes}
             onToggle={actions.toggleNotificationSetting}
+            onToggleChannel={actions.toggleNotificationChannel}
           />
         ) : null}
         {state.page === 'privacyPolicy' ? (

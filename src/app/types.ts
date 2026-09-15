@@ -267,10 +267,15 @@ export type NotificationItem = {
   mode: 'new' | 'delete';
 };
 
+export type NotificationChannel = 'email' | 'push';
+
 export type SettingsNotificationItem = {
   id: string;
   title: string;
   enabled: boolean;
+  channels: NotificationChannel[];
+  emailEnabled: boolean;
+  pushEnabled: boolean;
   channel: 'email';
   channelLabel: string;
 };
@@ -572,6 +577,11 @@ export type ControllerActions = {
   handleMoreAction: (title: string) => Promise<void>;
   saveNotificationMinNoticeMinutes: (value: number) => Promise<boolean>;
   toggleNotificationSetting: (id: string, enabled: boolean) => Promise<void>;
+  toggleNotificationChannel: (
+    id: string,
+    channel: NotificationChannel,
+    enabled: boolean,
+  ) => Promise<void>;
   openEditorServicesPanel: () => void;
   setStaffServicesEditorQuery: (value: string) => void;
   toggleStaffServiceSelection: (serviceId: string) => void;

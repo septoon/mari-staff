@@ -30,6 +30,7 @@ import type {
   AppointmentItem,
   ClientItem,
   LoadingState,
+  NotificationChannel,
   ScheduleInterval,
   SettingsNotificationSection,
   ServiceCategoryItem,
@@ -501,10 +502,18 @@ export function useDataLoaders({
                   if (!id || !title) {
                     return null;
                   }
+                  const channels = Array.isArray(itemRecord?.channels)
+                    ? (itemRecord?.channels as unknown[]).filter(
+                        (value): value is NotificationChannel => value === 'email' || value === 'push',
+                      )
+                    : ['email' as const];
                   return {
                     id,
                     title,
                     enabled: Boolean(itemRecord?.enabled),
+                    channels,
+                    emailEnabled: typeof itemRecord?.emailEnabled === 'boolean' ? itemRecord.emailEnabled : true,
+                    pushEnabled: typeof itemRecord?.pushEnabled === 'boolean' ? itemRecord.pushEnabled : true,
                     channel: 'email' as const,
                     channelLabel: toString(itemRecord?.channelLabel) || 'Эл. почта',
                   };

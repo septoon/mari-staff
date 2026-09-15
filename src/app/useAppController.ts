@@ -101,6 +101,7 @@ import type {
   ServiceItem,
   StaffItem,
   StaffSession,
+  NotificationChannel,
   TabKey,
 } from './types';
 
@@ -659,14 +660,14 @@ export function useAppController(): AppController {
   const canAccessMoreAction = useCallback(
     (title: string) => {
       if (title === 'Настройки') {
-        return canEditSettings;
+        return Boolean(session);
       }
       if (title === 'Поддержка') {
         return true;
       }
       return hasPermissionAccess(MORE_ACTION_PERMISSION_CODE[title]);
     },
-    [canEditSettings, hasPermissionAccess],
+    [hasPermissionAccess, session],
   );
   const moreMenu = useMemo(
     () => MORE_MENU.filter((item) => canAccessMoreAction(item.title)),
@@ -735,7 +736,7 @@ export function useAppController(): AppController {
         return canEdit(EDIT_PERMISSION.staff);
       }
       if (nextPage === 'settings' || nextPage === 'settingsNotifications') {
-        return canEditSettings;
+        return true;
       }
       if (nextPage === 'privacyPolicy' || nextPage === 'clientSiteEditor') {
         return canEditPrivacyPolicy;
@@ -756,7 +757,6 @@ export function useAppController(): AppController {
       canCreateJournalAppointments,
       canEdit,
       canEditPrivacyPolicy,
-      canEditSettings,
       canViewClients,
       canViewJournal,
       canViewReports,
@@ -4794,6 +4794,46 @@ export function useAppController(): AppController {
     }
   };
 
+  const toggleNotificationChannel = async (
+    id: string,
+    channel: NotificationChannel,
+    enabled: boolean,
+  ) => {
+    const previousSections = settingsNotificationSections;
+    setSettingsNotificationSections((current) =>
+      current.map((section) => ({
+        ...section,
+        groups: section.groups.map((group) => ({
+          ...group,
+          items: group.items.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  ...(channel === 'email'
+                    ? { emailEnabled: enabled }
+                    : { pushEnabled: enabled }),
+                }
+              : item,
+          ),
+        })),
+      })),
+    );
+    setLoadingKey(setLoading, 'action', true);
+    try {
+      await api.patch<unknown>('/settings/notifications/channels', {
+        notificationId: id,
+        channel,
+        enabled,
+      });
+      await loadSettings();
+    } catch (error) {
+      setSettingsNotificationSections(previousSections);
+      setToast(toErrorMessage(error));
+    } finally {
+      setLoadingKey(setLoading, 'action', false);
+    }
+  };
+
   const openEditorServicesPanel = () => {
     if (!canEdit(EDIT_PERMISSION.staff)) {
       setToast('Нет прав на редактирование сотрудников');
@@ -6352,6 +6392,7 @@ export function useAppController(): AppController {
       handleMoreAction,
       saveNotificationMinNoticeMinutes,
       toggleNotificationSetting,
+      toggleNotificationChannel,
       openEditorServicesPanel,
       setStaffServicesEditorQuery,
       toggleStaffServiceSelection,

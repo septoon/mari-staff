@@ -1,4 +1,4 @@
-import { ArrowLeft, BellRing, ChevronRight, Mail } from 'lucide-react';
+import { ArrowLeft, BellRing, ChevronRight, Mail, Smartphone } from 'lucide-react';
 
 type SettingsScreenProps = {
   notificationCount: number;
@@ -32,8 +32,8 @@ export function SettingsScreen({
 
         <section className="mt-5 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
           <p className="text-sm font-semibold leading-6 text-[#707a88]">
-            Здесь собраны служебные настройки салона. Сейчас доступен раздел с уведомлениями по
-            эл. почте для клиентов, администраторов и сотрудников.
+            Здесь собраны служебные настройки салона. Владелец управляет сценариями, а каждый
+            сотрудник выбирает личные каналы получения уведомлений.
           </p>
         </section>
 
@@ -61,6 +61,8 @@ export function SettingsScreen({
             <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#eff3f7] px-3 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#5e6776]">
               <Mail className="h-3.5 w-3.5" />
               Эл. почта
+              <Smartphone className="ml-1 h-3.5 w-3.5" />
+              Push
             </span>
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-[#98a1ae]" />
@@ -69,7 +71,7 @@ export function SettingsScreen({
         <p className="mt-3 text-sm font-semibold leading-6 text-[#707a88]">
           {canEdit
             ? 'Изменения сохраняются сразу после переключения или после нажатия на кнопку сохранения.'
-            : 'Просмотр доступен всем сотрудникам, изменение только владельцу.'}
+            : 'Сотрудник может настроить личные каналы; глобальные сценарии изменяет только владелец.'}
         </p>
       </div>
 
@@ -82,9 +84,8 @@ export function SettingsScreen({
                 Настройки
               </h1>
               <p className="mt-3 max-w-[720px] text-[16px] font-semibold leading-7 text-[#748091]">
-                Служебные разделы салона. Раздел уведомлений отвечает за письма по эл. почте для
-                клиентов, администраторов и сотрудников, а также за время отправки напоминания
-                перед визитом.
+                Служебные разделы салона. Раздел уведомлений отвечает за сценарии, эл. почту и
+                push-канал, а также за время отправки напоминания перед визитом.
               </p>
             </div>
 
@@ -112,7 +113,7 @@ export function SettingsScreen({
                     Эл. почта
                   </p>
                   <p className="mt-3 text-sm font-semibold leading-7 text-[#748091]">
-                    Все уведомления на этой странице работают только через SMTP.
+                    Email и push работают параллельно; отключение push не влияет на SMTP.
                   </p>
                 </div>
               </div>
@@ -153,8 +154,8 @@ export function SettingsScreen({
                 Уведомления
               </h2>
               <p className="mt-3 max-w-[720px] text-[16px] font-semibold leading-7 text-[#748091]">
-                Управление письмами по группам: клиентам, администраторам и сотрудникам. Внутри
-                раздела можно включать и выключать каждый сценарий отдельно.
+                Управление сценариями и каналами: эл. почта и push. Сотрудники настраивают только
+                свои каналы, владелец дополнительно управляет глобальными сценариями.
               </p>
             </div>
 
@@ -162,6 +163,8 @@ export function SettingsScreen({
               <span className="inline-flex items-center gap-2 rounded-full bg-[#eff3f7] px-3 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-[#5e6776]">
                 <Mail className="h-3.5 w-3.5" />
                 Эл. почта
+                <Smartphone className="ml-1 h-3.5 w-3.5" />
+                Push
               </span>
               <span className="inline-flex items-center gap-2 text-sm font-bold text-ink">
                 Открыть раздел
