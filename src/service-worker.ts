@@ -56,6 +56,57 @@ registerRoute(
   })
 );
 
+type WebPushPayload = {
+  title?: string;
+  body?: string;
+  icon?: string;
+  badge?: string;
+  url?: string;
+  appointmentId?: string;
+  notificationId?: string;
+};
+
+self.addEventListener('push', event => {
+  const payload = (() => {
+    try {
+      return event.data?.json() as WebPushPayload | undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const title = payload?.title?.trim() || 'Mari Staff';
+  const body = payload?.body?.trim() || 'Новое уведомление';
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: payload?.icon || '/logo192.png',
+      badge: payload?.badge || '/logo192.png',
+      data: {
+        url: payload?.url || '/journal',
+        appointmentId: payload?.appointmentId,
+        notificationId: payload?.notificationId,
+      },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || '/journal', self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      const existing = windowClients.find(client => client.url.startsWith(self.location.origin));
+      if (existing) {
+        return existing.navigate(targetUrl).then(client => client?.focus());
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});
+
 self.addEventListener('message', event => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();

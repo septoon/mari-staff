@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../api';
 import {
+  syncCurrentBrowserWebPushSubscription,
+  unsubscribeCurrentBrowserFromWebPush,
+} from '../webPush';
+import {
   DEFAULT_JOURNAL_SETTINGS,
   DEFAULT_STAFF_ROLE,
   EMPTY_OWNER_DRAFT,
@@ -1369,6 +1373,13 @@ export function useAppController(): AppController {
   }, [session, setAccessDeniedPath]);
 
   useEffect(() => {
+    if (!session) {
+      return;
+    }
+    void syncCurrentBrowserWebPushSubscription().catch(() => undefined);
+  }, [session]);
+
+  useEffect(() => {
     if (loading.boot) {
       return;
     }
@@ -1880,6 +1891,7 @@ export function useAppController(): AppController {
   const handleLogout = async () => {
     setLoadingKey(setLoading, 'action', true);
     try {
+      await unsubscribeCurrentBrowserFromWebPush().catch(() => undefined);
       await api.logout();
     } finally {
       setLoadingKey(setLoading, 'action', false);

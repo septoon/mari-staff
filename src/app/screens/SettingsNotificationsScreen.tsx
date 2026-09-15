@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BellRing, ChevronDown, ChevronUp, Clock3, Loader2, Mail } from 'lucide-react';
+import { ArrowLeft, BellOff, BellRing, CheckCircle2, ChevronDown, ChevronUp, Clock3, Loader2, Mail } from 'lucide-react';
 import { InputSwitch } from 'primereact/inputswitch';
 import type { NotificationChannel, SettingsNotificationItem, SettingsNotificationSection } from '../types';
+import { useWebPushSubscription } from '../useWebPushSubscription';
 
 type SettingsNotificationsScreenProps = {
   sections: SettingsNotificationSection[];
@@ -44,6 +45,7 @@ export function SettingsNotificationsScreen({
 }: SettingsNotificationsScreenProps) {
   const [draftMinNotice, setDraftMinNotice] = useState(String(minNoticeMinutes ?? 120));
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([]);
+  const webPush = useWebPushSubscription(canEditChannels);
 
   const visibleSections = useMemo(
     () => (isPersonalOnly ? sections.filter((section) => section.id === 'staff') : sections),
@@ -80,6 +82,37 @@ export function SettingsNotificationsScreen({
   const saveMinNotice = () => {
     void onSaveMinNotice(Number(draftMinNotice));
   };
+
+  const toggleChannel = async (
+    id: string,
+    channel: NotificationChannel,
+    enabled: boolean,
+  ) => {
+    if (channel === 'push' && enabled && webPush.state !== 'subscribed') {
+      const activated = await webPush.activate();
+      if (!activated) {
+        return;
+      }
+    }
+    await onToggleChannel(id, channel, enabled);
+  };
+
+  const webPushDescription = (() => {
+    switch (webPush.state) {
+      case 'subscribed':
+        return 'Этот браузер зарегистрирован и может получать push.';
+      case 'denied':
+        return 'Уведомления запрещены в настройках браузера или устройства.';
+      case 'unsupported':
+        return 'На iPhone добавьте Staff на экран «Домой», затем откройте настройки из PWA.';
+      case 'unavailable':
+        return 'Web Push пока недоступен на сервере.';
+      case 'checking':
+        return 'Проверяем поддержку и подписку браузера…';
+      default:
+        return 'Включите push отдельно на каждом устройстве, где работаете со Staff.';
+    }
+  })();
 
   return (
     <div className="pb-8 pt-6">
@@ -137,6 +170,40 @@ export function SettingsNotificationsScreen({
           Выберите каналы, через которые хотите получать уведомления о своих записях.
         </p>
       )}
+
+      {canEditChannels ? (
+        <section className="mt-5 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#fff6cf] text-[#9b7a06]">
+              {webPush.state === 'subscribed' ? <CheckCircle2 className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#98a1ae]">Push на этом устройстве</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#707a88]">{webPushDescription}</p>
+              {webPush.error ? <p className="mt-2 text-sm font-semibold text-[#b54747]">{webPush.error}</p> : null}
+            </div>
+          </div>
+          {webPush.state === 'subscribed' ? (
+            <button
+              type="button"
+              onClick={() => void webPush.deactivate()}
+              disabled={webPush.busy}
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-2xl border border-[#d9dfe8] bg-white px-4 text-sm font-extrabold text-[#5e6776] disabled:opacity-60"
+            >
+              {webPush.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Отключить на устройстве'}
+            </button>
+          ) : webPush.state === 'unsubscribed' || webPush.state === 'denied' ? (
+            <button
+              type="button"
+              onClick={() => void webPush.activate()}
+              disabled={webPush.busy || webPush.state === 'denied'}
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-2xl bg-[#f4c900] px-4 text-sm font-extrabold text-[#202733] disabled:opacity-60"
+            >
+              {webPush.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Включить push'}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="mt-5 rounded-[28px] border border-[#e2e6ed] bg-[#fcfcfd] p-5 shadow-[0_16px_34px_rgba(42,49,56,0.08)]">
         <div className="flex items-center gap-3">
@@ -203,7 +270,7 @@ export function SettingsNotificationsScreen({
                                     <InputSwitch
                                       checked={channelEnabled(item, channel)}
                                       disabled={!canEditChannels || loading}
-                                      onChange={(event) => void onToggleChannel(item.id, channel, Boolean(event.value))}
+                                      onChange={(event) => void toggleChannel(item.id, channel, Boolean(event.value))}
                                       className="journal-settings-switch"
                                       aria-label={`${item.title}: ${channelLabel(channel)}`}
                                     />
